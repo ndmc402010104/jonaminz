@@ -4,7 +4,8 @@
 - registerExternalApp：外部專案自己的頁面載入時回報「我上線了」，upsert 進 Supabase。
 - listExternalAppRegistrations：後台讀取回報清單。
 
-機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY），
+機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
+Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
 不寫死在程式碼裡，也不會回傳給前端。
 */
 
@@ -60,8 +61,8 @@ function json(data, status) {
 
 function supabaseHeaders(env) {
   return {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY,
+    apikey: env.SUPABASE_SECRET_KEY,
+    Authorization: "Bearer " + env.SUPABASE_SECRET_KEY,
     "Content-Type": "application/json"
   };
 }

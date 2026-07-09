@@ -3,8 +3,8 @@
 只做一件事：接收外部專案「我上線了」的回報（registerExternalApp），存進 Supabase，
 後台可以讀出來看「誰接進來、最後一次回報是什麼時候」。
 
-機密（Supabase service role key）只存在 Cloudflare Worker 的 secret 裡，不會出現在
-這個 repo、對話紀錄或前端程式碼中。
+機密（Supabase secret key，新版命名 `sb_secret_...`，不是 `sb_publishable_...`）只存在
+Cloudflare Worker 的 secret 裡，不會出現在這個 repo、對話紀錄或前端程式碼中。
 
 ## 1. Supabase：建表
 
@@ -23,10 +23,10 @@ npx wrangler deploy         # 部署，完成後會印出 Worker 網址，例如
 
 ```bash
 npx wrangler secret put SUPABASE_URL
-# 貼你的 Supabase 專案網址，例如 https://xxxxx.supabase.co
+# 貼你的 Supabase 專案網址，例如 https://xxxxx.supabase.co（這個不是機密）
 
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-# 貼 Supabase 專案設定 → API → service_role key（不是 anon key）
+npx wrangler secret put SUPABASE_SECRET_KEY
+# 貼 Supabase 專案設定 → API Keys → secret key（sb_secret_ 開頭，不是 sb_publishable_）
 ```
 
 ## 3. 把 Worker 網址接進 jonaminz

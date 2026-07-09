@@ -59,7 +59,7 @@
 
   "backend": {
     "worker": {
-      "baseUrl": ""
+      "baseUrl": "https://jonaminz-backend.ndmc402010104.workers.dev"
     }
   }
 }
