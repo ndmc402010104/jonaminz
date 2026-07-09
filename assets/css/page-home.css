@@ -32,14 +32,12 @@ body {
   inset: 16px;
   border-radius: 34px;
   overflow: hidden;
-  background-image: linear-gradient(135deg, #1c2b1e 0%, #0f1710 60%, #050705 100%);
+  background-image: url("/assets/img/home-hero.jpg");
   background-size: cover;
   background-position: center 49%;
   box-shadow: var(--shadow-lg);
   z-index: -3;
 }
-/* TODO: 換成真正的照片，等照片檔案存到 /assets/img/home-hero.jpg 之後改成：
-   background-image: url("/assets/img/home-hero.jpg"); */
 
 .photo::after {
   content: "";
