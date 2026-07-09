@@ -29,28 +29,59 @@
   padding: var(--space-5);
 }
 
-.jonaminz-theme-swatches {
+.jonaminz-theme-token-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-4);
 }
 
-.jonaminz-theme-swatch {
+.jonaminz-theme-token-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
 }
 
-.jonaminz-theme-swatch-color {
-  display: block;
-  height: 48px;
+.jonaminz-theme-token-label {
+  font-size: var(--text-sm);
+  font-family: ui-monospace, monospace;
+  opacity: 0.8;
+}
+
+.jonaminz-theme-token-input[type="color"] {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: none;
+}
+
+.jonaminz-theme-token-length {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  opacity: 0.8;
+}
+
+.jonaminz-theme-token-length input {
+  width: 64px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
-.jonaminz-theme-swatch-value {
-  font-size: var(--text-xs);
-  opacity: 0.6;
+.jonaminz-theme-save-row {
+  position: sticky;
+  bottom: 0;
+  background: var(--color-bg);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
 }
 
 .jonaminz-theme-scale {
@@ -88,4 +119,41 @@
 .jonaminz-theme-row .card,
 .jonaminz-theme-row .jonaminz-project-card {
   width: 220px;
+}
+
+.jonaminz-theme-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.jonaminz-theme-rule-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: var(--space-2);
+}
+
+.jonaminz-theme-rule-input {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-family: ui-monospace, monospace;
+  font-size: var(--text-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.jonaminz-theme-rule-delete {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .jonaminz-theme-rule-row {
+    grid-template-columns: 1fr;
+  }
 }

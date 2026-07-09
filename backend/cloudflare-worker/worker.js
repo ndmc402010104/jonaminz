@@ -1,8 +1,12 @@
 /*
 檔案位置：jonaminz/backend/cloudflare-worker/worker.js
-用途：jonaminz 水庫唯一後端入口。目前只支援兩個 action：
+用途：jonaminz 水庫唯一後端入口。目前支援四個 action：
 - registerExternalApp：外部專案自己的頁面載入時回報「我上線了」，upsert 進 Supabase。
 - listExternalAppRegistrations：後台讀取回報清單。
+- getThemeCssRules：讀取 Theme（CSS 疊加第 8 層）目前的規則，任何頁面 / 外部專案都能讀
+  （公開、唯讀，selector=":root" 的規則是跨專案共用的 token 介面）。
+- saveThemeCssRules：後台 Theme 頁存檔用，整批覆蓋規則。目前沒有身分驗證保護，
+  是已知的暫時限制（見 backend/README.md）。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -43,6 +47,14 @@ export default {
 
       if (action === "listExternalAppRegistrations") {
         return json(await listExternalAppRegistrations(env), 200);
+      }
+
+      if (action === "getThemeCssRules") {
+        return json(await getThemeCssRules(env), 200);
+      }
+
+      if (action === "saveThemeCssRules") {
+        return json(await saveThemeCssRules(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -120,4 +132,87 @@ async function listExternalAppRegistrations(env) {
   }
 
   return { ok: true, rows: await response.json() };
+}
+
+async function getThemeCssRules(env) {
+  const url =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/theme_css_rules?select=*&order=selector.asc,order_index.asc";
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: supabaseHeaders(env)
+  });
+
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+
+  return { ok: true, rows: await response.json() };
+}
+
+async function saveThemeCssRules(env, payload) {
+  const upsertRows = Array.isArray(payload.upsert) ? payload.upsert : [];
+  const deleteIds = Array.isArray(payload.deleteIds)
+    ? payload.deleteIds.map(function (id) { return Number(id); }).filter(function (id) { return Number.isFinite(id); })
+    : [];
+
+  const result = { upserted: 0, deleted: 0 };
+
+  if (upsertRows.length) {
+    const rows = upsertRows
+      .map(function (item) {
+        return {
+          selector: String(item.selector || "").trim(),
+          property: String(item.property || "").trim(),
+          value: String(item.value || "").trim(),
+          group_name: String(item.groupName || item.group_name || "").trim(),
+          description: String(item.description || "").trim(),
+          order_index: Number(item.orderIndex || item.order_index || 0) || 0,
+          updated_at: new Date().toISOString()
+        };
+      })
+      .filter(function (row) {
+        return row.selector && row.property;
+      });
+
+    if (rows.length) {
+      const url =
+        env.SUPABASE_URL.replace(/\/+$/, "") +
+        "/rest/v1/theme_css_rules?on_conflict=selector,property";
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: Object.assign(supabaseHeaders(env), {
+          Prefer: "resolution=merge-duplicates,return=representation"
+        }),
+        body: JSON.stringify(rows)
+      });
+
+      if (!response.ok) {
+        throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+      }
+
+      result.upserted = (await response.json()).length;
+    }
+  }
+
+  if (deleteIds.length) {
+    const url =
+      env.SUPABASE_URL.replace(/\/+$/, "") +
+      "/rest/v1/theme_css_rules?id=in.(" + deleteIds.join(",") + ")";
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: supabaseHeaders(env)
+    });
+
+    if (!response.ok) {
+      throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+    }
+
+    result.deleted = deleteIds.length;
+  }
+
+  return { ok: true, result: result };
 }

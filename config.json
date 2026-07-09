@@ -42,7 +42,7 @@
       "showInNav": false,
       "entry": {
         "styles": ["/pages/admin/theme/assets/css/page-admin-theme.css"],
-        "afterScripts": ["/pages/admin/theme/assets/js/app.js"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/theme/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     }

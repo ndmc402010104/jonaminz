@@ -59,7 +59,7 @@ jonaminz 是水庫，外部專案是下游用水戶。外部專案要出現在 j
 呼叫 jonaminz 的 Worker（不需要載 jonaminz 任何 JS，直接 fetch 即可）：
 
 ```js
-fetch("https://<jonaminz-worker-domain>/api/action", {
+fetch("https://jonaminz-backend.ndmc402010104.workers.dev/api/action", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -83,7 +83,33 @@ fetch("https://<jonaminz-worker-domain>/api/action", {
 - 這是背景報到，不要 await、不要擋自己頁面的載入或功能。
 - jonaminz 這端只記錄 `last_seen_at`（最後一次回報時間），不會因為沒收到回報就把
   專案從首頁清單移除——移不移除仍然只看 `registry.json` 的 `enabled`。
-- Worker 網址目前尚未對外公開；已串接的專案請跟 jonaminz 管理者要目前的 Worker 網址。
+
+## 4.（選用）套用 jonaminz 的 Theme（共用外觀）
+
+jonaminz 的外觀（顏色、間距、圓角、陰影……）不是寫死的靜態 CSS，是水庫層統一從
+Supabase 讀出來、動態組成 CSS 再套用（見 `assets/js/theme-runtime.js`）。這份檔案
+刻意寫成**不依賴 jonaminz 任何其他程式碼**，外部專案只要加一個 script 標籤就能拿到
+一樣的外觀：
+
+```html
+<script src="https://jonaminz.com/assets/js/theme-runtime.js"></script>
+```
+
+運作方式：
+
+- 這份 script 會去讀 Theme 資料庫，組成 CSS 文字，注入一個 `<style id="jonaminz-theme-runtime">`。
+- selector 是 `:root` 的規則會輸出成 CSS 變數（例如 `--color-primary`），這是**跨專案共用
+  的主要介面**：外部專案不需要認得 jonaminz 的 class 名稱，只要在自己的 CSS 裡引用同樣的
+  變數名稱（`color: var(--color-primary, #6366f1);`，記得寫 fallback 值），就會跟著
+  jonaminz 後台 Theme 頁的設定換外觀。
+- 其他 selector（例如 `.card`、`.btn-primary`）是 jonaminz 自己共用元件的微調，外部專案
+  如果沒有同名 class，這些規則對它就是無害的 no-op。
+- 這份 script 自己管理 localStorage 快取和背景更新，讀不到 Theme 資料庫時會保留外部專案
+  自己原本的 CSS，不會讓頁面壞掉。
+
+原則：**功能性 CSS（版面、互動邏輯）留在各專案自己身邊**，只有外觀（顏色/間距等視覺
+變數）統一從這裡來——這才是水庫真正的意思：水庫負責「外觀」這個共用資源，各專案自己
+負責「功能」怎麼組裝。
 
 ## 誰負責什麼
 
@@ -92,8 +118,10 @@ jonaminz（水庫）擁有：
   registry.json 的 enabled / position / group / order
   卡片外觀（CSS）
   抓取時機與逾時處理（assets/js/registry-loader.js）
+  Theme：全部專案共用的外觀來源（CSS 變數 + 共用元件樣式，見 theme-runtime.js）
 
 外部專案（下游）擁有：
   jonaminz-app.json 的 title / description / href / version
   自己的網域、自己的程式碼、自己的部署
+  自己的功能性 CSS（版面、互動邏輯），只有外觀變數跟著 jonaminz 的 Theme
 ```

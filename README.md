@@ -27,16 +27,19 @@ jonaminz/
       reservoir/             CSS 疊加第 1-6 層，全站共用，每頁都會載入（見下方「CSS 疊加架構」）
       page-home.css          CSS 疊加第 7 層，只有首頁自己載入
     js/
-      entry-core.js          水庫本體：讀 config/version、套 loading gate、依序疊加 reservoir 六層 + 該頁 Page Layer CSS、載 header/footer/registry-loader、載入頁面 app.js
+      entry-core.js          水庫本體：讀 config/version、套 loading gate、依序疊加 reservoir 六層 + 該頁 Page Layer CSS + Theme、載 header/footer/registry-loader、載入頁面 app.js
       header.js              共用 header（水庫 shell 層）
       footer.js              共用 footer（水庫 shell 層），顯示版本
       registry-loader.js     共用 shell 層：讀 registry.json，抓外部專案 manifest 顯示卡片
+      backend-client.js      呼叫 Cloudflare Worker 的統一入口（見 backend/）
+      theme-runtime.js       CSS 疊加第 8 層：讀 Supabase 的 Theme 規則、組 CSS、注入，獨立可攜給外部專案共用
       app.js                 首頁自己的業務入口
   pages/                     未來頁面放這裡，見 pages/README.md
     admin/                   後台頁範例（首頁「登入」按鈕導向這裡）
-      theme/                 Theme 頁：CSS 疊加架構展示櫃，未來會做成拖拉調色的 playground
+      theme/                 Theme 編輯頁：讀寫 Supabase 的 CSS 規則，存檔立即套用
+  backend/                   Cloudflare Worker + Supabase schema，見 backend/README.md
   docs/
-    external-project-manifest.md   外部專案怎麼接進 jonaminz 水庫
+    external-project-manifest.md   外部專案怎麼接進 jonaminz 水庫、怎麼共用 Theme
 ```
 
 所有頁面（包含 `pages/` 底下巢狀的頁面）一律用網站根目錄絕對路徑（開頭 `/`）載入
@@ -57,8 +60,15 @@ jonaminz/
 7. **Page Layer**（每頁自己一份，例如 `assets/css/page-home.css`、
    `pages/admin/assets/css/page-admin.css`）— 由 `config.json` 該頁的
    `entry.styles` 宣告，只有那一頁會載入，放這頁專屬的視覺設計。
-8. **Overrides/Hotfix** — 之後如果需要臨時蓋掉某頁某元件，用該頁 Page Layer 檔案裡
-   `scoped .xxx-page .card {...}` 的寫法疊加，不要回頭改 1-6 層。
+8. **Theme**（`assets/js/theme-runtime.js`）— 動態外觀層，資料來源是 Supabase 的
+   `theme_css_rules`（見 `backend/`），不是靜態檔案。後台 `/pages/admin/theme/` 是編輯
+   介面：改規則存檔後全站（含有載這份 script 的外部專案）立刻換外觀，不用改程式碼或
+   重新部署。這份 script 刻意寫成獨立可攜，外部專案只要加一個 `<script>` 標籤就能共用
+   同一套外觀，細節見 `docs/external-project-manifest.md`。
+
+CSS 屬於「功能」還是「外觀」的判斷原則：**版面/互動邏輯（flex、grid、hover 狀態、
+z-index 這類結構規則）留在 1-7 層，寫在離使用它的元件/頁面最近的地方；顏色/間距/圓角
+/陰影這類純視覺變數統一交給 Theme（第 8 層），不要在 1-7 層寫死視覺數值**。
 
 新增頁面需要專屬樣式時：在該頁資料夾新增一份 CSS（例如 `pages/xxx/assets/css/page-xxx.css`），
 在 `config.json` 該頁 `entry.styles` 陣列裡登錄路徑（根目錄絕對路徑），`entry-core.js`

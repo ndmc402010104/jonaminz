@@ -8,8 +8,9 @@ app-entry.js + entry-core.js 的角色，統一管理：
 - loading gate（css / shell / main 三段，語意與 SKHPS 一致：一個 gate 過了就過了）
 - CSS 疊加：依序載入 assets/css/reservoir/ 六層（reset -> tokens -> base -> layout
   -> components -> variants），再載入目前頁面 config.json 裡 entry.styles 宣告的
-  Page Layer CSS。疊加順序 = 載入順序，後面的檔案可以蓋掉前面的，但不能回頭改
-  reservoir 六層本體，只能新增 class 疊加。
+  Page Layer CSS，最後載入 theme-runtime.js（第 8 層 - Theme，動態外觀，來源是
+  Supabase，見 backend/）。疊加順序 = 載入順序，後面的檔案可以蓋掉前面的，但不能
+  回頭改 reservoir 六層本體，只能新增 class 疊加。
 - 載入 header.js / footer.js / registry-loader.js（shell）
 - 依目前 pageId 從 config.json 找出 entry.afterScripts，載入頁面自己的 app.js
 
@@ -129,6 +130,11 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         return allStyles.reduce(function (chain, href) {
           return chain.then(function () { return loadStyle(href); });
         }, Promise.resolve());
+      })
+      .then(function () {
+        return loadScript("/assets/js/theme-runtime.js").then(function () {
+          return window.JonaminzThemeRuntime.load();
+        });
       })
       .then(function () {
         markCssReady();
