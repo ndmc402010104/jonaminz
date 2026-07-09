@@ -32,9 +32,13 @@ jonaminz/
       registry-loader.js     共用 shell 層：讀 registry.json，抓外部專案 manifest 顯示卡片
       app.js                 首頁自己的業務入口
   pages/                     未來頁面放這裡，見 pages/README.md
+    admin/                   後台頁範例（首頁「登入」按鈕導向這裡）
   docs/
     external-project-manifest.md   外部專案怎麼接進 jonaminz 水庫
 ```
+
+所有頁面（包含 `pages/` 底下巢狀的頁面）一律用網站根目錄絕對路徑（開頭 `/`）載入
+`entry-core.js` 等共用資源，不用頁面相對路徑——因為頁面深度不一定相同。
 
 ## 版本規則
 

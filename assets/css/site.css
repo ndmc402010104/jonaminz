@@ -97,3 +97,94 @@ body.jonaminz-body {
   font-size: 0.75rem;
   opacity: 0.5;
 }
+
+.jonaminz-login-button {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jonaminz-login-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.45);
+}
+
+/* 後台頁：先給一個漂亮一點的置中版型，內容之後再擴充 */
+.jonaminz-admin-page {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.15), transparent 60%);
+}
+
+.jonaminz-admin-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jonaminz-admin-hero {
+  width: 100%;
+  max-width: 480px;
+  padding: 40px;
+  border-radius: 20px;
+  text-align: center;
+  background: linear-gradient(160deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.04));
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: 0 20px 45px rgba(15, 15, 35, 0.12);
+}
+
+.jonaminz-admin-title {
+  margin: 0 0 12px;
+  font-size: 2rem;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.jonaminz-admin-subtitle {
+  margin: 0 0 28px;
+  opacity: 0.7;
+}
+
+.jonaminz-admin-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jonaminz-admin-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(127, 127, 127, 0.2);
+  text-decoration: none;
+  color: inherit;
+  text-align: left;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.jonaminz-admin-link-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.jonaminz-admin-link-title {
+  font-weight: 600;
+}
+
+.jonaminz-admin-link-desc {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}

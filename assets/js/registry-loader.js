@@ -15,7 +15,7 @@
 (function () {
   "use strict";
 
-  var REGISTRY_URL = "registry.json";
+  var REGISTRY_URL = "/registry.json";
   var MANIFEST_TIMEOUT_MS = 6000;
 
   function withVersion(url) {

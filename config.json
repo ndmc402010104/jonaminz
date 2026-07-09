@@ -17,7 +17,18 @@
       "group": "main",
       "showInNav": true,
       "entry": {
-        "afterScripts": ["assets/js/app.js"],
+        "afterScripts": ["/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
+    "admin": {
+      "pageId": "admin",
+      "title": "後台",
+      "path": "/pages/admin/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "afterScripts": ["/pages/admin/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     }

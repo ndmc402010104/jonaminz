@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/admin/index.html
+用途：jonaminz 後台最小入口（水庫下游頁面，複製自根目錄 index.html 的 bootstrap，
+只改 pageId / title / 內容，載入路徑維持根目錄絕對路徑，不用因為巢狀資料夾改路徑）。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="後台"
+  data-jonaminz-page-id="admin"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>後台 - Jonaminz</title>
+
+  <script>
+    (function () {
+      "use strict";
+
+      window.JONAMINZ_ENTRY_VERSION = String(Date.now());
+      window.JONAMINZ_SITE_CONFIG_URL = "/config.json";
+
+      document.write('<link rel="stylesheet" href="/assets/css/jonaminz-loading.css?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '">');
+      document.write('<script src="/assets/js/entry-core.js?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '"><\/script>');
+    })();
+  </script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page jonaminz-admin-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-admin-container">
+      <section class="jonaminz-admin-hero" data-app-root>
+        <!-- pages/admin/assets/js/app.js 可以接管這裡 -->
+        <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>

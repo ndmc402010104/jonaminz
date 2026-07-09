@@ -11,13 +11,17 @@ app-entry.js + entry-core.js 的角色，統一管理：
 
 頁面（例如 assets/js/app.js）只能透過 window.JonaminzLoading.done/fail 回報自己的
 task，不可以自己 release all-ready，不可以自己決定 css/shell ready。
+
+水庫共用資源一律用「網站根目錄絕對路徑」（開頭 `/`），不用頁面相對路徑：
+因為頁面可能放在 `pages/xxx/` 這種巢狀資料夾，若用相對路徑會依頁面所在深度跑掉。
+新頁面只要複製根目錄 index.html 的 bootstrap script 原樣貼上即可，不用改路徑。
 */
 (function () {
   "use strict";
 
   var docEl = document.documentElement;
   var pageId = docEl.getAttribute("data-jonaminz-page-id") || "home";
-  var configUrl = window.JONAMINZ_SITE_CONFIG_URL || "config.json";
+  var configUrl = window.JONAMINZ_SITE_CONFIG_URL || "/config.json";
   var entryVersion = window.JONAMINZ_ENTRY_VERSION || String(Date.now());
 
   var pendingTasks = {};
@@ -91,7 +95,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
   };
 
   function init() {
-    loadScript("version.js")
+    loadScript("/version.js")
       .then(function () {
         return fetch(withVersion(configUrl)).then(function (res) { return res.json(); });
       })
@@ -107,21 +111,21 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         var loadingTasks = (pageConfig.entry && pageConfig.entry.loadingTasks) || ["app-ready"];
         registerTasks(loadingTasks);
 
-        return loadStyle("assets/css/site.css");
+        return loadStyle("/assets/css/site.css");
       })
       .then(function () {
         markCssReady();
         return Promise.all([
-          loadScript("assets/js/header.js"),
-          loadScript("assets/js/footer.js"),
-          loadScript("assets/js/registry-loader.js")
+          loadScript("/assets/js/header.js"),
+          loadScript("/assets/js/footer.js"),
+          loadScript("/assets/js/registry-loader.js")
         ]);
       })
       .then(function () {
         markShellReady();
 
         var pageConfig = window.JONAMINZ_PAGE_CONFIG || {};
-        var afterScripts = (pageConfig.entry && pageConfig.entry.afterScripts) || ["assets/js/app.js"];
+        var afterScripts = (pageConfig.entry && pageConfig.entry.afterScripts) || ["/assets/js/app.js"];
 
         return afterScripts.reduce(function (chain, src) {
           return chain.then(function () { return loadScript(src); });

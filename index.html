@@ -32,10 +32,10 @@
       "use strict";
 
       window.JONAMINZ_ENTRY_VERSION = String(Date.now());
-      window.JONAMINZ_SITE_CONFIG_URL = "config.json";
+      window.JONAMINZ_SITE_CONFIG_URL = "/config.json";
 
-      document.write('<link rel="stylesheet" href="assets/css/jonaminz-loading.css?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '">');
-      document.write('<script src="assets/js/entry-core.js?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '"><\/script>');
+      document.write('<link rel="stylesheet" href="/assets/css/jonaminz-loading.css?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '">');
+      document.write('<script src="/assets/js/entry-core.js?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '"><\/script>');
     })();
   </script>
 </head>
@@ -50,6 +50,7 @@
           <p class="jonaminz-eyebrow">Jonaminz</p>
           <h1 id="pageTitle" class="jonaminz-page-title">Jonaminz</h1>
           <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
+          <a class="jonaminz-login-button" href="/pages/admin/">登入</a>
         </div>
       </section>
 
