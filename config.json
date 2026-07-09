@@ -17,6 +17,7 @@
       "group": "main",
       "showInNav": true,
       "entry": {
+        "styles": ["/assets/css/page-home.css"],
         "afterScripts": ["/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
@@ -28,7 +29,20 @@
       "group": "admin",
       "showInNav": false,
       "entry": {
+        "styles": ["/pages/admin/assets/css/page-admin.css"],
         "afterScripts": ["/pages/admin/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
+    "admin-theme": {
+      "pageId": "admin-theme",
+      "title": "Theme",
+      "path": "/pages/admin/theme/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/theme/assets/css/page-admin-theme.css"],
+        "afterScripts": ["/pages/admin/theme/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     }

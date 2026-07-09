@@ -1,0 +1,16 @@
+/*
+檔案位置：jonaminz/assets/css/reservoir/04-layout.css
+用途：CSS 疊加第 4 層 - Layout / Shell。處理 header/footer/container 等整體版面骨架。
+頁面本身的視覺設計不放這裡，那是 Page Layer（第 7 層）的事。
+*/
+
+.jonaminz-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+.jonaminz-header,
+.jonaminz-footer {
+  padding: var(--space-4) var(--space-5);
+}

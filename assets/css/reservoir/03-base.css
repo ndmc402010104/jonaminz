@@ -1,0 +1,35 @@
+/*
+檔案位置：jonaminz/assets/css/reservoir/03-base.css
+用途：CSS 疊加第 3 層 - Base。把 Token 套到 body / 標題 / 段落 / 連結等最基本元素。
+頁面若想要不同觀感（例如 home 頁的深色背景），去 Page Layer 疊加，不要回頭改這裡。
+*/
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+p {
+  color: var(--color-text-muted);
+}
+
+a {
+  transition: opacity 0.15s ease;
+}
+
+a:hover {
+  opacity: 0.8;
+}

@@ -1,0 +1,48 @@
+/*
+檔案位置：jonaminz/assets/css/reservoir/02-tokens.css
+用途：CSS 疊加第 2 層 - Tokens。全站唯一的顏色/字體/間距/圓角/陰影變數來源。
+之後的每一層都應該引用這裡的變數，不要在其他層重新寫死數值。
+*/
+
+:root {
+  /* color */
+  --color-bg: #ffffff;
+  --color-bg-dark: #101310;
+  --color-text: #14171a;
+  --color-text-dark: #f7f0e5;
+  --color-text-muted: rgba(20, 23, 26, 0.62);
+  --color-primary: #6366f1;
+  --color-primary-2: #8b5cf6;
+  --color-accent: #d6efd9;
+  --color-border: rgba(127, 127, 127, 0.25);
+  --color-surface: rgba(255, 255, 255, 0.9);
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* shadow */
+  --shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 20px 45px rgba(15, 15, 35, 0.12);
+  --shadow-lg: 0 30px 100px rgba(0, 0, 0, 0.32);
+
+  /* typography */
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 2rem;
+  --text-2xl: clamp(2.5rem, 6vw, 4rem);
+}

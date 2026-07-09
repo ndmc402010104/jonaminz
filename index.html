@@ -9,10 +9,13 @@
   1. assets/css/jonaminz-loading.css
   2. assets/js/entry-core.js
 - entry-core.js 負責讀 version.js / config.json、套用 loading gate、
-  載入 header/footer/site.css，再依目前 pageId 從 config.json 找出
-  entry.afterScripts 載入頁面自己的 app.js。
-- 頁面本身不直接載 assets/js/app.js、header.js、footer.js、site.css。
+  依序疊加 reservoir 六層 CSS + 本頁的 Page Layer CSS（page-home.css，見
+  config.json -> pages.home.entry.styles），再載入 header/footer，
+  最後依 entry.afterScripts 載入頁面自己的 app.js。
+- 頁面本身不直接載 assets/js/app.js、header.js、footer.js、reservoir CSS。
 - JONAMINZ_ENTRY_VERSION 只是前端資源 cache buster，不是業務版本。
+- 這份首頁設計是簽名式導覽（signature navigation）版型，全螢幕相片 + 兩人
+  各自的 name-link + 中間共用入口，不使用舊版 .jonaminz-hero 卡片版型。
 -->
 <html
   lang="zh-Hant"
@@ -41,40 +44,37 @@
 </head>
 
 <body class="jonaminz-body">
-  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+  <div class="page">
+    <div class="photo"></div>
 
-  <main class="jonaminz-page" data-jonaminz-main>
-    <div class="jonaminz-container">
-      <section class="jonaminz-hero" aria-labelledby="pageTitle">
-        <div class="jonaminz-hero-card">
-          <p class="jonaminz-eyebrow">Jonaminz</p>
-          <h1 id="pageTitle" class="jonaminz-page-title">Jonaminz</h1>
-          <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
-          <a class="jonaminz-login-button" href="/pages/admin/">登入</a>
-        </div>
-      </section>
+    <nav class="nav">
+      <span class="brand">jonaminz</span>
+      <div class="nav-links">
+        <a href="#jonathan">Jonathan</a>
+        <a href="#minz">Minz</a>
+        <a class="login" href="/pages/admin/">Login</a>
+      </div>
+    </nav>
 
-      <section class="jonaminz-section" aria-labelledby="contentTitle">
-        <div class="jonaminz-hero-card" data-app-root>
-          <!-- assets/js/app.js 可以接管這裡 -->
-        </div>
-      </section>
+    <div class="line"></div>
 
-      <section class="jonaminz-section" aria-labelledby="projectsTitle">
-        <div class="jonaminz-section-head">
-          <div>
-            <p class="jonaminz-eyebrow">External Projects</p>
-            <h2 id="projectsTitle" class="jonaminz-section-title">外部專案</h2>
-          </div>
-        </div>
+    <div class="signature">
+      <a id="minz" class="name-link" href="#minz">
+        <small>piece 01</small>
+        <strong>Minz</strong>
+      </a>
 
-        <div class="jonaminz-projects" data-jonaminz-projects>
-          <p class="jonaminz-projects-empty">載入中...</p>
-        </div>
-      </section>
+      <div class="center">
+        <h1>jonaminz</h1>
+        <p>Jonathan 與 Minz 的 Digital Home。</p>
+        <a class="home-key" href="/pages/admin/">共用入口</a>
+      </div>
+
+      <a id="jonathan" class="name-link right" href="#jonathan">
+        <small>piece 02</small>
+        <strong>Jonathan</strong>
+      </a>
     </div>
-  </main>
-
-  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+  </div>
 </body>
 </html>

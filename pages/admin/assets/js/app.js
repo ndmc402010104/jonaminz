@@ -22,6 +22,10 @@
           '<span class="jonaminz-admin-link-title">SKHPS</span>' +
           '<span class="jonaminz-admin-link-desc">skhps.jonaminz.com</span>' +
         '</a>' +
+        '<a class="jonaminz-admin-link-card" href="/pages/admin/theme/">' +
+          '<span class="jonaminz-admin-link-title">Theme</span>' +
+          '<span class="jonaminz-admin-link-desc">CSS 疊加架構展示櫃 / 未來的 playground</span>' +
+        '</a>' +
       '</div>';
   }
 

@@ -1,0 +1,91 @@
+/*
+檔案位置：jonaminz/pages/admin/theme/assets/css/page-admin-theme.css
+用途：CSS 疊加第 7 層 - Page Layer，只給後台 Theme 頁用。
+疊加在 reservoir 六層之上，只新增 .jonaminz-theme-* 這頁專屬的展示櫃版型，
+不去改 05-components.css / 06-variants.css 的本體規則。
+其他頁面不會載到這份檔案（見 config.json -> pages["admin-theme"].entry.styles）。
+*/
+
+.jonaminz-theme-back {
+  display: inline-block;
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  opacity: 0.7;
+}
+
+.jonaminz-theme-hero {
+  margin-bottom: var(--space-6);
+}
+
+.jonaminz-theme-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.jonaminz-theme-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+}
+
+.jonaminz-theme-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-4);
+}
+
+.jonaminz-theme-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jonaminz-theme-swatch-color {
+  display: block;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.jonaminz-theme-swatch-value {
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}
+
+.jonaminz-theme-scale {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.jonaminz-theme-scale-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.jonaminz-theme-scale-value {
+  font-size: var(--text-xs);
+  opacity: 0.6;
+  min-width: 64px;
+}
+
+.jonaminz-theme-scale-box {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  background: var(--color-primary);
+}
+
+.jonaminz-theme-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.jonaminz-theme-row .card,
+.jonaminz-theme-row .jonaminz-project-card {
+  width: 220px;
+}

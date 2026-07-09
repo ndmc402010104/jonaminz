@@ -1,0 +1,79 @@
+/*
+檔案位置：jonaminz/pages/admin/assets/css/page-admin.css
+用途：CSS 疊加第 7 層 - Page Layer，只給後台（admin）用。
+疊加在 reservoir 六層之上，只新增 .jonaminz-admin-* 這頁專屬的置中卡片版型，
+不去改 05-components.css 的 .card/.btn 本體。
+其他頁面不會載到這份檔案（見 config.json -> pages.admin.entry.styles）。
+*/
+
+.jonaminz-admin-page {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.15), transparent 60%);
+}
+
+.jonaminz-admin-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jonaminz-admin-hero {
+  width: 100%;
+  max-width: 480px;
+  padding: var(--space-7);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  background: linear-gradient(160deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.04));
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: var(--shadow-lg);
+}
+
+.jonaminz-admin-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-2xl);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.jonaminz-admin-subtitle {
+  margin: 0 0 var(--space-6);
+  opacity: 0.7;
+}
+
+.jonaminz-admin-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.jonaminz-admin-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+  text-align: left;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.jonaminz-admin-link-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.jonaminz-admin-link-title {
+  font-weight: 600;
+}
+
+.jonaminz-admin-link-desc {
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}

@@ -1,0 +1,94 @@
+/*
+檔案位置：jonaminz/assets/css/reservoir/05-components.css
+用途：CSS 疊加第 5 層 - Components。共用零件本體，樣式要夠中性。
+外觀差異留給 Variants 層（06）或 Page Layer（07）疊加 class，不要在這裡塞入
+單一頁面的專屬設計（例如某頁的漸層色、某頁的間距微調）。
+*/
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.card {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  padding: var(--space-5);
+  background: var(--color-surface);
+}
+
+.jonaminz-hero-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+}
+
+.jonaminz-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--text-xs);
+  opacity: 0.6;
+  margin: 0 0 var(--space-2);
+}
+
+.jonaminz-page-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xl);
+}
+
+.jonaminz-page-subtitle {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.jonaminz-section-head {
+  margin-bottom: var(--space-3);
+}
+
+.jonaminz-section-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.jonaminz-projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.jonaminz-projects-empty {
+  opacity: 0.6;
+  margin: 0;
+}
+
+.jonaminz-project-card {
+  display: block;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  padding: var(--space-4);
+  text-decoration: none;
+  color: inherit;
+}
+
+.jonaminz-project-title {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
+}
+
+.jonaminz-project-description {
+  margin: 0;
+  font-size: var(--text-sm);
+  opacity: 0.75;
+}
+
+.jonaminz-project-version {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  opacity: 0.5;
+}

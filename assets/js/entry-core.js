@@ -6,7 +6,11 @@
 app-entry.js + entry-core.js 的角色，統一管理：
 - 讀 version.js / config.json
 - loading gate（css / shell / main 三段，語意與 SKHPS 一致：一個 gate 過了就過了）
-- 載入 header.js / footer.js / registry-loader.js（shell）與 site.css
+- CSS 疊加：依序載入 assets/css/reservoir/ 六層（reset -> tokens -> base -> layout
+  -> components -> variants），再載入目前頁面 config.json 裡 entry.styles 宣告的
+  Page Layer CSS。疊加順序 = 載入順序，後面的檔案可以蓋掉前面的，但不能回頭改
+  reservoir 六層本體，只能新增 class 疊加。
+- 載入 header.js / footer.js / registry-loader.js（shell）
 - 依目前 pageId 從 config.json 找出 entry.afterScripts，載入頁面自己的 app.js
 
 頁面（例如 assets/js/app.js）只能透過 window.JonaminzLoading.done/fail 回報自己的
@@ -111,7 +115,20 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         var loadingTasks = (pageConfig.entry && pageConfig.entry.loadingTasks) || ["app-ready"];
         registerTasks(loadingTasks);
 
-        return loadStyle("/assets/css/site.css");
+        var reservoirStyles = [
+          "/assets/css/reservoir/01-reset.css",
+          "/assets/css/reservoir/02-tokens.css",
+          "/assets/css/reservoir/03-base.css",
+          "/assets/css/reservoir/04-layout.css",
+          "/assets/css/reservoir/05-components.css",
+          "/assets/css/reservoir/06-variants.css"
+        ];
+        var pageStyles = (pageConfig.entry && pageConfig.entry.styles) || [];
+        var allStyles = reservoirStyles.concat(pageStyles);
+
+        return allStyles.reduce(function (chain, href) {
+          return chain.then(function () { return loadStyle(href); });
+        }, Promise.resolve());
       })
       .then(function () {
         markCssReady();

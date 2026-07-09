@@ -5,10 +5,20 @@
 1. 在專案根目錄新增資料夾，例如 `pages/about/`，內含該頁自己的 `index.html`（複製根目錄
    `index.html` 的 bootstrap script **原樣貼上**，只改 `data-jonaminz-page-id` 和標題/內容）
    與 `pages/about/assets/js/app.js`。
-2. 在根目錄 `config.json` 的 `pages` 裡新增一個 entry，宣告 `pageId`、`title`、
+2. 如果這頁需要專屬視覺設計，新增 `pages/about/assets/css/page-about.css`（CSS 疊加第 7
+   層，見根目錄 `README.md` 的「CSS 疊加架構」），只放這頁專屬的樣式，不要去改
+   `assets/css/reservoir/` 底下 1-6 層的檔案本體。
+3. 在根目錄 `config.json` 的 `pages` 裡新增一個 entry，宣告 `pageId`、`title`、
+   `entry.styles`（例如 `["/pages/about/assets/css/page-about.css"]`，沒有專屬樣式可省略）、
    `entry.afterScripts`（例如 `["/pages/about/assets/js/app.js"]`）、`entry.loadingTasks`。
-3. 該頁 HTML 依然只直接載入 `/assets/css/jonaminz-loading.css` 與 `/assets/js/entry-core.js`
+4. 該頁 HTML 依然只直接載入 `/assets/css/jonaminz-loading.css` 與 `/assets/js/entry-core.js`
    ——**一律用網站根目錄絕對路徑（開頭 `/`）**，不要用頁面相對路徑，因為頁面可能巢狀在
    `pages/xxx/` 底下，相對路徑會依資料夾深度跑掉。不要複製 header.js / footer.js /
-   site.css / entry-core.js。
-4. 不要新增第二個 config.json 或每頁一個 manifest；所有頁面共用同一份根目錄 `config.json`。
+   reservoir CSS / entry-core.js。
+5. 不要新增第二個 config.json 或每頁一個 manifest；所有頁面共用同一份根目錄 `config.json`。
+
+## 目前的頁面
+
+- `pages/admin/` — 後台首頁，先做路線佔位（連到 skhps.jonaminz.com）+ Theme 頁連結。
+- `pages/admin/theme/` — Theme 頁：CSS 疊加架構的展示櫃（token + 共用元件的活文件），
+  未來會擴充成可以拖拉調整顏色/間距的 CSS playground。

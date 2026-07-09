@@ -9,22 +9,11 @@
 
   var READY_TASK = "app-ready";
 
-  function setStatus(text) {
-    var el = document.querySelector("[data-app-status]");
-    if (el) el.textContent = text;
-  }
-
   function init() {
     try {
-      var pageConfig = window.JONAMINZ_PAGE_CONFIG || {};
-      var title = pageConfig.title || document.title || "Jonaminz";
-
-      setStatus(title + " 已就緒。");
-
       window.JonaminzLoading.done(READY_TASK);
     } catch (error) {
       console.error("[jonaminz] app.js init failed", error);
-      setStatus("初始化失敗。");
       window.JonaminzLoading.fail(READY_TASK, error);
     }
   }

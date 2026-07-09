@@ -24,21 +24,45 @@ jonaminz/
   assets/
     css/
       jonaminz-loading.css   唯一早期 CSS，只做 loading 遮罩
-      site.css               正式畫面樣式
+      reservoir/             CSS 疊加第 1-6 層，全站共用，每頁都會載入（見下方「CSS 疊加架構」）
+      page-home.css          CSS 疊加第 7 層，只有首頁自己載入
     js/
-      entry-core.js          水庫本體：讀 config/version、套 loading gate、載 header/footer/registry-loader、載入頁面 app.js
+      entry-core.js          水庫本體：讀 config/version、套 loading gate、依序疊加 reservoir 六層 + 該頁 Page Layer CSS、載 header/footer/registry-loader、載入頁面 app.js
       header.js              共用 header（水庫 shell 層）
       footer.js              共用 footer（水庫 shell 層），顯示版本
       registry-loader.js     共用 shell 層：讀 registry.json，抓外部專案 manifest 顯示卡片
       app.js                 首頁自己的業務入口
   pages/                     未來頁面放這裡，見 pages/README.md
     admin/                   後台頁範例（首頁「登入」按鈕導向這裡）
+      theme/                 Theme 頁：CSS 疊加架構展示櫃，未來會做成拖拉調色的 playground
   docs/
     external-project-manifest.md   外部專案怎麼接進 jonaminz 水庫
 ```
 
 所有頁面（包含 `pages/` 底下巢狀的頁面）一律用網站根目錄絕對路徑（開頭 `/`）載入
 `entry-core.js` 等共用資源，不用頁面相對路徑——因為頁面深度不一定相同。
+
+## CSS 疊加架構
+
+`entry-core.js` 依序載入以下八層，後面的層可以疊加/蓋掉前面的層，但不會回頭改前面
+層的檔案本體：
+
+1. **Reset** (`assets/css/reservoir/01-reset.css`) — 瀏覽器預設值歸零。
+2. **Tokens** (`02-tokens.css`) — 全站唯一的顏色/間距/圓角/陰影/字級 CSS 變數來源。
+3. **Base** (`03-base.css`) — `html`/`body`/標題/連結等原生元素的預設樣式。
+4. **Layout/Shell** (`04-layout.css`) — `.jonaminz-container`、header/footer 版面骨架。
+5. **Components** (`05-components.css`) — 共用零件本體（`.btn`、`.card`、
+   `.jonaminz-project-card` 等），樣式要中性，不塞單一頁面的專屬設計。
+6. **Variants** (`06-variants.css`) — 元件的外觀變體（`.btn-primary`、`.card-glass`）。
+7. **Page Layer**（每頁自己一份，例如 `assets/css/page-home.css`、
+   `pages/admin/assets/css/page-admin.css`）— 由 `config.json` 該頁的
+   `entry.styles` 宣告，只有那一頁會載入，放這頁專屬的視覺設計。
+8. **Overrides/Hotfix** — 之後如果需要臨時蓋掉某頁某元件，用該頁 Page Layer 檔案裡
+   `scoped .xxx-page .card {...}` 的寫法疊加，不要回頭改 1-6 層。
+
+新增頁面需要專屬樣式時：在該頁資料夾新增一份 CSS（例如 `pages/xxx/assets/css/page-xxx.css`），
+在 `config.json` 該頁 `entry.styles` 陣列裡登錄路徑（根目錄絕對路徑），`entry-core.js`
+會自動排在 reservoir 六層之後載入，不用改 `entry-core.js` 本身。
 
 ## 版本規則
 

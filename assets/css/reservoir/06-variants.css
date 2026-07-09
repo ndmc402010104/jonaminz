@@ -1,0 +1,26 @@
+/*
+檔案位置：jonaminz/assets/css/reservoir/06-variants.css
+用途：CSS 疊加第 6 層 - Variants。component 本體的外觀變體，例如 primary 按鈕、glass 卡片。
+新增變體只疊加新 class，不要回頭改 05-components.css 的本體規則。
+*/
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+.card-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.jonaminz-project-card--unavailable {
+  opacity: 0.5;
+}
