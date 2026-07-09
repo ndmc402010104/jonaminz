@@ -47,3 +47,53 @@ body.jonaminz-body {
 .jonaminz-footer {
   padding: 16px 24px;
 }
+
+.jonaminz-section-head {
+  margin-bottom: 12px;
+}
+
+.jonaminz-section-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.jonaminz-projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.jonaminz-projects-empty {
+  opacity: 0.6;
+  margin: 0;
+}
+
+.jonaminz-project-card {
+  display: block;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  padding: 16px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.jonaminz-project-card--unavailable {
+  opacity: 0.5;
+}
+
+.jonaminz-project-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.jonaminz-project-description {
+  margin: 0;
+  font-size: 0.875rem;
+  opacity: 0.75;
+}
+
+.jonaminz-project-version {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  opacity: 0.5;
+}

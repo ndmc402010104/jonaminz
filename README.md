@@ -9,6 +9,9 @@
   header/footer、CSS、頁面 entry 載入順序。
 - 未來新增頁面只在 `config.json` 的 `pages` 裡新增 entry + 建立對應資料夾，不用複製水庫層
   檔案。詳見 `pages/README.md`。
+- jonaminz 也是**外部專案的水庫**：其他獨立 repo / 子網域的專案只要在 `registry.json`
+  登錄一筆、自己放一份 `jonaminz-app.json`，就會自動出現在首頁的外部專案清單，不用回來改
+  jonaminz 的程式碼或內容。詳見 `docs/external-project-manifest.md`。
 
 ## 檔案結構
 
@@ -16,17 +19,21 @@
 jonaminz/
   index.html                首頁，最小入口
   version.js                 JONAMINZ_APP_VERSION（業務版本，非 cache-buster）
-  config.json                站台設定 / 頁面登錄表（水庫層擁有）
+  config.json                站台設定 / 頁面登錄表（水庫層擁有，管站內頁面）
+  registry.json               外部專案登錄表（水庫層擁有，管外部 repo）
   assets/
     css/
       jonaminz-loading.css   唯一早期 CSS，只做 loading 遮罩
       site.css               正式畫面樣式
     js/
-      entry-core.js          水庫本體：讀 config/version、套 loading gate、載 header/footer、載入頁面 app.js
+      entry-core.js          水庫本體：讀 config/version、套 loading gate、載 header/footer/registry-loader、載入頁面 app.js
       header.js              共用 header（水庫 shell 層）
       footer.js              共用 footer（水庫 shell 層），顯示版本
+      registry-loader.js     共用 shell 層：讀 registry.json，抓外部專案 manifest 顯示卡片
       app.js                 首頁自己的業務入口
   pages/                     未來頁面放這裡，見 pages/README.md
+  docs/
+    external-project-manifest.md   外部專案怎麼接進 jonaminz 水庫
 ```
 
 ## 版本規則

@@ -6,7 +6,7 @@
 app-entry.js + entry-core.js 的角色，統一管理：
 - 讀 version.js / config.json
 - loading gate（css / shell / main 三段，語意與 SKHPS 一致：一個 gate 過了就過了）
-- 載入 header.js / footer.js（shell）與 site.css
+- 載入 header.js / footer.js / registry-loader.js（shell）與 site.css
 - 依目前 pageId 從 config.json 找出 entry.afterScripts，載入頁面自己的 app.js
 
 頁面（例如 assets/js/app.js）只能透過 window.JonaminzLoading.done/fail 回報自己的
@@ -113,7 +113,8 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         markCssReady();
         return Promise.all([
           loadScript("assets/js/header.js"),
-          loadScript("assets/js/footer.js")
+          loadScript("assets/js/footer.js"),
+          loadScript("assets/js/registry-loader.js")
         ]);
       })
       .then(function () {
