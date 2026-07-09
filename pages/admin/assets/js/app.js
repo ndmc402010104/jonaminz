@@ -3,6 +3,9 @@
 用途：後台頁自己的業務入口（水庫下游層）。目前只是路線佔位：先確認登入按鈕 ->
 後台這條路走得通，區塊內容之後再擴充，先給一個連到 skhps.jonaminz.com 的連結。
 只能回報自己的 loading task，不可以自己決定 css/shell ready。
+
+外部專案回報清單（registerExternalApp）是背景資訊，不影響 loading gate：
+讀取失敗只顯示錯誤文字，不會擋住頁面本身的 all-ready。
 */
 (function () {
   "use strict";
@@ -29,10 +32,55 @@
       '</div>';
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  function registrationRowHtml(row) {
+    return (
+      '<div class="jonaminz-admin-registration-row">' +
+        '<strong>' + escapeHtml(row.title || row.project_id) + '</strong>' +
+        '<span>' + escapeHtml(row.project_id) + '</span>' +
+        '<span>' + escapeHtml(row.version || "") + '</span>' +
+        '<span>最後回報：' + escapeHtml(row.last_seen_at || "-") + '</span>' +
+      '</div>'
+    );
+  }
+
+  function renderRegistrations() {
+    var container = document.querySelector("[data-admin-registrations]");
+    if (!container) return;
+
+    if (!window.JonaminzBackend || typeof window.JonaminzBackend.listExternalAppRegistrations !== "function") {
+      container.textContent = "後端尚未載入。";
+      return;
+    }
+
+    container.textContent = "讀取中...";
+
+    window.JonaminzBackend.listExternalAppRegistrations()
+      .then(function (response) {
+        var rows = (response && response.rows) || [];
+
+        if (!rows.length) {
+          container.textContent = "目前沒有外部專案回報過。";
+          return;
+        }
+
+        container.innerHTML = rows.map(registrationRowHtml).join("");
+      })
+      .catch(function (error) {
+        container.textContent = "讀取失敗：" + (error && error.message ? error.message : String(error));
+      });
+  }
+
   function init() {
     try {
       render();
       window.JonaminzLoading.done(READY_TASK);
+      renderRegistrations();
     } catch (error) {
       console.error("[jonaminz] admin app.js init failed", error);
       window.JonaminzLoading.fail(READY_TASK, error);

@@ -53,6 +53,38 @@ jonaminz 是水庫，外部專案是下游用水戶。外部專案要出現在 j
 - 單一外部專案的 manifest 抓取失敗（離線 / 404 / CORS 設定錯誤）只會讓那張卡片顯示
   「目前無法連線」，不會擋住其他專案顯示，也不會擋住 jonaminz 首頁本身的 loading gate。
 
+## 3.（選用）回報自己上線
+
+外部專案想讓 jonaminz 後台知道「我上線了、最後一次是什麼時候」，可以在自己頁面載入時
+呼叫 jonaminz 的 Worker（不需要載 jonaminz 任何 JS，直接 fetch 即可）：
+
+```js
+fetch("https://<jonaminz-worker-domain>/api/action", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    action: "registerExternalApp",
+    payload: {
+      projectId: "example-project",   // 必填，要跟 registry.json 的 projectId 一致
+      title: "Example Project",
+      href: "https://example-project.jonaminz.com/",
+      version: "v0.1.0-202607090000",
+      env: "prod"
+    }
+  })
+}).catch(function () {
+  // 回報失敗不影響外部專案自己的功能，忽略即可。
+});
+```
+
+規則：
+
+- `projectId` 必填，其餘欄位都只是顯示用途。
+- 這是背景報到，不要 await、不要擋自己頁面的載入或功能。
+- jonaminz 這端只記錄 `last_seen_at`（最後一次回報時間），不會因為沒收到回報就把
+  專案從首頁清單移除——移不移除仍然只看 `registry.json` 的 `enabled`。
+- Worker 網址目前尚未對外公開；已串接的專案請跟 jonaminz 管理者要目前的 Worker 網址。
+
 ## 誰負責什麼
 
 ```txt

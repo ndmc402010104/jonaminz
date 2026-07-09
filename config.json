@@ -30,7 +30,7 @@
       "showInNav": false,
       "entry": {
         "styles": ["/pages/admin/assets/css/page-admin.css"],
-        "afterScripts": ["/pages/admin/assets/js/app.js"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     },
@@ -54,6 +54,12 @@
         "small": ["phone-compact", "phone", "tablet"],
         "large": ["desktop", "wide"]
       }
+    }
+  },
+
+  "backend": {
+    "worker": {
+      "baseUrl": ""
     }
   }
 }

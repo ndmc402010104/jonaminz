@@ -2,3 +2,10 @@ node_modules/
 .DS_Store
 *.log
 .codemap/
+
+# secrets / credentials — never commit
+*pw*.txt
+*password*.txt
+*secret*.txt
+.env
+.env.*

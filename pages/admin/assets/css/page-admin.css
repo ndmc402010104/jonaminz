@@ -11,13 +11,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: var(--space-6) 0;
   background: radial-gradient(circle at top, rgba(99, 102, 241, 0.15), transparent 60%);
 }
 
 .jonaminz-admin-container {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-5);
 }
 
 .jonaminz-admin-hero {
@@ -76,4 +79,33 @@
 .jonaminz-admin-link-desc {
   font-size: var(--text-xs);
   opacity: 0.6;
+}
+
+.jonaminz-admin-registrations {
+  text-align: left;
+}
+
+.jonaminz-admin-registrations .jonaminz-admin-title {
+  font-size: var(--text-lg);
+  -webkit-text-fill-color: initial;
+  background: none;
+  color: var(--color-text);
+}
+
+.jonaminz-admin-registration-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+
+.jonaminz-admin-registration-row:last-child {
+  border-bottom: none;
+}
+
+.jonaminz-admin-registration-row span {
+  opacity: 0.7;
+  font-size: var(--text-xs);
 }
