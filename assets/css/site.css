@@ -1,0 +1,49 @@
+/*
+檔案位置：jonaminz/assets/css/site.css
+用途：jonaminz 正式畫面樣式，由 entry-core.js 在 css-loading 階段載入。
+*/
+
+:root {
+  color-scheme: light dark;
+}
+
+body.jonaminz-body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+.jonaminz-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.jonaminz-hero-card {
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.jonaminz-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin: 0 0 8px;
+}
+
+.jonaminz-page-title {
+  margin: 0 0 8px;
+  font-size: 2rem;
+}
+
+.jonaminz-page-subtitle {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.jonaminz-header,
+.jonaminz-footer {
+  padding: 16px 24px;
+}

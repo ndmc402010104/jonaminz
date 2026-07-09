@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "siteId": "jonaminz",
+  "title": "Jonaminz",
+  "description": "jonaminz 個人網站",
+
+  "version": {
+    "source": "version.js",
+    "globalName": "JONAMINZ_APP_VERSION"
+  },
+
+  "pages": {
+    "home": {
+      "pageId": "home",
+      "title": "首頁",
+      "path": "/",
+      "group": "main",
+      "showInNav": true,
+      "entry": {
+        "afterScripts": ["assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    }
+  },
+
+  "layout": {
+    "rwd": {
+      "groups": {
+        "small": ["phone-compact", "phone", "tablet"],
+        "large": ["desktop", "wide"]
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/index.html
+用途：jonaminz 首頁，水庫本體最小入口模板（改編自 SKHPS 水庫理論，獨立自足，不依賴 skhpsv2）。
+
+水庫法則（jonaminz 版）：
+- jonaminz 沒有外部水庫可以依附，本身就是自己的水庫本體。
+- 本頁只直接載入：
+  1. assets/css/jonaminz-loading.css
+  2. assets/js/entry-core.js
+- entry-core.js 負責讀 version.js / config.json、套用 loading gate、
+  載入 header/footer/site.css，再依目前 pageId 從 config.json 找出
+  entry.afterScripts 載入頁面自己的 app.js。
+- 頁面本身不直接載 assets/js/app.js、header.js、footer.js、site.css。
+- JONAMINZ_ENTRY_VERSION 只是前端資源 cache buster，不是業務版本。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="Jonaminz"
+  data-jonaminz-page-id="home"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Jonaminz</title>
+
+  <script>
+    (function () {
+      "use strict";
+
+      window.JONAMINZ_ENTRY_VERSION = String(Date.now());
+      window.JONAMINZ_SITE_CONFIG_URL = "config.json";
+
+      document.write('<link rel="stylesheet" href="assets/css/jonaminz-loading.css?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '">');
+      document.write('<script src="assets/js/entry-core.js?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '"><\/script>');
+    })();
+  </script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page" data-jonaminz-main>
+    <div class="jonaminz-container">
+      <section class="jonaminz-hero" aria-labelledby="pageTitle">
+        <div class="jonaminz-hero-card">
+          <p class="jonaminz-eyebrow">Jonaminz</p>
+          <h1 id="pageTitle" class="jonaminz-page-title">Jonaminz</h1>
+          <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
+        </div>
+      </section>
+
+      <section class="jonaminz-section" aria-labelledby="contentTitle">
+        <div class="jonaminz-hero-card" data-app-root>
+          <!-- assets/js/app.js 可以接管這裡 -->
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>

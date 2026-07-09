@@ -1,0 +1,13 @@
+/*
+檔案位置：jonaminz/assets/css/jonaminz-loading.css
+用途：唯一允許最早期載入的 CSS，只負責 loading gate 視覺遮罩。
+正式畫面樣式一律放 site.css，不要加進這個檔案。
+*/
+
+html.jonaminz-loading body {
+  visibility: hidden;
+}
+
+html:not(.jonaminz-loading) body {
+  visibility: visible;
+}
