@@ -13,6 +13,13 @@
   登錄一筆、自己放一份 `jonaminz-app.json`，就會自動出現在首頁的外部專案清單，不用回來改
   jonaminz 的程式碼或內容。詳見 `docs/external-project-manifest.md`。
 
+## 本機預覽
+
+`node dev-server.js`（預設 http://localhost:5500/）。所有頁面都用網站根目錄絕對
+路徑載資源，VS Code Live Server 如果是從 jonaminz 的上層資料夾開工作區，根目錄
+會對不上導致整頁沒套到樣式；這支腳本固定以 jonaminz 自己為根目錄，不受
+VS Code 目前開哪個資料夾影響，也不用另開視窗。
+
 ## 檔案結構
 
 ```
