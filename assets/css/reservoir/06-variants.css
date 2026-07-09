@@ -17,8 +17,8 @@
 
 .card-glass {
   background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(var(--card-glass-blur, 16px));
+  -webkit-backdrop-filter: blur(var(--card-glass-blur, 16px));
 }
 
 .jonaminz-project-card--unavailable {

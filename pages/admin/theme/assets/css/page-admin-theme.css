@@ -1,7 +1,7 @@
 /*
 檔案位置：jonaminz/pages/admin/theme/assets/css/page-admin-theme.css
 用途：CSS 疊加第 7 層 - Page Layer，只給後台 Theme 頁用。
-疊加在 reservoir 六層之上，只新增 .jonaminz-theme-* 這頁專屬的展示櫃版型，
+疊加在 reservoir 六層之上，只新增 .jonaminz-theme-* 這頁專屬的分頁編輯器版型，
 不去改 05-components.css / 06-variants.css 的本體規則。
 其他頁面不會載到這份檔案（見 config.json -> pages["admin-theme"].entry.styles）。
 */
@@ -20,7 +20,81 @@
 .jonaminz-theme-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
+}
+
+/* 頂部工具列：存檔按鈕永遠可見，不用 sticky，不會蓋到內容 */
+.jonaminz-theme-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.jonaminz-theme-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.jonaminz-theme-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: sticky;
+  top: calc(var(--space-3) * 2 + 40px + var(--space-4));
+}
+
+.jonaminz-theme-nav-item {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.jonaminz-theme-nav-item:hover {
+  background: var(--color-surface);
+}
+
+.jonaminz-theme-nav-item.is-active {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  font-weight: 700;
+}
+
+.jonaminz-theme-content {
+  min-width: 0;
+}
+
+.jonaminz-theme-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.jonaminz-theme-panel-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+
+.jonaminz-theme-group-intro {
+  margin: 0;
+}
+
+.jonaminz-theme-panel-head {
+  display: flex;
+  flex-direction: column;
 }
 
 .jonaminz-theme-section {
@@ -49,7 +123,8 @@
   opacity: 0.8;
 }
 
-.jonaminz-theme-token-input[type="color"] {
+.jonaminz-theme-token-input[type="color"],
+.jonaminz-theme-field-input[type="color"] {
   width: 44px;
   height: 32px;
   padding: 0;
@@ -74,14 +149,6 @@
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-}
-
-.jonaminz-theme-save-row {
-  position: sticky;
-  bottom: 0;
-  background: var(--color-bg);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--color-border);
 }
 
 .jonaminz-theme-scale {
@@ -121,6 +188,59 @@
   width: 220px;
 }
 
+/* fields editor（元件 / 頁面專屬值） */
+
+.jonaminz-theme-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.jonaminz-theme-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.jonaminz-theme-field-row:last-child {
+  border-bottom: none;
+}
+
+.jonaminz-theme-field-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jonaminz-theme-field-label {
+  font-size: var(--text-sm);
+}
+
+.jonaminz-theme-field-selector {
+  font-size: var(--text-xs);
+  opacity: 0.55;
+}
+
+.jonaminz-theme-field-input {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  width: 100px;
+}
+
+.jonaminz-theme-field-input--text {
+  width: 240px;
+  font-family: ui-monospace, monospace;
+  font-size: var(--text-sm);
+}
+
+/* 自訂規則（範圍限定在單一 group） */
+
 .jonaminz-theme-rules {
   display: flex;
   flex-direction: column;
@@ -153,7 +273,22 @@
 }
 
 @media (max-width: 720px) {
+  .jonaminz-theme-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .jonaminz-theme-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
   .jonaminz-theme-rule-row {
     grid-template-columns: 1fr;
+  }
+
+  .jonaminz-theme-field-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
