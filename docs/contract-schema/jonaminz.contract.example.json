@@ -24,7 +24,7 @@
     }
   ],
   "capabilities": {
-    "supports": ["search.query@1"],
+    "supports": ["search.query@1", "notification.send@1", "pin.create@1"],
     "requests": ["notification.send@1"],
     "requires": [
       { "capability": "pin.create@1", "entryId": "main" }

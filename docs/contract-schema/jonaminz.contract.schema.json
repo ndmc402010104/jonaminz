@@ -2,10 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jonaminz.com/schema/jonaminz.contract.schema.v1.json",
   "title": "Jonaminz Contract v1",
-  "description": "jonaminz.contract.json 的結構驗證。對應規格 docs/platform-integration-spec-v1.md（Frozen, S1-S39）。此 schema 只驗證單一文件的『結構是否合法』；S12 定義的 fail-soft 行為（單一 entry/object 壞掉時剔除該項、其餘照收）是 Worker 端 ingestion validator 的職責，不是這份 schema 檔案能表達的（JSON Schema 對整份文件只能給 valid/invalid 兩種結果）。",
+  "description": "jonaminz.contract.json 的結構驗證。對應規格 docs/platform-integration-spec-v1.md（Frozen, S1-S39）。此 schema 只驗證單一文件的『結構是否合法』；以下留給 Worker 端 ingestion validator，不是這份 schema 檔案能表達的：S12 fail-soft（單一 entry/object 壞掉時剔除該項、其餘照收——JSON Schema 對整份文件只能給 valid/invalid 兩種結果）；S15 同源檢查（需要跑時查 Integration Settings 才知道登記網域）；cross-field 一致性（capabilities.requires[].entryId 是否真的對應到某個 entries[].entryId；requests/requires 的能力是否也出現在 supports 裡——後者是設計上合理的隱含不變式，但『陣列 A 的每個元素都在陣列 B 裡』不是 portable JSON Schema 能表達的關係，需要 $data 或程式邏輯才能查）。",
   "type": "object",
   "required": ["contractVersion", "app"],
   "additionalProperties": true,
+  "not": { "$ref": "#/$defs/forbiddenFieldsGuard" },
   "properties": {
     "contractVersion": {
       "description": "S8：合約 schema 版本，整數，v1 = 1。與 SDK release / capability 版本 / Settings schema 版本是各自獨立的版本維度（Spec『版本維度用語』節）。",
@@ -16,6 +17,7 @@
       "type": "object",
       "required": ["projectId", "title"],
       "additionalProperties": true,
+      "not": { "$ref": "#/$defs/forbiddenFieldsGuard" },
       "properties": {
         "projectId": {
           "description": "S1：永久不可變、不可重用、與網域/repo/URL 無關。小寫英數與連字號、字母開頭、2-63 字元。",
@@ -44,9 +46,9 @@
       "type": "boolean"
     },
     "css": {
-      "description": "S34, 第五部分：CSS 生效等級聲明。v1 對外發布範圍只到 none/tokens；components/full/self 屬保留層，v1 合約不得宣告（要宣告也會被 Worker 依 S11 當成未知值＝不支援，不會 fallback 成更大權限）。",
+      "description": "S34, 第五部分, S11：CSS 生效等級聲明。v1 Worker 只認得 none/tokens 兩個值；components/full/self 屬保留層。刻意不用 enum 鎖死允許值——S11 規定『未知 enum 值視為不支援，不得整份判失敗』，用 enum 會讓未來出現 components 時整份合約直接 invalid，牴觸 must-ignore 原則。這裡只做語法層防呆（小寫字母開頭、允許連字號），值的語意判讀（認得/不認得）是 Worker 的事。",
       "type": "string",
-      "enum": ["none", "tokens"]
+      "pattern": "^[a-z][a-z-]{0,49}$"
     },
     "entries": {
       "description": "S3, S7-S12：本專案對外暴露的整合入口清單（例如某個可被連結/嵌入的頁面或功能單元）。",
@@ -55,18 +57,19 @@
       "items": { "$ref": "#/$defs/entry" }
     },
     "objects": {
-      "description": "S2-S5：本專案宣告支援的 object type 清單。宣告存在 ≠ 資料可被平台讀取；實際讀寈由未來 capability 定義（S5）。objectId 由專案自己生成、對平台不透明，不在合約裡列舉實際 object 實例。",
+      "description": "S2-S5：本專案宣告支援的 object type 清單。宣告存在 ≠ 資料可被平台讀取；實際讀寫由未來 capability 定義（S5）。objectId 由專案自己生成、對平台不透明，不在合約裡列舉實際 object 實例。",
       "type": "array",
       "maxItems": 100,
       "items": { "$ref": "#/$defs/objectTypeDeclaration" }
     },
     "capabilities": {
-      "description": "S10, S30：能力宣告，三分 supports/requests/requires。",
+      "description": "S10, S30：能力宣告，三分 supports/requests/requires。設計不變式（Worker 端檢查，非本 schema）：requests 與 requires[].capability 出現的每個能力，理論上也該出現在 supports 裡——沒有宣告 supports 卻 requests/requires，語意上是自相矛盾（怎麼會需要一個自己不支援的能力）。",
       "type": "object",
       "additionalProperties": true,
+      "not": { "$ref": "#/$defs/forbiddenFieldsGuard" },
       "properties": {
         "supports": {
-          "description": "S10：能整合的能力，平台可自由選擇是否啟用。",
+          "description": "S10：能整合的能力，平台可自由選擇是否啟用。是 requests/requires 的能力全集（Worker 端不變式，見上）。",
           "type": "array",
           "maxItems": 200,
           "items": { "$ref": "#/$defs/capabilityId" },
@@ -89,26 +92,43 @@
     }
   },
   "$defs": {
+    "forbiddenFieldsGuard": {
+      "description": "S9：合約永不含的欄位名清單，套用在頂層與每個已知的巢狀物件（app / entry / objects[] 項目 / capabilities / capabilities.requires[] 項目）。即使出現也依 S16 無授權效力，這裡是防呆，讓合約作者及早發現寫錯，而不是靜默放行。演進層（見規格第三部分）新增的物件結構若未來加入本 schema，也要一併掛上這個 guard。",
+      "anyOf": [
+        { "type": "object", "required": ["enabled"] },
+        { "type": "object", "required": ["visibility"] },
+        { "type": "object", "required": ["placement"] },
+        { "type": "object", "required": ["order"] },
+        { "type": "object", "required": ["weight"] },
+        { "type": "object", "required": ["position"] },
+        { "type": "object", "required": ["permissions"] },
+        { "type": "object", "required": ["grantedCapabilities"] },
+        { "type": "object", "required": ["secret"] },
+        { "type": "object", "required": ["apiKey"] },
+        { "type": "object", "required": ["token"] }
+      ]
+    },
     "id": {
       "description": "S1, S3：projectId/entryId/objectType 共用文法。",
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{1,62}$"
     },
     "capabilityId": {
-      "description": "S30：<service>.<capability>@<major> 文法。service/capability 允許 camelCase（保留服務名單如 sharedCache），major 為正整數。",
+      "description": "S30：<service>.<capability>@<major> 文法。service/capability 限小寫字母數字連字號（kebab-case），不允許 camelCase——保留服務名單（S30 附錄，如 sharedCache）本身就是『reserved roadmap，非 frozen API，發布前可改名』，統一成 kebab-case 是這份 schema 定案前最後一次免費改名機會，發布後才會被 S11『已發布欄位永不改語意與型別』鎖住。major 為正整數。",
       "type": "string",
-      "pattern": "^[a-z][a-zA-Z0-9]*\\.[a-z][a-zA-Z0-9]*@[1-9][0-9]*$"
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(-[a-z0-9]+)*@[1-9][0-9]*$"
     },
     "contractUrl": {
-      "description": "S15：合約中所有具導航/載入/server-side fetch 意義的 URL，必須是 https: 或相對 URL；同源限制由 Worker 依登記網域檢查，非本 schema 能表達。",
+      "description": "S15：合約中所有具導航/載入/server-side fetch 意義的 URL，必須是 https: 或相對 URL；同源限制由 Worker 依登記網域檢查，非本 schema 能表達。這裡刻意只接受 https:// 開頭或單一 / 開頭（path-absolute）兩種形式，明確排除 protocol-relative（// 開頭，會被瀏覽器解析成任意網域的 https:）；也刻意不放寬到『不帶開頭斜線的相對路徑』（如 assets/icon.png），因為 bare 相對路徑與 scheme:opaque 形式的 URL（如 javascript:...、data:...）在字串層難以可靠區分，屬已知的 URL 驗證陷阱，寧可比 RFC 3986 的『相對 URL』定義更保守。",
       "type": "string",
-      "pattern": "^(https://|/)\\S*$",
+      "pattern": "^(https://\\S+|/(?!/)\\S*)$",
       "maxLength": 2048
     },
     "entry": {
       "type": "object",
       "required": ["entryId", "title", "url"],
       "additionalProperties": true,
+      "not": { "$ref": "#/$defs/forbiddenFieldsGuard" },
       "properties": {
         "entryId": {
           "description": "S3：在 projectId 命名空間內永久穩定；語意永不改，要改就出新 ID。",
@@ -135,28 +155,13 @@
           "type": "boolean",
           "default": false
         }
-      },
-      "not": {
-        "description": "S9：合約永不含排序/授權/機密類欄位，即使出現也依 S16 無授權效力；此處明確擋掉最常見的誤用，幫合約作者及早發現寫錯。",
-        "anyOf": [
-          { "required": ["enabled"] },
-          { "required": ["visibility"] },
-          { "required": ["placement"] },
-          { "required": ["order"] },
-          { "required": ["weight"] },
-          { "required": ["position"] },
-          { "required": ["permissions"] },
-          { "required": ["grantedCapabilities"] },
-          { "required": ["secret"] },
-          { "required": ["apiKey"] },
-          { "required": ["token"] }
-        ]
       }
     },
     "objectTypeDeclaration": {
       "type": "object",
       "required": ["objectType"],
       "additionalProperties": true,
+      "not": { "$ref": "#/$defs/forbiddenFieldsGuard" },
       "properties": {
         "objectType": {
           "description": "S3：語意永不改，要改就出新 objectType。",
@@ -177,6 +182,7 @@
       "type": "object",
       "required": ["capability", "entryId"],
       "additionalProperties": true,
+      "not": { "$ref": "#/$defs/forbiddenFieldsGuard" },
       "properties": {
         "capability": {
           "$ref": "#/$defs/capabilityId"
@@ -187,21 +193,5 @@
         }
       }
     }
-  },
-  "not": {
-    "description": "S9：頂層也擋一次常見誤用（enabled/visibility/placement 等排序與授權欄位不應出現在合約頂層）。",
-    "anyOf": [
-      { "required": ["enabled"] },
-      { "required": ["visibility"] },
-      { "required": ["placement"] },
-      { "required": ["order"] },
-      { "required": ["weight"] },
-      { "required": ["position"] },
-      { "required": ["permissions"] },
-      { "required": ["grantedCapabilities"] },
-      { "required": ["secret"] },
-      { "required": ["apiKey"] },
-      { "required": ["token"] }
-    ]
   }
 }

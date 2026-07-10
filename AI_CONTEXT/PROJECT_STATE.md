@@ -92,16 +92,22 @@ jonaminz/
   該文件是唯一權威；S 條文不可修改（RULES.md §一-12）。
   下一階段＝JSON Schema → Contract 範本 → SDK 骨架，依
   `docs/platform-integration-v1-implementation-plan.md` 的順序。
-  **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿**
-  （`docs/contract-schema/`：`jonaminz.contract.schema.json` +
-  `jonaminz.contract.example.json` + README），已用 `npx ajv-cli
-  --spec=draft2020` 驗證正反例通過。README 列了 6 點規格沒明文釘死、
-  由 agent 判斷的 JSON 形狀設計決策，其中 2 點使用者已於 2026-07-10
-  確認定案（`capabilities.requires` 扁平陣列＋`entryId` 必填；禁用欄位
-  `not` 反面表列維持整份合約 invalid）；其餘 4 點（entries/objects 陣列
-  形狀、css 欄位形狀、`$id` 為 placeholder、capability 正則允許
-  camelCase）風險較低、尚未被挑戰，可視為暫定。第 2 項（Worker 端合約
-  收取）**尚未開始**。
+  **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿並經一輪
+  外部 review 修正，現為 RC2**（`docs/contract-schema/`：
+  `jonaminz.contract.schema.json` + `jonaminz.contract.example.json` +
+  README），已用 `npx ajv-cli --spec=draft2020` 驗證多組正反例通過。
+  Review 修正的 4 項真實問題：①`css` 欄位改掉閉合 enum（違反 S11
+  must-ignore）、改語法層寬鬆 pattern；②`contractUrl` regex 補上
+  protocol-relative（`//host/...`）繞過漏洞；③禁用欄位 `not` 守衛從只蓋
+  頂層/entry 擴大到所有已知巢狀物件（app/objects/capabilities/requires）；
+  ④capability 文法改純 kebab-case（不再允許 camelCase）。範例合約也修正了
+  `requests`/`requires` 未落在 `supports` 裡的自相矛盾。README 仍列 5 點
+  規格沒明文釘死、由 agent 判斷的 JSON 形狀設計決策，其中 2 點使用者已於
+  2026-07-10 確認定案（`capabilities.requires` 扁平陣列＋`entryId` 必填；
+  禁用欄位 `not` 反面表列維持整份/整個物件判 invalid）；其餘 3 點
+  （entries/objects 陣列形狀、css 欄位是單一字串、`$id` 為 placeholder）
+  風險較低、尚未被挑戰，可視為暫定。第 2 項（Worker 端合約收取）
+  **尚未開始**。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。

@@ -20,6 +20,38 @@
 
 ---
 
+## 2026-07-10 — Contract JSON Schema 一輪外部 review 修正 → RC2
+
+- **任務**：使用者拿草稿給外部 review，帶回 4 點問題，逐條核實後修正。
+- **變更**：`jonaminz.contract.schema.json`：①`css` 從 `enum: ["none","tokens"]`
+  改成語法層 pattern（`^[a-z][a-z-]{0,49}$`）——閉合 enum 會讓未來出現
+  `components` 時整份合約直接 invalid，違反 S11「未知 enum 值視為不支援，
+  不得整份判失敗」；②`contractUrl` pattern 從 `^(https://|/)\S*$` 改成
+  `^(https://\S+|/(?!/)\S*)$`——原本 `//evil.example.com/a` 這種
+  protocol-relative URL 會被誤判合法，實際上瀏覽器會解析成任意網域的
+  https:，是真的安全漏洞；同時刻意仍不開放無開頭斜線的相對路徑（如
+  `assets/icon.png`），因為那與 `javascript:`/`data:` 等 scheme:opaque URL
+  在字串層難以可靠區分；③新增 `$defs/forbiddenFieldsGuard` 並套用到
+  `app`／`objects[]` 項目／`capabilities`／`capabilities.requires[]`
+  項目——原本只有頂層和 `entry` 有 S9 禁用欄位守衛，`app.permissions`
+  這類寫法會靜默通過 schema；④capability 文法改純 kebab-case，拿掉
+  camelCase（`sharedCache` 這類保留名字本身是「發布前可改名」，現在改
+  是免費的）。同時修正 `forbiddenFieldsGuard` 的 `anyOf` 分支補上
+  `type: object`，消除 ajv strict-mode 警告。`jonaminz.contract.example.json`
+  修正 `supports` 未涵蓋 `requests`/`requires` 用到的能力這個自相矛盾
+  （這個不變式本身留給 Worker 端 cross-field 檢查，schema 做不到）。
+  `README.md` 大幅補充「URL 驗證」「css 欄位」「capability 文法」「禁用欄位
+  守衛」四節說明修正理由，並補上一張正反例驗證結果表。用
+  `npx ajv-cli validate --spec=draft2020` 跑過範例＋7 組正反例（protocol-relative
+  URL、巢狀禁用欄位×2、css 保留值、camelCase/kebab-case capability、
+  無斜線相對路徑）全數符合預期。
+- **狀態變化**：草稿 → RC2（1 輪外部 review 已吸收）。開放設計決策從
+  6 點收斂為 5 點（其中 2 點仍是已確認定案，3 點暫定未挑戰）。
+- **遺留**：`requests`/`requires[].capability` ⊆ `supports` 的 cross-field
+  不變式、`entryId` 參照一致性，都明確記在 README／schema description 裡
+  留給 Worker ingestion（implementation plan 第 2 項），非本次遺漏。
+- **版本**：無程式碼變更（未 bump；純 `docs/` 修訂）。
+
 ## 2026-07-10 — Contract JSON Schema 兩點設計決策定案
 
 - **任務**：使用者針對草稿 README 列出的 6 點開放設計決策中的 2 點
