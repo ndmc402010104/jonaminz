@@ -1,3 +1,11 @@
 name = "jonaminz-backend"
 main = "worker.js"
 compatibility_date = "2024-01-01"
+
+# Worker 自己「現在是哪個 environment」，跟著這次部署走，不是 client payload
+# 能宣告或偽造的（見 docs/contract-schema/README.md 的 Environment Resolution
+# 模型、docs/platform-integration-v1-implementation-plan.md 第 2 項）。現在只有
+# 這一個部署，先設 "prod"；未來真的要開 dev 環境時另外加 [env.dev] 區塊，指到
+# 同一個 Supabase 專案、換一個 environment 標籤即可，不用建第二套基礎設施。
+[vars]
+JONAMINZ_ENVIRONMENT = "prod"

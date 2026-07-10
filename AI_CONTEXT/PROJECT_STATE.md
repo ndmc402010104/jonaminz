@@ -51,10 +51,19 @@ jonaminz/
     admin/theme/              Theme 編輯頁：讀寫 Supabase CSS 規則，存檔全站立即換外觀
   backend/
     README.md                 後端部署說明
-    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，4 個 action（見 §5）
-    cloudflare-worker/wrangler.toml
+    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，5 個 action（見 §5）
+    cloudflare-worker/wrangler.toml   含 [vars] JONAMINZ_ENVIRONMENT（見 §4 Platform Integration）
+    cloudflare-worker/package.json    ajv 依賴（Contract JSON Schema 驗證用）
+    cloudflare-worker/integration-settings.json  Contract 收取用的 Integration
+                                      Settings（git 檔案，S38；projectId→environment→
+                                      registered origin，目前為空，尚無真實外部專案）
+    cloudflare-worker/contract-validation.js  Contract 收取的純函式驗證模組
+                                      （canonical hash / cross-field / URL 同源），
+                                      可獨立用 node 測試，不需部署 Worker
     supabase/schema.sql       external_app_registrations 表
     supabase/theme_schema.sql theme_css_rules 表
+    supabase/contract_schema.sql  contract_snapshots / contract_active_snapshots /
+                                  contract_audit_log 三張表（已套用到 jonaminz-db）
   docs/
     external-project-manifest.md          v0 外部專案接入方式（現行有效；作廢需三條件，見 RULES §4）
     platform-integration-spec-review.md   Platform 規格 v1 的架構審查
@@ -83,42 +92,35 @@ jonaminz/
 
 ## 4. 尚未完成的功能
 
-- **Platform Integration（圖書館模型）整套**：`jonaminz.contract.json` schema、
-  JSON Schema 驗證、SDK（`jonaminz-entry.js`，常青網址 `/sdk/`）、推模式合約回報、
-  `window.Jonaminz.*` API 骨架、Google OAuth。**一行程式碼都還沒寫**。
-  規格定稿流程已於 2026-07-10 **全部完成**：RFC → 5 份 Review →
-  彙整＋四項裁決 → RC → 驗收修正（RC2）→ 一致性修訂 →
-  **`docs/platform-integration-spec-v1.md` 正式 Frozen（S1–S39）**。
-  該文件是唯一權威；S 條文不可修改（RULES.md §一-12）。
-  下一階段＝JSON Schema → Contract 範本 → SDK 骨架，依
-  `docs/platform-integration-v1-implementation-plan.md` 的順序。
-  **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿，經兩輪
-  外部 review 修正＋使用者一次裁決收尾，現為 RC3.1——設計面已定案，
-  第 2 項即將開工**（`docs/contract-schema/`：`jonaminz.contract.schema.json`
-  + `jonaminz.contract.example.json` + README），已用 `npx ajv-cli
-  --spec=draft2020` 驗證多組正反例通過（含兩輪 review 抓到的 URL bypass
-  反例）。兩輪 review 共修正 5 項真實問題：①`css` 欄位改掉閉合 enum
-  （違反 S11 must-ignore）；②③`contractUrl` regex 先後補上
-  protocol-relative（`//host/...`）與反斜線正規化（`/\host/...`，WHATWG
-  URL parser 會把 `\` 轉成 `/`）兩種繞過漏洞；④禁用欄位 `not` 守衛擴大到
-  所有已知巢狀物件；⑤capability 文法改純 kebab-case。範例合約也修正了
-  `requests`/`requires` 未落在 `supports` 裡的自相矛盾，`requires` 加了
-  `uniqueItems`。RC3.1 再修一項：範例 `entries[0].url` 原本寫死
-  `https://example-project.jonaminz.com/`，改成 path-absolute 的 `"/"`，
-  避免讓 Contract 看起來綁定某個固定 prod 部署位址；新增「Environment
-  Resolution」模型（`docs/contract-schema/README.md`）：Contract 不宣告
-  prod/dev/local，path-absolute URL 由**接收 ingestion 的 Worker**依它
-  查到的 Integration Settings（每個 projectId 每個 environment 各自登記
-  一個 origin）解析；絕對 https:// URL 仍合法，但其 origin 必須精確等於
-  **目前 environment** 登記的 origin，不得用其他 environment（如 prod）
-  的登記值滿足這次（如 dev）的同源檢查。README 的 5 點設計決策中，1、2
-  在草稿階段裁決，3（entries/objects 用陣列）、4（css 是單一字串）在
-  review 階段裁決，僅第 5 點（`$id` 何時正式發布）留一個「進 Worker 前」
-  的 release checklist 待辦。Worker 端要做的 URL 驗證清單、environment
-  origin 資料模型、cross-field 檢查清單，全部已記進
-  `platform-integration-v1-implementation-plan.md` 第 2 項。**第 2 項
-  （Worker 端合約收取：Supabase schema、Cloudflare Worker 程式碼）
-  使用者已授權開工，下一棒/下一輪接手時先讀該檔第 2 項確認範圍。**
+- **Platform Integration（圖書館模型）**：規格 `docs/platform-integration-spec-v1.md`
+  正式 **Frozen（S1–S39）**，S 條文不可修改（RULES.md §一-12）。實作依
+  `docs/platform-integration-v1-implementation-plan.md` 的順序推進，目前狀態：
+  - **第 1 項（Contract JSON Schema ＋ 範本）：完成，RC3.1 定案。**
+    `docs/contract-schema/`（schema.json + example.json + README）。過程中
+    兩輪外部 review 抓到並修正了兩個真實的 URL 驗證繞過漏洞（protocol-relative
+    `//host/...`、反斜線正規化 `/\host/...`——WHATWG URL parser 會把 `\`
+    轉成 `/`），細節與其餘修正見 CHANGELOG 對應日期條目、定案細節見
+    `docs/contract-schema/README.md`。RC3.1 定下「Environment Resolution」
+    模型：Contract 不宣告 prod/dev/local，path-absolute URL 由接收 ingestion
+    的 Worker 依 Integration Settings 解析；絕對 https:// URL 的 origin
+    必須精確等於**目前 environment** 登記的 origin，不得跨 environment 混用。
+  - **第 2 項（Worker 端合約收取）：submitContract action 已實作、Supabase
+    schema 已套用到 jonaminz-db，範圍限於「收取＋存 pending snapshot」。**
+    `backend/cloudflare-worker/`：`contract-validation.js`（純函式：
+    canonical hash / cross-field 檢查 / URL 同源檢查，已用 node 跑過 23 項
+    正反例）、`integration-settings.json`（Integration Settings，S38：git
+    檔案＋Worker 供應，目前 `projects` 為空，尚無真實外部專案登記）、
+    `worker.js` 的 `submitContract` action（ajv 驗 schema → cross-field →
+    URL/origin → canonical hash 去重 → insert pending snapshot + audit log）、
+    `wrangler.toml` 新增 `[vars] JONAMINZ_ENVIRONMENT="prod"`（Worker 自己
+    是哪個 environment 由部署決定，不是 payload 能宣告的，避免跨 environment
+    origin 混淆攻擊）。**不包含**：approve/reject 動作、核准後台（第 3 項）、
+    KV-based rate limit（已知留白，見 backend/README.md）。**尚未
+    `wrangler deploy`**——程式碼與 DB schema 已就緒，部署需另外授權
+    （RULES.md §2-2）。
+  - 尚未開始：第 3 項（核准後台）→ 第 9 項（Google OAuth）。SDK
+    （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*` 一行都
+    還沒寫。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。
@@ -133,9 +135,9 @@ jonaminz/
 |---|---|
 | 前端託管 | GitHub Pages，repo `ndmc402010104/jonaminz`，branch `main`，網域 `www.jonaminz.com`（CNAME） |
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
-| 資料庫 | Supabase Postgres，兩張表：`external_app_registrations`、`theme_css_rules`，皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰） |
+| 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。五張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`，皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
 | Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`（存在 Cloudflare，不在 repo） |
-| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**） |
+| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending，見 backend/README.md） |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
@@ -143,7 +145,7 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-10 掃描）
 
-- 業務版本：`v0.2.0-202607100017`（`version.js`）。規則：每次 push 前要 bump。
+- 業務版本：`v0.3.0-202607110246`（`version.js`）。規則：每次 push 前要 bump。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、
@@ -152,8 +154,15 @@ jonaminz/
 
 ## 7. UNKNOWN / 待確認清單
 
-- `UNKNOWN`：Supabase 專案的 URL 與 dashboard 位置（secret 只存在 Cloudflare Worker，
-  repo 掃不到；根目錄密碼檔屬敏感，未讀取）。
+- `VERIFIED 2026-07-10`：Supabase 專案是 `jonaminz-db`（ref `xhwrizmacantlubasixe`，
+  AWS ap-southeast-1）。根目錄「`suprabase db pw.txt`」除了 DB 密碼，還有一把
+  Supabase **Management API** token（`sbp_...`，標記 `jonaminz-migration-temp`）——
+  這把 token 能碰同一個 Supabase 組織下的**所有**專案，目前該組織還有 `skhps-db`
+  （ref `ybixaibejrigqbrostnq`，另一個專案）。用這把 token 直連操作前，**務必先
+  用唯讀查詢核對 project ref／查表名，確認打對 `jonaminz-db`**，不要假設自己在
+  對的專案上——2026-07-10 建 `contract_schema.sql` 三張表時已示範這個核對流程
+  （見 CHANGELOG 對應條目）。直連 DB 屬敏感操作，每次都要先問過使用者
+  （RULES.md §一-7）。
 - `UNKNOWN`：`theme_css_rules` 與 `external_app_registrations` 兩張表目前的實際
   資料內容（需透過 Worker API 或 Supabase 後台查詢才知道）。
 - `VERIFIED 2026-07-10`：`https://jonaminz.com`（apex）目前回 301 轉址至

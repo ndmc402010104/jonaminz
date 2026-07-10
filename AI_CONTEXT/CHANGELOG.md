@@ -20,6 +20,74 @@
 
 ---
 
+## 2026-07-10 — Implementation plan 第 2 項：Worker 端合約收取（submitContract）
+
+- **任務**：使用者授權開工的 implementation plan 第 2 項，範圍：Integration
+  Settings 的 environment origin 資料模型、Contract snapshot 三態生命週期、
+  audit table、schema/cross-field/URL 驗證、一切寫入先進 pending。用 Plan
+  Mode 先列出檔案層級計畫、經使用者確認兩項技術選擇（ajv 讀 schema.json、
+  wrangler `[vars]` 決定 Worker 自己的 environment）後才動手。
+- **變更**：
+  - 新增 `backend/cloudflare-worker/integration-settings.json`：Contract
+    收取用的 Integration Settings（S38：v1 為 git 檔案＋Worker 供應），
+    `projects` 目前為空（尚無真實外部專案登記）。
+  - 新增 `backend/cloudflare-worker/contract-validation.js`：純函式模組
+    （`computeCanonicalHash`／`validateCrossFields`／`validateUrls`），
+    實作 JSON Schema 本身做不到的 S12 cross-field 檢查（entryId/objectType
+    重複、requests/requires ⊆ supports、requires.entryId 參照）與 S15 URL
+    同源檢查（`new URL()` 解析、反斜線防禦、origin 精確比對、禁帳密）。
+    用 node 直接跑了 23 項正反例（含「絕對 URL 但 origin 對不上目前
+    environment」這個使用者特別點名的情境），全部通過。
+  - 新增 `backend/cloudflare-worker/package.json`（`ajv` 依賴，`"type":
+    "module"`），`npm install` 確認可用。
+  - `backend/cloudflare-worker/worker.js`：頂部 import ajv（`ajv/dist/2020.js`，
+    `strict: false`）、`docs/contract-schema/jonaminz.contract.schema.json`
+    （跨目錄相對 import，已用 `wrangler deploy --dry-run` 驗證 esbuild 能
+    正確 bundle，不需要 import attribute 語法）、`integration-settings.json`、
+    `contract-validation.js`；新增 `submitContract` action：驗必填 →
+    `env.JONAMINZ_ENVIRONMENT` 查 Integration Settings（projectId 未登記／
+    該 environment 未登記 origin 都拒絕）→ payload size 上限 →
+    請求 Origin header 對登記 origin 的交叉驗證 → ajv 驗 schema →
+    cross-field／URL 驗證 → canonical hash 去重 → insert `contract_snapshots`
+    （`status='pending'`）＋ `contract_audit_log`（`action='submit'`）。
+    `payload.environment` 只做跟 `env.JONAMINZ_ENVIRONMENT` 的健檢比對，
+    不是權威來源——避免任何人靠 payload 宣告 environment 來繞過同源檢查。
+  - `backend/cloudflare-worker/wrangler.toml` 新增 `[vars]
+    JONAMINZ_ENVIRONMENT = "prod"`（對應現有唯一部署；未來開 dev 環境時
+    加 `[env.dev]`，指向同一個 Supabase 專案即可，不需要第二套基礎設施）。
+  - 新增 `backend/supabase/contract_schema.sql`（`contract_snapshots` /
+    `contract_active_snapshots` / `contract_audit_log` 三張表，皆開 RLS
+    無 public policy）。**已直連 `jonaminz-db` 套用並 smoke test**（合法列
+    插入成功、非法 `status` 值被 check constraint 擋下、測試列已清除）——
+    使用者明確授權用根目錄密碼檔的 Supabase Management API token 直接執行；
+    過程中發現這把 token 同時能碰同一組織下的 `skhps-db`，套用前先用唯讀
+    查詢核對 project ref／表名，確認打在 `jonaminz-db` 上才動手（細節見
+    PROJECT_STATE.md §7）。
+  - `backend/README.md`：新增 `submitContract` 說明、`contract_schema.sql`
+    建表步驟、`npm install` 步驟、Integration Settings 登記範例、
+    Environment 由 `JONAMINZ_ENVIRONMENT` 決定（非 payload 宣告）的說明、
+    rate limit 已知留白的說明。
+  - `AI_CONTEXT/PROJECT_STATE.md`：§2 補新增檔案、§4 Platform Integration
+    段落改寫為精簡的現況摘要（詳細沿革移交 CHANGELOG，不再兩處重複累積）、
+    §5 補 `jonaminz-db` project ref 與五張表、`submitContract` action、
+    §7 UNKNOWN 項改為 VERIFIED 並記錄 Management API token 跨專案的風險。
+- **驗證**：`contract-validation.js` 23 項 node 正反例全過；
+  `npx wrangler deploy --dry-run --outdir=./dist-check` bundle 成功
+  （309KB / gzip 61KB，`JONAMINZ_ENVIRONMENT: "prod"` 正確顯示在 bindings
+  裡），確認 JSON import 路徑與 ajv 依賴在真正的 wrangler/esbuild 打包
+  流程下沒問題，不是只在 Node 環境下測試過；DB 三張表用 Management API
+  直接建表＋smoke test（見上）。**尚未 `wrangler deploy` 到線上**——這一步
+  RULES.md §2-2 需要另外授權，本次未做，程式碼與 DB schema 已就緒待部署。
+- **狀態變化**：implementation plan 第 1 項（Contract Schema）→ 完成 RC3.1；
+  第 2 項（Worker 端合約收取，限「收取＋pending」範圍）→ **程式碼與 DB
+  schema 完成，待部署**。第 3 項（核准後台）**未開始**。
+- **遺留**：`wrangler deploy` 授權待確認；`integration-settings.json`
+  目前是空的，要接第一個真實外部專案時才會有內容；KV rate limit 是刻意
+  留白（見 backend/README.md）；`docs/contract-schema/README.md` 的
+  「進 Worker 前 release checklist」（`$id` 正式發布）仍待辦，不擋這次
+  Worker 開工但擋第一份真實合約 approve 前。
+- **版本**：`v0.3.0-202607110246`（本次動到程式碼與 DB schema，已 bump）。
+
 ## 2026-07-10 — Contract JSON Schema RC3.1：Environment Resolution 模型，授權開工 Worker
 
 - **任務**：使用者對 RC3 範例合約提出最後一個問題（`entries[0].url` 寫死
