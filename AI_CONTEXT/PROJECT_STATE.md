@@ -92,21 +92,24 @@ jonaminz/
   該文件是唯一權威；S 條文不可修改（RULES.md §一-12）。
   下一階段＝JSON Schema → Contract 範本 → SDK 骨架，依
   `docs/platform-integration-v1-implementation-plan.md` 的順序。
-  **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿並經一輪
-  外部 review 修正，現為 RC2**（`docs/contract-schema/`：
-  `jonaminz.contract.schema.json` + `jonaminz.contract.example.json` +
-  README），已用 `npx ajv-cli --spec=draft2020` 驗證多組正反例通過。
-  Review 修正的 4 項真實問題：①`css` 欄位改掉閉合 enum（違反 S11
-  must-ignore）、改語法層寬鬆 pattern；②`contractUrl` regex 補上
-  protocol-relative（`//host/...`）繞過漏洞；③禁用欄位 `not` 守衛從只蓋
-  頂層/entry 擴大到所有已知巢狀物件（app/objects/capabilities/requires）；
-  ④capability 文法改純 kebab-case（不再允許 camelCase）。範例合約也修正了
-  `requests`/`requires` 未落在 `supports` 裡的自相矛盾。README 仍列 5 點
-  規格沒明文釘死、由 agent 判斷的 JSON 形狀設計決策，其中 2 點使用者已於
-  2026-07-10 確認定案（`capabilities.requires` 扁平陣列＋`entryId` 必填；
-  禁用欄位 `not` 反面表列維持整份/整個物件判 invalid）；其餘 3 點
-  （entries/objects 陣列形狀、css 欄位是單一字串、`$id` 為 placeholder）
-  風險較低、尚未被挑戰，可視為暫定。第 2 項（Worker 端合約收取）
+  **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿，經兩輪
+  外部 review 修正，現為 RC3——設計面已定案，準備進第 2 項**
+  （`docs/contract-schema/`：`jonaminz.contract.schema.json` +
+  `jonaminz.contract.example.json` + README），已用 `npx ajv-cli
+  --spec=draft2020` 驗證多組正反例通過（含兩輪 review 抓到的 URL
+  bypass 反例）。兩輪 review 共修正 5 項真實問題：①`css` 欄位改掉閉合
+  enum（違反 S11 must-ignore）；②③`contractUrl` regex 先後補上
+  protocol-relative（`//host/...`）與反斜線正規化（`/\host/...`，WHATWG
+  URL parser 會把 `\` 轉成 `/`）兩種繞過漏洞；④禁用欄位 `not` 守衛擴大到
+  所有已知巢狀物件；⑤capability 文法改純 kebab-case。範例合約也修正了
+  `requests`/`requires` 未落在 `supports` 裡的自相矛盾，`requires` 加了
+  `uniqueItems`。README 的 5 點設計決策中，1、2 在草稿階段裁決，3
+  （entries/objects 用陣列）、4（css 是單一字串）在這輪裁決，僅第 5 點
+  （`$id` 何時正式發布）留一個「進 Worker 前」的 release checklist 待辦。
+  Worker 端要做的 URL 驗證清單（WHATWG URL parser、同源比對、禁帳密、
+  redirect 重新驗證等）與 cross-field 檢查清單，已記進
+  `platform-integration-v1-implementation-plan.md` 第 2 項。第 2 項本身
+  （Worker 端合約收取：Supabase schema、Cloudflare Worker 程式碼）
   **尚未開始**。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。

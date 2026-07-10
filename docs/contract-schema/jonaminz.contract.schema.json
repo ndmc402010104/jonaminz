@@ -83,10 +83,11 @@
           "uniqueItems": true
         },
         "requires": {
-          "description": "S10：綁定某 entry 或整合單元的能力，缺它該單元不啟用。requires 永不阻止宿主頁面運作、永不造成自動 grant（S10, S16）。",
+          "description": "S10：綁定某 entry 或整合單元的能力，缺它該單元不啟用。requires 永不阻止宿主頁面運作、永不造成自動 grant（S10, S16）。uniqueItems 只能擋完全相同的 {capability, entryId} 物件重複；『同 capability+entryId 但夾帶不同未知欄位』這種語意重複，仍要靠 Worker ingestion 查。",
           "type": "array",
           "maxItems": 200,
-          "items": { "$ref": "#/$defs/capabilityRequirement" }
+          "items": { "$ref": "#/$defs/capabilityRequirement" },
+          "uniqueItems": true
         }
       }
     }
@@ -119,9 +120,9 @@
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9]*(-[a-z0-9]+)*@[1-9][0-9]*$"
     },
     "contractUrl": {
-      "description": "S15：合約中所有具導航/載入/server-side fetch 意義的 URL，必須是 https: 或相對 URL；同源限制由 Worker 依登記網域檢查，非本 schema 能表達。這裡刻意只接受 https:// 開頭或單一 / 開頭（path-absolute）兩種形式，明確排除 protocol-relative（// 開頭，會被瀏覽器解析成任意網域的 https:）；也刻意不放寬到『不帶開頭斜線的相對路徑』（如 assets/icon.png），因為 bare 相對路徑與 scheme:opaque 形式的 URL（如 javascript:...、data:...）在字串層難以可靠區分，屬已知的 URL 驗證陷阱，寧可比 RFC 3986 的『相對 URL』定義更保守。",
+      "description": "S15：合約中所有具導航/載入/server-side fetch 意義的 URL，必須是 https: 或相對 URL；同源限制由 Worker 依登記網域檢查，非本 schema 能表達。這裡刻意只接受 https:// 開頭或單一 / 開頭（path-absolute）兩種形式，明確排除 protocol-relative（// 開頭，會被瀏覽器解析成任意網域的 https:）；也刻意不放寬到『不帶開頭斜線的相對路徑』（如 assets/icon.png），因為 bare 相對路徑與 scheme:opaque 形式的 URL（如 javascript:...、data:...）在字串層難以可靠區分，屬已知的 URL 驗證陷阱，寧可比 RFC 3986 的『相對 URL』定義更保守。**額外排除任何反斜線**：WHATWG URL parser 對 http/https 等 special scheme 會把 `\\` 正規化成 `/`，導致 `/\\evil.example/a` 這種『看起來是 path-absolute』的字串實際解析出來變成 `https://evil.example/a`（已用 Node 的 URL() 實測驗證，等同 protocol-relative 的變形繞過）；純靠正斜線比對擋不住這個，所以整個 pattern 一律禁止出現反斜線字元。",
       "type": "string",
-      "pattern": "^(https://\\S+|/(?!/)\\S*)$",
+      "pattern": "^(https://[^\\s\\\\]+|/(?![/\\\\])[^\\s\\\\]*)$",
       "maxLength": 2048
     },
     "entry": {

@@ -20,6 +20,39 @@
 
 ---
 
+## 2026-07-10 — Contract JSON Schema 第二輪 review 修正 → RC3，設計面定案
+
+- **任務**：使用者再拿 RC2 給外部 review，帶回 1 個真正的安全漏洞＋
+  3 個開放設計決策的裁決意見，逐條核實後修正、落成 RC3。
+- **變更**：`jonaminz.contract.schema.json`：`contractUrl` 的 pattern 從
+  `^(https://\S+|/(?!/)\S*)$` 改成
+  `^(https://[^\s\\]+|/(?![/\\])[^\s\\]*)$`——用 Node 的 `new URL()`
+  實測確認 WHATWG URL parser 對 https 這類 special scheme 會把 `\`
+  正規化成 `/`，導致 `/\evil.example/a` 這種「看起來是 path-absolute」
+  的字串實際解析成 `https://evil.example/a`（跟 RC2 修過的 `//` protocol-
+  relative 繞過是同一類問題的變形，RC2 沒堵住）；新 pattern 全面禁止
+  反斜線出現在字串任何位置。`capabilities.requires` 加上
+  `uniqueItems: true`（只能擋完全相同的物件重複，語意重複仍留給
+  Worker）。用 7 組新反例（4 種反斜線變體皆 invalid、2 種既有合法形式
+  仍 valid、requires 完全重複 invalid）驗證修正正確。`README.md`：
+  補充反斜線繞過的說明與教訓（「regex 對 URL 只能語法粗篩，真正邊界要
+  在 Worker 用標準 URL parser 重算」）；`entries`/`objects` 陣列形狀、
+  `css` 單一字串兩點設計決策改列「已確認」；`$id` 是否/何時正式發布
+  改列進新增的「進 Worker 前的 release checklist」小節。
+  `platform-integration-v1-implementation-plan.md` 第 2 項補上完整的
+  Worker 端 URL 驗證清單（反斜線直接拒絕、WHATWG URL parser、https-only、
+  origin 精確比對、禁帳密、redirect 逐跳重驗、正規化後存值+原始值
+  audit）與 cross-field 檢查清單（entryId/objectType 重複處理、
+  requests/requires ⊆ supports、requires.entryId 參照一致性），避免
+  這輪 review 的具體建議在交接時流失。
+- **狀態變化**：Contract Schema 草稿 → RC2 → **RC3，設計面視為定案**。
+  implementation plan 第 1 項完成度：schema 本體已無已知漏洞，僅剩
+  `$id` 正式發布時機一個待辦（不擋 Worker 開工）。第 2 項（Worker 端
+  合約收取）**仍未開始**，但工作清單已比 RC2 時更具體。
+- **遺留**：無新遺留；既有的「schema 做不到的 cross-field 檢查」已從
+  README 的敘述性提醒，落實成 implementation-plan.md 裡可執行的清單。
+- **版本**：無程式碼變更（未 bump；純 `docs/` 修訂）。
+
 ## 2026-07-10 — Contract JSON Schema 一輪外部 review 修正 → RC2
 
 - **任務**：使用者拿草稿給外部 review，帶回 4 點問題，逐條核實後修正。
