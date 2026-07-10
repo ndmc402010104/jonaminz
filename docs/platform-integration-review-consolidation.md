@@ -232,8 +232,16 @@ observed/approved 兩態資料模型是共識（零成本、day one 就分），
 
 ---
 
-## 參、裁決後的下一步
+## 參、裁決結果（使用者 2026-07-10 拍板）
 
-裁決 D1–D4 → 撰寫 **Specification v1.0（Frozen）**（結構：凍結層條文／
-演進層／保留層，以圖書館模型為敘事骨架，吸收壹的全部定案與 D1-D4 裁決結果）
-→ 使用者驗收凍結 → JSON Schema ＋ Contract 範本 ＋ SDK 骨架。
+| 決策 | 裁決 |
+|---|---|
+| D1 Ready 介面 | **甲：inline Promise stub**——官方 snippet 先建立 `window.Jonaminz.ready` Promise 再 async 載 SDK；保證路徑是 `await Jonaminz.ready`，全程單一寫法，不引入 queue |
+| D2 跨源身份 | **v1 外部專案一律匿名**——登入態只在 jonaminz.com 主站；外部專案只拿非個人化能力；Actor Context 欄位形狀保留 |
+| D3 名單降級 | **接受**——11 個 Service 名與 components/full/self 降為 reserved roadmap；凍結的是機制（namespace 文法、name@version、永不重用） |
+| D4 合約核准 | **手動核准**——pending/approved 兩態，主頁看 diff 點核准；GitHub Action token 自動通道列為未來選項 |
+
+## 肆、下一步
+
+依壹（共識定案）＋參（裁決）撰寫 **Specification v1.0**（RC → 使用者驗收
+→ 標 Frozen）→ JSON Schema ＋ Contract 範本 ＋ SDK 骨架。

@@ -20,6 +20,24 @@
 
 ---
 
+## 2026-07-10 — 五份 Review 收齊、彙整定案、產出 Spec v1.0 RC
+
+- **任務**：收集 5 份 Architecture Review（Codex/ChatGPT/Gemini/Claude Fable
+  ［含 F2 立場修正］/Perplexity）→ 彙整 → 使用者裁決 → 撰寫 Specification v1.0 RC。
+- **變更**：新增 `docs/platform-integration-reviews/`（五份一份一檔）、
+  `docs/platform-integration-review-consolidation.md`（共識定案＋裁決紀錄）、
+  `docs/platform-integration-spec-v1.md`（**Spec v1.0 RC，凍結條文 S1–S38**）。
+- **狀態變化**：四項裁決已定——D1 Ready 介面＝inline Promise stub（await
+  Jonaminz.ready 為唯一保證路徑，不做 command queue）；D2 跨源身份＝v1 外部
+  專案一律匿名；D3＝11 個 Service 名與 components/full/self 降為 reserved；
+  D4 合約核准＝observed/approved 兩態＋手動核准。共識定案含：錯誤模型
+  reject（4:1）、loader＋版本指標（5:0）、推送≠採信、物件定址凍結、
+  交集公式在 Worker 算、CSS token `--jz-` 前綴等，見彙整報告第壹部分。
+- **遺留**：Spec v1.0 RC **待使用者驗收後才標 Frozen**；驗收後下一步＝
+  JSON Schema＋Contract 範本＋SDK 骨架。既有 theme-runtime 變數改名
+  `--jz-*`（S36）屬未來實作項。
+- **版本**：無程式碼變更（未 bump）。
+
 ## 2026-07-10 — 發布 Platform Integration RFC，固定規格定稿流程
 
 - **任務**：把 Review Request 定稿為正式 RFC，固定「先收齊意見再定稿」的流程。

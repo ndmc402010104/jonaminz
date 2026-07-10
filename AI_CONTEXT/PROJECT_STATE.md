@@ -83,11 +83,12 @@ jonaminz/
 - **Platform Integration（圖書館模型）整套**：`jonaminz.contract.json` schema、
   JSON Schema 驗證、SDK（`jonaminz-entry.js`，常青網址 `/sdk/`）、推模式合約回報、
   `window.Jonaminz.*` API 骨架、Google OAuth。**一行程式碼都還沒寫**。
-  流程已固定（使用者 2026-07-10 定案）：
-  Draft Spec → RFC（`docs/platform-integration-review-request.md`，已凍結）→
-  收集 3~5 份 Architecture Review（放 `docs/platform-integration-reviews/`，
-  一份一檔）→ 彙整共識與分歧 → Specification v1.0（Frozen）→ Schema → SDK。
-  **收 Review 期間不改規格**；目前狀態＝RFC 已發布、等待收集 Review。
+  流程已固定並執行至倒數第二步（2026-07-10）：
+  RFC → **5 份 Review 已收齊**（`docs/platform-integration-reviews/`）→
+  **彙整與四項裁決完成**（`docs/platform-integration-review-consolidation.md`）→
+  **Spec v1.0 RC 已產出**（`docs/platform-integration-spec-v1.md`，凍結條文
+  S1–S38）。目前狀態＝**RC 待使用者驗收**，驗收後標 Frozen 才進
+  Schema → SDK。任何 Platform 相關實作以 spec-v1 為唯一權威。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。
