@@ -1,8 +1,12 @@
 # Jonaminz Platform Integration — Specification v1.0
 
-狀態：**RC2（驗收修正版，待使用者驗收後標 Frozen）**
-日期：2026-07-10（RC2 修正同日；修正清單見驗收 review 存檔
-`platform-integration-reviews/acceptance-review-spec-v1-rc.md`）
+狀態：**Frozen（2026-07-10 凍結）**
+凍結效力：**S1–S39 條文永不修改**；新需求只能走演進層（additive）或
+保留層發布；後續一切實作（Schema／SDK／Worker）以本文為唯一標準，
+程式碼與本文衝突時以本文為準。
+驗收軌跡：RC → 驗收 review（七項架構級修正，見
+`platform-integration-reviews/acceptance-review-spec-v1-rc.md`）→ RC2 →
+兩項一致性修訂（status/diagnostics 分離、`__snippetVersion` 身分標記）→ Frozen。
 前身文件：`platform-integration-review-request.md`（RFC）、
 `platform-integration-reviews/`（五份 Architecture Review）、
 `platform-integration-review-consolidation.md`（彙整＋裁決）。
@@ -175,6 +179,7 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
   b.timer = setTimeout(function () {
     b.settle("degraded", "SDK_LOAD_TIMEOUT");
   }, 15000);
+  jz.__snippetVersion = 1;                   /* 永久身分標記，settle 後保留 */
   jz.__bootstrap = b;
   window.Jonaminz = jz;
 })();
@@ -192,15 +197,19 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
     diagnostics、service namespace、status 都在同一個物件上）。
   - snippet 同時保存 resolve 與 reject；**loader 載入失敗（onerror）或
     15 秒逾時 → settle 成 degraded**（resolve 同一物件、`status:"degraded"`），
-    永不永久 pending；settle 後 `__bootstrap`（含 resolve/reject reference）
-    即刪除，重複 settle 為 no-op。
+    永不永久 pending；settle 後刪除 `__bootstrap`（resolve／reject／timer
+    等內部 reference），重複 settle 為 no-op。**`__snippetVersion` 是永久
+    身分標記、不含任何敏感 reference，settle 後保留**——供晚到的 SDK
+    辨識這個物件出自官方 snippet（見 S22）。
   - SDK 就緒 → `settle("ready")`；SDK 自身不可恢復錯誤 →
     `settle("reject", JonaminzError SDK_INIT_FAILED)`。
   - SDK 若在已 settle（逾時降級）之後才抵達：不重播 Promise，但得就地
     初始化並更新**同一物件**的 `status`——宿主之後讀 `jz.status` 即見恢復。
 - **S22** 全域命名空間：`window.Jonaminz`（大寫 J），保留給 SDK；宿主不得
-  寫入。SDK 啟動時若發現命名空間已被非 snippet 產物佔用：不覆寫、
-  console 報警、靜默退場。重複載入 SDK 為 no-op（冪等）。
+  寫入。**SDK 以 `__snippetVersion` 標記辨識官方 snippet 物件**：有標記
+  → 在該物件上初始化（含逾時 settle 後才抵達的就地恢復）；無標記 →
+  視為命名空間被其他程式佔用，不覆寫、console 報警、靜默退場。
+  重複載入 SDK 為 no-op（冪等）。
 - **S23** `ready` 語意：resolve `"ready"` 時保證 Contract、身份判定、
   Effective Settings、能力協商已完成（optional service 可 lazy init，
   不擋 ready）。**ready 永不永久 pending**——由 S21 snippet 的逾時與
@@ -214,8 +223,10 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
   global reset；不改宿主既有 class、body layout、z-index；SDK 的
   localStorage/sessionStorage key 一律 `jonaminz.` 前綴。
 - **S26** v1 生命週期語意為「整頁載入」；SPA 路由切換不重初始化。
-  唯讀診斷面 `Jonaminz.status`（lifecycle 狀態、SDK release、Settings
-  revision、被拒能力、最後錯誤碼、是否 stale cache、是否 rollback 版）。
+  **`Jonaminz.status` 是生命週期狀態字串**（`loading`／`ready`／
+  `degraded`／`failed`，與 S21/S23 一致）；詳細資訊統一放在唯讀診斷面
+  **`Jonaminz.diagnostics`**（SDK release、Settings revision、被拒能力、
+  最後錯誤碼、是否 stale cache、是否 rollback 版）——兩者職責不混用。
 
 ### F. 錯誤模型
 

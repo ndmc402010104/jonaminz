@@ -20,6 +20,22 @@
 
 ---
 
+## 2026-07-10 — Specification v1.0 正式 Frozen
+
+- **任務**：RC2 通過驗收，做兩項一致性最小修訂後標 Frozen。
+- **變更**：①`status`／`diagnostics` 職責分離——`Jonaminz.status` 是生命
+  週期狀態字串，詳細診斷面統一為 `Jonaminz.diagnostics`（S26）；
+  ②snippet 加永久身分標記 `__snippetVersion: 1`（settle 後保留，
+  `__bootstrap` 內部 reference 仍刪除），S22 明定 SDK 以此標記辨識官方
+  snippet 物件、無標記才視為命名空間被佔用。
+  `platform-integration-spec-v1.md` 狀態改為 **Frozen**；RULES.md 新增
+  第 12 條禁令（S1–S39 條文不可修改）。
+- **狀態變化**：Platform Integration 規格定稿流程**全部完成**。
+  下一階段＝JSON Schema → Contract 範本 → SDK（依 implementation-plan），
+  **本次未開始任何實作**（遵使用者指示）。
+- **遺留**：無。
+- **版本**：無程式碼變更（未 bump）。
+
 ## 2026-07-10 — RC 驗收 review 修正 → Spec v1.0 RC2
 
 - **任務**：使用者轉交一份驗收階段 review（判定「RC 合格、Frozen 暫緩」，

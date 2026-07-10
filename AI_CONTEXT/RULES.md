@@ -35,6 +35,10 @@
 10. **禁止刪除既有檔案**，除非任務單明確要求。〔使用者〕
 11. **禁止把 JONAMINZ_ENTRY_VERSION（cache-buster）與 JONAMINZ_APP_VERSION
     （業務版本）混用。**〔repo〕
+12. **禁止修改 `docs/platform-integration-spec-v1.md` 的凍結條文（S1–S39）。**
+    〔使用者，2026-07-10 Frozen〕該文件是 Platform Integration 的十年憲法；
+    新需求只能走其演進層（additive）或保留層發布，任何「改 S 條文」的要求
+    都要先回報使用者確認是否真的要違約。實作與規格衝突時以規格為準。
 
 ## 二、必須遵守的工作習慣
 
