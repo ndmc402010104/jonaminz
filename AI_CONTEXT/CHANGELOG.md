@@ -20,6 +20,23 @@
 
 ---
 
+## 2026-07-10 — RC 驗收 review 修正 → Spec v1.0 RC2
+
+- **任務**：使用者轉交一份驗收階段 review（判定「RC 合格、Frozen 暫緩」，
+  七項架構級＋數項文字級修正），全數採納修入規格。
+- **變更**：`platform-integration-spec-v1.md` 升為 **RC2**——S21 snippet
+  全面重寫（reject/onerror/15s timeout/settle 清理/jz===window.Jonaminz）、
+  S13 snapshot 三態＋active 指標、S14 canonical hash＋audit 欄位、S15 擴及
+  全部 URL 欄位、S31 明定 Approved Contract、S32 限定已發布 service、
+  S5 resolver 移保留層、新增 S39 回滾相容規則、retryable 改字、S7 用語
+  統一。新增 `platform-integration-v1-implementation-plan.md`（工作清單
+  自規格拆出）；驗收 review 歸檔於
+  `platform-integration-reviews/acceptance-review-spec-v1-rc.md`（含處置表）。
+- **狀態變化**：Spec 狀態 RC → **RC2，待使用者最終驗收後標 Frozen**。
+- **遺留**：驗收通過後標 Frozen ＋ 把「S 條文不可修改」寫進 RULES.md，
+  才進 JSON Schema／SDK。
+- **版本**：無程式碼變更（未 bump）。
+
 ## 2026-07-10 — 五份 Review 收齊、彙整定案、產出 Spec v1.0 RC
 
 - **任務**：收集 5 份 Architecture Review（Codex/ChatGPT/Gemini/Claude Fable

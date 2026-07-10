@@ -1,14 +1,15 @@
 # Jonaminz Platform Integration — Specification v1.0
 
-狀態：**RC（Release Candidate，待使用者驗收後標 Frozen）**
-日期：2026-07-10
+狀態：**RC2（驗收修正版，待使用者驗收後標 Frozen）**
+日期：2026-07-10（RC2 修正同日；修正清單見驗收 review 存檔
+`platform-integration-reviews/acceptance-review-spec-v1-rc.md`）
 前身文件：`platform-integration-review-request.md`（RFC）、
 `platform-integration-reviews/`（五份 Architecture Review）、
 `platform-integration-review-consolidation.md`（彙整＋裁決）。
 本文吸收上述全部定案，是唯一的權威規格；與前身文件矛盾時以本文為準。
 
 本文分四部分：**敘事骨架**（怎麼理解這個系統）、**凍結層**（永不改的條文，
-編號 S1–S38）、**演進層**（只能 additive）、**保留層**（形狀已定、內容留白）。
+編號 S1–S39）、**演進層**（只能 additive）、**保留層**（形狀已定、內容留白）。
 每一節標記所屬層級。之後的 JSON Schema、Contract 範本、SDK 皆以本文為準。
 
 ---
@@ -71,9 +72,11 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
 - **S4** 跨專案聚合一律用複合鍵：entries 用 `(projectId, entryId)`，
   objects 用 `(projectId, objectType, objectId)`。此形狀是 Pin/Relationship/
   Search 持久化資料的外鍵，**凍得比任何 API 都死**。
-- **S5** objectRef → URL 的解析：Contract 以每 type 的 URL template 聲明，
-  平台端解析。宣告 Object Type ≠ 資料可被平台自動讀取；實際讀寫由未來
-  capability 定義。
+- **S5** 宣告 Object Type ≠ 資料可被平台自動讀取；實際讀寫由未來 capability
+  定義。objectRef 的**持久化信封**凍結於 S4；objectRef → URL 的 resolver
+  （URL template 文法、placeholder/encode 規則、same-origin 限制）**移入
+  保留層**——等第一個真實 object type 出現時隨其 capability 一起發布，
+  不在沒有 caller 的情況下憑空凍結文法。
 - **S6 跨源身份（裁決 D2）**：**v1 外部專案一律匿名**。登入態（Google OAuth）
   只存在 jonaminz.com 主站；外部專案只能取得非個人化能力；個人資料類 API
   只在主站提供。Actor Context 的欄位形狀保留在協定中（見保留層），未來
@@ -82,7 +85,10 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
 
 ### B. Contract（合約）
 
-- **S7** 檔名 `jonaminz.contract.json`；預設位置為專案部署根路徑。
+- **S7** 檔名 `jonaminz.contract.json`；預設位置為**目前 origin 的根目錄**
+  （`/jonaminz.contract.json`）。部署於 subpath 的專案（如 GitHub Pages
+  project pages）**必須**用 `data-contract` 指定位置（S18）——不使用
+  「部署根路徑」這類模糊用語。
 - **S8** 最小必填：`contractVersion`（整數，v1 = 1）＋ `app.projectId` ＋
   `app.title`。必填集合十年內只能縮小不能擴大。
 - **S9** 合約永不含：enabled、visibility、placement、`order`/`weight`/
@@ -103,15 +109,26 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
 
 ### C. 信任模型（合約收取）
 
-- **S13** **推送 ≠ 採信**。平台端合約副本分兩態：`observed`（收到的）／
-  `approved`（採信的）。**Shell 與 Search 永遠只讀 approved 快照。**
-- **S14 核准（裁決 D4）**：新版合約（以 content hash 判定變更）進 pending；
-  由使用者在後台檢視 diff 後**手動核准**成為 approved。核准紀錄即 audit
-  trail。（未來可加 GitHub Action token 通道：帶有效 token 的推送自動核准、
-  無 token 進 pending——屬演進層，加入時不改本條語意。）
+- **S13** **推送 ≠ 採信**。「observed」是**事實紀錄**（平台曾觀察到這份
+  內容），不是 workflow 狀態。每次推送產生一份 **immutable snapshot**；
+  snapshot 的 workflow 狀態為三態：`pending`／`approved`／`rejected`，
+  另以 `activeApprovedSnapshotId` 指向目前生效的那一份。核准/否決只改
+  狀態與 active 指標，**永不覆寫歷史**。**所有平台整合行為（Shell、Search、
+  capability 計算、任何讀取合約內容的路徑）永遠只讀 active approved
+  snapshot。**
+- **S14 核准（裁決 D4）**：新版合約進 pending，由使用者在後台檢視 diff 後
+  **手動核准**。變更判定用 **content hash，對解析後正規化的 JSON 語意內容
+  計算**——不是原始檔案 bytes；縮排、換行、key 順序變動不觸發重新核准。
+  Audit trail 每筆至少含：projectId、previous hash、new hash、action、
+  actor、timestamp、optional note（一張 Supabase table 即可）。
+  （未來可加 GitHub Action token 通道：帶有效 token 自動核准、無 token
+  進 pending——屬演進層，加入時不改本條語意。）
 - **S15** 廉價防線（Worker 端全部強制）：只收 Integration Settings 已登記的
-  projectId；**entry URL 必須與該專案登記網域同源**；rate limit；payload
-  size/深度上限；content hash 去重；管理介面 escape 所有來自合約的顯示文字。
+  projectId；**Contract 中所有具導航、載入或 server-side fetch 意義的 URL
+  欄位**（entry URL、icon URL、未來的 resolver/health/callback URL……）
+  必須是 `https:` 或相對 URL，並依欄位規則限制與該專案登記網域同源——
+  不是只查 entry URL；rate limit；payload size／陣列數／巢狀深度上限；
+  content hash 去重；管理介面 escape 所有來自合約的顯示文字。
 - **S16** Contract **永無授權效力**：收到合約不啟用任何東西；一切 enabled/
   placement/grant 只看 Integration Settings。
 - **S17** Discovery（瀏覽器端怎麼找合約）與 Ingestion（平台端怎麼建立可信
@@ -134,28 +151,63 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
 <script>
 (function () {
   if (window.Jonaminz) return;               /* 冪等：只建一次 */
-  var resolveReady;
-  window.Jonaminz = {
-    ready: new Promise(function (resolve) { resolveReady = resolve; })
+  var jz = { status: "loading", reason: null };
+  var b = { settled: false };
+  jz.ready = new Promise(function (resolve, reject) {
+    b.resolve = resolve;
+    b.reject = reject;
+  });
+  b.settle = function (kind, reason) {
+    if (b.settled) return;                   /* 只 settle 一次 */
+    b.settled = true;
+    clearTimeout(b.timer);
+    if (kind === "reject") {
+      jz.status = "failed";
+      jz.reason = reason && reason.code ? reason.code : String(reason);
+      b.reject(reason);
+    } else {
+      jz.status = kind;                      /* "ready" 或 "degraded" */
+      jz.reason = reason || null;
+      b.resolve(jz);
+    }
+    delete jz.__bootstrap;                   /* settle 後清除內部 reference */
   };
-  window.Jonaminz.__resolveReady = resolveReady;
+  b.timer = setTimeout(function () {
+    b.settle("degraded", "SDK_LOAD_TIMEOUT");
+  }, 15000);
+  jz.__bootstrap = b;
+  window.Jonaminz = jz;
 })();
 </script>
 <script async src="https://jonaminz.com/sdk/jonaminz-entry.js"
-        data-contract="/jonaminz.contract.json"></script>
+        data-contract="/jonaminz.contract.json"
+        onerror="window.Jonaminz&&window.Jonaminz.__bootstrap&&window.Jonaminz.__bootstrap.settle('degraded','SDK_LOAD_FAILED')"></script>
 ```
 
-  保證路徑是 `const jz = await window.Jonaminz.ready`——snippet 先於任何
-  宿主程式碼建立 ready Promise，任何載入時序下都存在、無 race。
-  不提供 command queue。`data-contract` 可省略（用預設路徑）。
+  凍結語意：
+  - 保證路徑是 `const jz = await window.Jonaminz.ready`——snippet 先於任何
+    宿主程式碼建立 ready Promise，任何載入時序下都存在、無 race。
+    不提供 command queue。`data-contract` 可省略（用預設路徑）。
+  - **`ready` resolve 的物件恆等於 `window.Jonaminz`**（單一狀態來源：
+    diagnostics、service namespace、status 都在同一個物件上）。
+  - snippet 同時保存 resolve 與 reject；**loader 載入失敗（onerror）或
+    15 秒逾時 → settle 成 degraded**（resolve 同一物件、`status:"degraded"`），
+    永不永久 pending；settle 後 `__bootstrap`（含 resolve/reject reference）
+    即刪除，重複 settle 為 no-op。
+  - SDK 就緒 → `settle("ready")`；SDK 自身不可恢復錯誤 →
+    `settle("reject", JonaminzError SDK_INIT_FAILED)`。
+  - SDK 若在已 settle（逾時降級）之後才抵達：不重播 Promise，但得就地
+    初始化並更新**同一物件**的 `status`——宿主之後讀 `jz.status` 即見恢復。
 - **S22** 全域命名空間：`window.Jonaminz`（大寫 J），保留給 SDK；宿主不得
   寫入。SDK 啟動時若發現命名空間已被非 snippet 產物佔用：不覆寫、
   console 報警、靜默退場。重複載入 SDK 為 no-op（冪等）。
-- **S23** `ready` 語意：resolve 時保證 Contract、身份判定、Effective
-  Settings、能力協商已完成（optional service 可 lazy init，不擋 ready）。
-  **ready 永不永久 pending**：平台不可用 → resolve degraded platform
-  （`status: "degraded"`, `reason`）；SDK 自身不可恢復錯誤 → reject
-  `SDK_INIT_FAILED`。宿主可依 `jz.status` 隱藏整合限定 UI。
+- **S23** `ready` 語意：resolve `"ready"` 時保證 Contract、身份判定、
+  Effective Settings、能力協商已完成（optional service 可 lazy init，
+  不擋 ready）。**ready 永不永久 pending**——由 S21 snippet 的逾時與
+  onerror 機制在協定層保證，不是靠 SDK 自律。平台不可用或**無 approved
+  snapshot（S31）** → resolve degraded（同一物件、附 `reason`）；
+  SDK 自身不可恢復錯誤 → reject `JonaminzError SDK_INIT_FAILED`（唯一的
+  reject 情況）。宿主可依 `jz.status` 隱藏整合限定 UI。
 - **S24** 不燒房子：SDK 任何內部錯誤都不得影響宿主頁面；全程自我 catch；
   同步阻塞式載入被禁止（snippet 固定用 async）。
 - **S25** 宿主環境隔離：平台只動自己建立或明確指定的 mount node；不注入
@@ -168,7 +220,7 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
 ### F. 錯誤模型
 
 - **S27**（4:1 定案）Platform API 失敗一律 **reject**，錯誤物件形狀凍結：
-  `JonaminzError { code, message, service, capability, retriable }`。
+  `JonaminzError { code, message, service, capability, retryable }`。
   `code` 穩定供程式判斷；`message` 供人讀、不保證穩定、不得被程式解析。
 - **S28** 錯誤碼註冊規則：碼永不重用；呼叫端必須容忍未知碼（fallback 到
   通用處理）。初始碼表：`CAPABILITY_NOT_GRANTED`、`SDK_INIT_FAILED`、
@@ -184,13 +236,20 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
   major 變更 = 新識別字；舊版標 deprecated、永不移除。名稱一經發布永不
   重用於不同語意。
 - **S31** Effective capability 公式凍結，**計算永遠在 Worker**：
-  `Effective = Contract supports ∩ Settings 授權 ∩ Runtime 可用 ∩ Actor 允許`。
-  SDK 只照做、不做權限推導。Settings grant 了合約未宣告的能力 → 不生效＋
-  診斷警告；合約移除 entry 但 Settings 還有其 placement → 忽略該 placement，
-  不自動刪 Settings。
-- **S32** 未授權的工具**存在但婉拒**：service namespace 永遠掛在 API 物件上，
-  呼叫回傳 reject（`CAPABILITY_NOT_GRANTED`），永不 undefined、永不同步
-  throw。授權開通後同一行程式碼自動生效。
+  `Effective = Approved Contract supports ∩ Settings 授權 ∩ Runtime 可用 ∩ Actor 允許`。
+  公式中的 Contract **一律指 active approved snapshot（S13），永不使用
+  observed/pending 內容**——否則偽造推送一份聲稱支援某能力的合約，就能讓
+  Settings 裡殘留的 stale grant 重新生效。**沒有 approved snapshot 時：
+  不啟用任何能力、不掛 Shell；observed 推送照收；SDK resolve 為 degraded
+  （reason 標明 unapproved）；宿主頁面照常運作。** SDK 只照做、不做權限
+  推導。Settings grant 了合約未宣告的能力 → 不生效＋診斷警告；合約移除
+  entry 但 Settings 還有其 placement → 忽略該 placement，不自動刪 Settings。
+- **S32** 未授權的工具**存在但婉拒**——本條只適用於**已正式發布**的
+  service：一經發布，其 namespace 永久掛在 API 物件上，不論是否 grant
+  都不得變成 undefined；未授權時呼叫 reject（`CAPABILITY_NOT_GRANTED`）、
+  永不同步 throw；授權開通後同一行程式碼自動生效。**reserved roadmap
+  名稱（保留層）不保證存在**——同時保住「已發布 API 永久相容」與
+  「名稱晚凍」（裁決 D3）兩條原則，互不矛盾。
 - **S33** 瀏覽器中的 Settings/快取永不是授權證明：非安全設定（theme、
   placement）可用 stale cache；授權判斷由 Worker 逐請求重算。
 
@@ -219,8 +278,17 @@ Services 是 headless capability API，**任何像素由 Shell 或宿主渲染**
 - **S38** Settings 供應：SDK 只從 Worker 端點取得 **flattened Effective
   Settings**（含 settingsVersion/revision/generatedAt），永不接觸 raw git
   URL 或檔案結構。Worker 套用新 Settings 前先驗證，無效沿用
-  last-known-good。降級語意：最後已知 Settings 快取（localStorage）優先，
-  無快取降級為 none 整合——平台故障日，所有站照常運作。
+  last-known-good。降級語意**分兩類**（與 S31/S33 一致，不得混用）：
+  - **可用 stale 快取**：CSS tokens、theme、placement、navigation 呈現等
+    純外觀設定——平台故障日，所有站保留外觀、照常運作。
+  - **Worker 不可用即一律失效**：capability grants、actor permission、
+    任何 API authorization——此時 Runtime 可用性視為 false，Platform API
+    一律婉拒。**外觀可以離線，授權不行。**
+- **S39** Contract schema 與 SDK 回滾的相容規則：**stable 指標的回滾目標
+  必須支援所有目前 active approved 的 Contract schema 版本**。新 Contract
+  schema 採兩階段發布：先發布支援新 schema 的 SDK release；等回滾目標
+  （前一個 release）也支援後，才允許核准使用新 schema 的合約。落實方式
+  是發布 checklist（或版本指標附相容資訊），不需要複雜系統。
 
 ### 版本維度用語（Spec 全文與實作必須區分）
 
@@ -246,8 +314,11 @@ Platform protocol version ≠ capability version ≠ Settings schema/revision。
 - **CSS reserved**：`components`／`full`／`self`。components/full 標
   「除非出現具體且反覆的需求，否則不做」；self 語意上是 none 的別名。
 - **各能力的 API 簽名**：等第一個真實 caller 出現才發布 `xxx@1`。
-- **Objects 內容 schema**：信封已凍（S2–S5），Photo/Trip 等具體欄位
+- **Objects 內容 schema**：信封已凍（S2–S4），Photo/Trip 等具體欄位
   等第一個實例。
+- **objectRef → URL resolver**（自 S5 移入）：URL template 文法、
+  placeholder/encode 規則、same-origin 限制，隨第一個真實 object type 的
+  capability 一起發布。
 - **Actor Context**：協定保留欄位位置（requests 附 actor 資訊的形狀），
   v1 恆為 anonymous（S6）。
 - **Integration Settings 後端**：v1 為 git 檔案＋Worker 供應（S38）；
@@ -255,17 +326,17 @@ Platform protocol version ≠ capability version ≠ Settings schema/revision。
 - **Auth provider**：平台簽發自己的 session；第一個 provider 是 Google
   OAuth；provider 可替換（同 AI Gateway 哲學）。
 
-## 第五部分：v1 實作範圍
+## 第五部分：v1 發布範圍（規範性）
 
-**做**：Contract JSON Schema＋範本；官方 snippet（S21）；loader＋版本指標
-（S37）；SDK Kernel（lifecycle/ready/錯誤模型/診斷面）；contract discovery
-＋validation＋推送；Worker 端 observed/approved 兩態＋手動核准後台＋
-S15 防線；flattened Effective Settings 端點；tokens CSS（收編
-theme-runtime，S36 改名）；smoke app（固定情境清單）；Google OAuth
-主站登入（順帶補上 `saveThemeCssRules` 的驗證缺口）。
+v1 對外發布的介面止於：Contract schema v1、官方 snippet（S21）、CSS 等級
+`none`／`tokens`、錯誤模型（S27–S29）與 ready 語意（S23）。**不含**：
+任何 service 的真實方法、components/full CSS、跨源身份、Objects 內容
+schema、Settings DB 化、GitHub Action 核准通道。
 
-**不做**：任何 service 的真實方法；components/full CSS；跨源身份；
-Objects 內容 schema；Settings DB 化；GitHub Action 通道。
+實作順序、既有系統的收編與技術債（theme-runtime 收編與 `--jz-` 改名、
+`saveThemeCssRules` 驗證缺口、Google OAuth 主站登入）、smoke 情境清單——
+**不屬於本規格**，見《`platform-integration-v1-implementation-plan.md`》。
+權威規格不放工作清單，避免十年憲法逐漸變成 to-do list。
 
 ---
 
