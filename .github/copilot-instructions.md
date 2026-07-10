@@ -1,0 +1,19 @@
+# jonaminz — Copilot / VS Code 聊天 agent 指引
+
+本專案的 AI 交接文件單一事實來源是 **`AI_CONTEXT/`** 資料夾。
+本檔與根目錄 `CLAUDE.md`、`AGENTS.md` 內容等價（各工具入口不同）；
+修改規則時只改 `AI_CONTEXT/` 內的文件，本檔只放指引。
+
+開始任何任務前，先讀 `AI_CONTEXT/` 內全部文件，依此順序：
+`RULES.md` → `PROJECT_STATE.md` → `ARCHITECTURE.md` → `ACCEPTANCE.md` →
+`CHANGELOG.md`。
+
+核心規則（完整版在 `AI_CONTEXT/RULES.md`）：
+
+- 不依賴聊天記憶、不腦補；文件與程式碼不符時以程式碼為準並回報。
+- 只改任務白名單內的檔案；新增檔案也要白名單明確允許，不順手重構。
+- 標記 `UNKNOWN` / `NEEDS_CONFIRMATION` 的內容不可當事實使用。
+- 版本規則：改程式碼/HTML/CSS/JS/設定檔/schema 才 bump `version.js`，
+  純文件不 bump。改 Worker 要另外 `wrangler deploy`（需任務單授權，否則先問）。
+- 完工後更新 `AI_CONTEXT/PROJECT_STATE.md`、追加 `AI_CONTEXT/CHANGELOG.md`。
+- 回覆一律繁體中文。
