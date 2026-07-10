@@ -35,6 +35,25 @@ npx wrangler deploy         # 部署，完成後會印出 Worker 網址，例如
                              # https://jonaminz-backend.<your-subdomain>.workers.dev
 ```
 
+**Contract Schema 改了要重新產生 validator**：Cloudflare Workers 的 V8 isolate
+禁止動態產生程式碼（`new Function`/`eval`），而 `ajv.compile()` 預設在 runtime
+就是靠這個機制把 schema 編成驗證函式——2026-07-10 第一次部署 `submitContract`
+時就是栽在這裡（`wrangler deploy` 直接失敗：`Code generation from strings
+disallowed for this context`）。修法是用 ajv 的 standalone code 機制在
+**build time**（不是 Worker runtime）先把
+`docs/contract-schema/jonaminz.contract.schema.json` 編譯成一份純 JS：
+
+```bash
+cd backend/cloudflare-worker
+node generate-contract-validator.mjs
+```
+
+這會覆寫 `contract-schema-validator.generated.js`（自動產生的檔案，但要
+commit 進 repo——Workers 部署時不會執行這支腳本，只會直接 bundle 產出檔案）。
+`worker.js` import 的是這份產出檔案，不是在 Worker 裡呼叫 `ajv.compile()`。
+**每次改了 `jonaminz.contract.schema.json` 之後，部署前都要先重跑這支腳本**，
+否則 Worker 用的還是舊 schema。
+
 部署完成後設定兩個 secret（指令會互動式提示你貼值，值不會留在終端機歷史）：
 
 ```bash

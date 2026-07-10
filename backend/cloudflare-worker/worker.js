@@ -18,8 +18,7 @@ Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_..
 不寫死在程式碼裡，也不會回傳給前端。
 */
 
-import Ajv2020 from "ajv/dist/2020.js";
-import contractSchema from "../../docs/contract-schema/jonaminz.contract.schema.json";
+import validateContractSchema from "./contract-schema-validator.generated.js";
 import integrationSettings from "./integration-settings.json";
 import { computeCanonicalHash, validateCrossFields, validateUrls } from "./contract-validation.js";
 
@@ -33,8 +32,9 @@ const CORS_HEADERS = {
 // 見 backend/README.md 的「已知留白」）。
 const MAX_CONTRACT_SIZE_CHARS = 200000;
 
-const contractAjv = new Ajv2020({ allErrors: true, strict: false });
-const validateContractSchema = contractAjv.compile(contractSchema);
+// validateContractSchema 是 build time 用 generate-contract-validator.mjs 預先編譯好的
+// ajv standalone validator，不是 runtime ajv.compile()——Cloudflare Workers 禁止
+// new Function/eval，runtime 編譯 schema 會直接讓部署失敗。改 schema 後要重跑那支腳本。
 
 export default {
   async fetch(request, env) {

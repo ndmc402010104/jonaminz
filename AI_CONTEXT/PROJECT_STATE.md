@@ -60,6 +60,13 @@ jonaminz/
     cloudflare-worker/contract-validation.js  Contract 收取的純函式驗證模組
                                       （canonical hash / cross-field / URL 同源），
                                       可獨立用 node 測試，不需部署 Worker
+    cloudflare-worker/generate-contract-validator.mjs  build-time 腳本：把
+                                      Contract JSON Schema 編成 ajv standalone
+                                      validator（Workers 禁止 runtime new
+                                      Function/eval，改了 schema 要重跑這支）
+    cloudflare-worker/contract-schema-validator.generated.js  上面腳本的產出，
+                                      worker.js 直接 import，不在 Worker 裡
+                                      呼叫 ajv.compile()
     supabase/schema.sql       external_app_registrations 表
     supabase/theme_schema.sql theme_css_rules 表
     supabase/contract_schema.sql  contract_snapshots / contract_active_snapshots /
@@ -104,20 +111,29 @@ jonaminz/
     模型：Contract 不宣告 prod/dev/local，path-absolute URL 由接收 ingestion
     的 Worker 依 Integration Settings 解析；絕對 https:// URL 的 origin
     必須精確等於**目前 environment** 登記的 origin，不得跨 environment 混用。
-  - **第 2 項（Worker 端合約收取）：submitContract action 已實作、Supabase
-    schema 已套用到 jonaminz-db，範圍限於「收取＋存 pending snapshot」。**
-    `backend/cloudflare-worker/`：`contract-validation.js`（純函式：
-    canonical hash / cross-field 檢查 / URL 同源檢查，已用 node 跑過 23 項
-    正反例）、`integration-settings.json`（Integration Settings，S38：git
+  - **第 2 項（Worker 端合約收取）：完成並已部署上線**，範圍限於「收取＋存
+    pending snapshot」。`backend/cloudflare-worker/`：`contract-validation.js`
+    （純函式：canonical hash / cross-field 檢查 / URL 同源檢查，已用 node 跑過
+    23 項正反例）、`integration-settings.json`（Integration Settings，S38：git
     檔案＋Worker 供應，目前 `projects` 為空，尚無真實外部專案登記）、
-    `worker.js` 的 `submitContract` action（ajv 驗 schema → cross-field →
+    `worker.js` 的 `submitContract` action（schema 驗證 → cross-field →
     URL/origin → canonical hash 去重 → insert pending snapshot + audit log）、
     `wrangler.toml` 新增 `[vars] JONAMINZ_ENVIRONMENT="prod"`（Worker 自己
     是哪個 environment 由部署決定，不是 payload 能宣告的，避免跨 environment
     origin 混淆攻擊）。**不包含**：approve/reject 動作、核准後台（第 3 項）、
-    KV-based rate limit（已知留白，見 backend/README.md）。**尚未
-    `wrangler deploy`**——程式碼與 DB schema 已就緒，部署需另外授權
-    （RULES.md §2-2）。
+    KV-based rate limit（已知留白，見 backend/README.md）。
+    **重要教訓（2026-07-10）**：第一次 `wrangler deploy` 直接失敗——
+    Cloudflare Workers 的 V8 isolate 禁止 `new Function`/`eval`，而
+    `ajv.compile()` 預設在 runtime 就是靠這個機制編譯 schema。改用 ajv 的
+    standalone code 機制，在 **build time**（`generate-contract-validator.mjs`）
+    把 schema 預編成純 JS（`contract-schema-validator.generated.js`），
+    `worker.js` 直接 import 這份產出、不在 Worker 裡呼叫 `ajv.compile()`。
+    修好後用 esbuild 實際打包＋Node 功能測試（不只 `wrangler --dry-run`——
+    dry-run 只測 bundle 過不過，測不出 runtime 才會炸的 eval 限制）確認乾淨，
+    才重新部署成功並在線上 smoke test（舊 action 正常、新 action 正確擋下
+    未登記 projectId、DB 沒被寫入）。**下一棒改 Contract Schema 時記得**：
+    改完 `docs/contract-schema/jonaminz.contract.schema.json` 一定要重跑
+    `node generate-contract-validator.mjs` 才能讓 Worker 吃到新規則。
   - 尚未開始：第 3 項（核准後台）→ 第 9 項（Google OAuth）。SDK
     （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*` 一行都
     還沒寫。
@@ -145,7 +161,7 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-10 掃描）
 
-- 業務版本：`v0.3.0-202607110246`（`version.js`）。規則：每次 push 前要 bump。
+- 業務版本：`v0.3.1-202607110300`（`version.js`）。規則：每次 push 前要 bump。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

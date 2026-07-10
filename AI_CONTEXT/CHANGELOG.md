@@ -20,6 +20,45 @@
 
 ---
 
+## 2026-07-10 — submitContract 部署修正：ajv standalone 預編譯，正式上線
+
+- **任務**：使用者授權 `wrangler deploy`。第一次部署直接失敗：
+  `Code generation from strings disallowed for this context`——Cloudflare
+  Workers 的 V8 isolate 禁止 `new Function`/`eval`，而 `ajv.compile()`
+  預設在 runtime 就是用這個機制把 schema 編成驗證函式。前一輪的
+  `wrangler deploy --dry-run` 沒抓到，因為 dry-run 只測 esbuild bundle
+  過不過，不會真的在 V8 isolate 裡執行模組頂層程式碼。
+- **變更**：新增 `backend/cloudflare-worker/generate-contract-validator.mjs`
+  （build-time 腳本，用 ajv 的 standalone code 機制把
+  `docs/contract-schema/jonaminz.contract.schema.json` 預編成純 JS）與其
+  產出 `contract-schema-validator.generated.js`；`worker.js` 改成 import
+  這份預編譯產出，移除 runtime `ajv.compile()` 呼叫。`backend/README.md`
+  新增「Contract Schema 改了要重新產生 validator」一節，明講改 schema 後
+  部署前要重跑 `node generate-contract-validator.mjs`，否則 Worker 用的是
+  舊規則。
+- **驗證**：這次不只信賴 `wrangler --dry-run`——用 `npx esbuild` 把產出檔案
+  實際打包成 CJS（跟 wrangler 內部用同一顆 bundler），grep 打包後的產物
+  確認零 `new Function`/`eval`，再用 Node 對打包產物跑功能測試（合法合約
+  valid、禁用欄位/非法 projectId/反斜線 URL 皆 invalid）確認邏輯沒有在
+  轉換過程中跑掉。修好後 `wrangler deploy` 成功（bundle 從 309KB 降到
+  104KB，因為不用再帶整個 ajv 編譯器），對線上 Worker 做了三項 smoke
+  test：舊 action（`getThemeCssRules`）正常回傳真實資料、新 action
+  （`submitContract`）對未登記的 projectId 正確回
+  `{ok:false, code:"PROJECT_NOT_REGISTERED"}`、直查 `contract_snapshots`
+  確認這次測試呼叫沒有寫入任何資料列（設計上該檢查發生在任何 DB 操作
+  之前）。
+- **狀態變化**：**implementation plan 第 2 項（Worker 端合約收取）正式
+  上線**，`https://jonaminz-backend.ndmc402010104.workers.dev` 現在跑的
+  就是含 `submitContract` 的版本。
+- **遺留**：無新遺留，前一筆紀錄列的遺留項目（`integration-settings.json`
+  待填真實專案、KV rate limit、`$id` release checklist）依然有效。
+  **給下一棒的重要提醒**：以後改 `jonaminz.contract.schema.json` 之後，
+  部署 Worker 前一定要先跑 `node generate-contract-validator.mjs` 重新
+  產生 `contract-schema-validator.generated.js`，不然 Worker 用的還是
+  舊 schema——這個依賴關係容易忘記，因為兩個檔案在 git diff 上看起來
+  無關。
+- **版本**：`v0.3.1-202607110300`（已 bump）。
+
 ## 2026-07-10 — Implementation plan 第 2 項：Worker 端合約收取（submitContract）
 
 - **任務**：使用者授權開工的 implementation plan 第 2 項，範圍：Integration
