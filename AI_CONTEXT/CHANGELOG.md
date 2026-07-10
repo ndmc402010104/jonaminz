@@ -20,6 +20,38 @@
 
 ---
 
+## 2026-07-10 — Contract JSON Schema RC3.1：Environment Resolution 模型，授權開工 Worker
+
+- **任務**：使用者對 RC3 範例合約提出最後一個問題（`entries[0].url` 寫死
+  prod 網域，容易誤導成 Contract 攜帶部署位址），裁決改成 path-absolute
+  並補上 environment 解析規則；同時裁決 implementation plan 第 2 項
+  （Worker 端合約收取）可以開工，並給了明確範圍。
+- **變更**：`jonaminz.contract.example.json` 的 `entries[0].url` 從
+  `https://example-project.jonaminz.com/` 改成 `"/"`。
+  `docs/contract-schema/README.md` 新增「Environment Resolution」一節：
+  Contract 不宣告 prod/dev/local；path-absolute URL 由接收 ingestion 的
+  Worker 依它查到的 Integration Settings（每個 projectId 每個
+  environment 各自登記一個 origin）解析，公式＝該 environment 的
+  registered origin ＋ Contract 裡的 path-absolute 字串；絕對
+  `https://` URL 仍合法，但其 origin 必須精確等於**目前這個
+  environment** 登記的 origin，不得用其他 environment（如 prod）的
+  登記值滿足這次（如 dev）的同源檢查，避免跨 environment 來源混淆。
+  `platform-integration-v1-implementation-plan.md` 第 2 項補上
+  「Integration Settings 的 environment-scoped registered origin
+  資料模型」作為明確子項，並在既有 URL 驗證清單裡把 `registeredOrigin`
+  改註明「取自目前 environment」；同時在第 2 項開頭重申 S13/S16：
+  所有寫入一律先進 pending，不得因提交 Contract 自動 approve 或 grant。
+  用 `npx ajv-cli` 重新驗證範例（改用 `"/"` 後仍 valid）。
+- **狀態變化**：Contract Schema RC3 → **RC3.1，設計面全部定案**（含
+  environment 解析模型，此模型屬規格第三部分演進層允許的 additive
+  Settings 欄位，不牴觸 Frozen S1-S39）。**implementation plan 第 2 項
+  （Worker 端合約收取）使用者已明確授權開工**——這是本次交接最重要的
+  狀態變化，下一棒接手時直接讀 implementation-plan.md 第 2 項開始，
+  不需要再等額外確認；仍要遵守 RULES.md §2-2：`wrangler deploy`
+  本身仍需開工當下另外確認（開工授權不等於部署授權）。
+- **遺留**：無。
+- **版本**：無程式碼變更（未 bump；純 `docs/` 修訂）。
+
 ## 2026-07-10 — Contract JSON Schema 第二輪 review 修正 → RC3，設計面定案
 
 - **任務**：使用者再拿 RC2 給外部 review，帶回 1 個真正的安全漏洞＋

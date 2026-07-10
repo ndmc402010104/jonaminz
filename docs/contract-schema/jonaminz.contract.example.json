@@ -13,7 +13,7 @@
       "entryId": "main",
       "title": "Example Project",
       "description": "主入口。",
-      "url": "https://example-project.jonaminz.com/",
+      "url": "/",
       "deprecated": false
     }
   ],

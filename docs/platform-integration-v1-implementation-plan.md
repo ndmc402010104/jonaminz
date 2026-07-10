@@ -13,18 +13,39 @@
 2. **Worker 端合約收取**：immutable snapshot 三態（pending/approved/
    rejected）＋ `activeApprovedSnapshotId` ＋ audit table（S13–S14）＋
    S15 全部防線（登記 projectId 過濾、全 URL 欄位同源、rate/size limit、
-   canonical JSON content hash、escape）。**URL 欄位驗證清單**（來自
-   Contract Schema RC3 review，`docs/contract-schema/README.md` 的「URL
-   驗證」一節有背景：schema 層的 regex 只能做語法粗篩，曾抓到 protocol-relative
+   canonical JSON content hash、escape）。**開工前所有寫入一律先進
+   pending，不得因提交 Contract 自動 approve 或 grant（S13, S16）。**
+
+   **Integration Settings 的 environment-scoped registered origin 資料模型**
+   （來自 Contract Schema RC3.1，`docs/contract-schema/README.md` 的
+   「Environment Resolution」一節有完整背景）：
+   - Contract 不宣告 prod/dev/local；environment context 由接收這次
+     ingestion 的 Worker，加上它查到的 Integration Settings 決定。
+   - 每個 projectId 在 Integration Settings 裡，每個 environment
+    （至少 prod／dev／local）各自登記一個 origin。
+   - 解析公式：`目前 Worker 所屬 environment 的 registered origin` ＋
+     `Contract 裡的 path-absolute URL` ＝ 完整 URL（例：prod Worker ＋
+     prod origin ＋ `/patient-list/` = `https://project.jonaminz.com/patient-list/`；
+     dev Worker ＋ dev origin ＋ 同樣的 `/patient-list/` 得到
+     `https://dev-project.jonaminz.com/patient-list/`）。
+   - Contract 若宣告絕對 `https://` URL，仍要求其 origin 精確等於**目前
+     這個 environment** 登記的 origin——**不得**用該 projectId 在其他
+     environment（例如 prod）登記的 origin 來滿足這次（例如 dev）的同源
+     檢查，那是跨 environment 的來源混淆，等同接受了不該接受的來源。
+
+   **URL 欄位驗證清單**（背景見 `docs/contract-schema/README.md` 的「URL
+   驗證」一節：schema 層的 regex 只能做語法粗篩，曾抓到 protocol-relative
    與反斜線正規化兩種繞過，這些都是 regex 的先天局限，真正的邊界要在這裡做）：
    1. 原始字串包含 `\`（反斜線）直接拒絕。
-   2. 用 WHATWG `new URL(value, registeredOrigin)` 解析，不要自己重新發明 URL parser。
+   2. 用 WHATWG `new URL(value, registeredOrigin)` 解析，不要自己重新發明 URL parser；
+      `registeredOrigin` 取自上面「目前 environment 登記的 origin」。
    3. 解析後 `protocol` 必須是 `https:`。
-   4. 解析後 `origin` 必須精確等於該 projectId 在 Integration Settings 登記的 origin。
+   4. 解析後 `origin` 必須精確等於該 projectId 在**目前 environment**登記的 origin。
    5. 禁止 URL 帶 `username`/`password`。
    6. server-side fetch（例如未來去抓 entry 的健康檢查）不可自動跟隨未驗證的
       redirect；每一跳都要重新做上述同源檢查。
    7. 儲存時存正規化後的 URL，audit trail 同時保留原始輸入值。
+
    也要落實 Contract Schema RC3 README 記下的、schema 本身做不到的 cross-field
    檢查：`entryId` 重複 → `entries` 區段無效（S12）；`objectType` 重複 → `objects`
    區段無效（S12）；`requests`/`requires[].capability` 出現的能力若不在 `supports`

@@ -93,24 +93,32 @@ jonaminz/
   下一階段＝JSON Schema → Contract 範本 → SDK 骨架，依
   `docs/platform-integration-v1-implementation-plan.md` 的順序。
   **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿，經兩輪
-  外部 review 修正，現為 RC3——設計面已定案，準備進第 2 項**
-  （`docs/contract-schema/`：`jonaminz.contract.schema.json` +
-  `jonaminz.contract.example.json` + README），已用 `npx ajv-cli
-  --spec=draft2020` 驗證多組正反例通過（含兩輪 review 抓到的 URL
-  bypass 反例）。兩輪 review 共修正 5 項真實問題：①`css` 欄位改掉閉合
-  enum（違反 S11 must-ignore）；②③`contractUrl` regex 先後補上
+  外部 review 修正＋使用者一次裁決收尾，現為 RC3.1——設計面已定案，
+  第 2 項即將開工**（`docs/contract-schema/`：`jonaminz.contract.schema.json`
+  + `jonaminz.contract.example.json` + README），已用 `npx ajv-cli
+  --spec=draft2020` 驗證多組正反例通過（含兩輪 review 抓到的 URL bypass
+  反例）。兩輪 review 共修正 5 項真實問題：①`css` 欄位改掉閉合 enum
+  （違反 S11 must-ignore）；②③`contractUrl` regex 先後補上
   protocol-relative（`//host/...`）與反斜線正規化（`/\host/...`，WHATWG
   URL parser 會把 `\` 轉成 `/`）兩種繞過漏洞；④禁用欄位 `not` 守衛擴大到
   所有已知巢狀物件；⑤capability 文法改純 kebab-case。範例合約也修正了
   `requests`/`requires` 未落在 `supports` 裡的自相矛盾，`requires` 加了
-  `uniqueItems`。README 的 5 點設計決策中，1、2 在草稿階段裁決，3
-  （entries/objects 用陣列）、4（css 是單一字串）在這輪裁決，僅第 5 點
-  （`$id` 何時正式發布）留一個「進 Worker 前」的 release checklist 待辦。
-  Worker 端要做的 URL 驗證清單（WHATWG URL parser、同源比對、禁帳密、
-  redirect 重新驗證等）與 cross-field 檢查清單，已記進
-  `platform-integration-v1-implementation-plan.md` 第 2 項。第 2 項本身
+  `uniqueItems`。RC3.1 再修一項：範例 `entries[0].url` 原本寫死
+  `https://example-project.jonaminz.com/`，改成 path-absolute 的 `"/"`，
+  避免讓 Contract 看起來綁定某個固定 prod 部署位址；新增「Environment
+  Resolution」模型（`docs/contract-schema/README.md`）：Contract 不宣告
+  prod/dev/local，path-absolute URL 由**接收 ingestion 的 Worker**依它
+  查到的 Integration Settings（每個 projectId 每個 environment 各自登記
+  一個 origin）解析；絕對 https:// URL 仍合法，但其 origin 必須精確等於
+  **目前 environment** 登記的 origin，不得用其他 environment（如 prod）
+  的登記值滿足這次（如 dev）的同源檢查。README 的 5 點設計決策中，1、2
+  在草稿階段裁決，3（entries/objects 用陣列）、4（css 是單一字串）在
+  review 階段裁決，僅第 5 點（`$id` 何時正式發布）留一個「進 Worker 前」
+  的 release checklist 待辦。Worker 端要做的 URL 驗證清單、environment
+  origin 資料模型、cross-field 檢查清單，全部已記進
+  `platform-integration-v1-implementation-plan.md` 第 2 項。**第 2 項
   （Worker 端合約收取：Supabase schema、Cloudflare Worker 程式碼）
-  **尚未開始**。
+  使用者已授權開工，下一棒/下一輪接手時先讀該檔第 2 項確認範圍。**
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。
