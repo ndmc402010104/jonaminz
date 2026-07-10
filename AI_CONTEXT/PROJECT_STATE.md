@@ -56,9 +56,12 @@ jonaminz/
     supabase/schema.sql       external_app_registrations 表
     supabase/theme_schema.sql theme_css_rules 表
   docs/
-    external-project-manifest.md          v0 外部專案接入方式（將被 Platform 規格取代）
+    external-project-manifest.md          v0 外部專案接入方式（現行有效；作廢需三條件，見 RULES §4）
     platform-integration-spec-review.md   Platform 規格 v1 的架構審查
-    platform-integration-consensus.md     共識版理解（凍結層 F1-F12），待交叉確認
+    platform-integration-consensus.md     共識版理解（凍結層 F1-F12）
+    platform-integration-review-request.md RFC（已凍結）：發給所有審查 Agent 的同一份
+                                          Review Request，含 12 個挑戰問題；收到的
+                                          Review 一份一檔放 docs/platform-integration-reviews/
   AI_CONTEXT/                 本資料夾：AI agent 交接文件
 ```
 
@@ -79,8 +82,12 @@ jonaminz/
 
 - **Platform Integration（圖書館模型）整套**：`jonaminz.contract.json` schema、
   JSON Schema 驗證、SDK（`jonaminz-entry.js`，常青網址 `/sdk/`）、推模式合約回報、
-  `window.Jonaminz.*` API 骨架、Google OAuth。狀態＝規格共識完成、待交叉確認定稿，
-  **一行程式碼都還沒寫**。
+  `window.Jonaminz.*` API 骨架、Google OAuth。**一行程式碼都還沒寫**。
+  流程已固定（使用者 2026-07-10 定案）：
+  Draft Spec → RFC（`docs/platform-integration-review-request.md`，已凍結）→
+  收集 3~5 份 Architecture Review（放 `docs/platform-integration-reviews/`，
+  一份一檔）→ 彙整共識與分歧 → Specification v1.0（Frozen）→ Schema → SDK。
+  **收 Review 期間不改規格**；目前狀態＝RFC 已發布、等待收集 Review。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。

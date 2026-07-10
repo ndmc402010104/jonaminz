@@ -20,6 +20,22 @@
 
 ---
 
+## 2026-07-10 — 發布 Platform Integration RFC，固定規格定稿流程
+
+- **任務**：把 Review Request 定稿為正式 RFC，固定「先收齊意見再定稿」的流程。
+- **變更**：新增 `docs/platform-integration-review-request.md`（RFC，已凍結）。
+  內容＝使用者草稿＋四項補完：①尺度與限制節（兩位使用者、first-party only、
+  靜態託管無 build、一人維護——要求審查者以此校準，不照搬大平台做法）；
+  ②新增挑戰問題 9-12（錯誤模型二選一、SDK ready 介面、常青 SDK kill-switch、
+  推模式 Origin 威脅模型）；③回覆格式要求（嚴重度標註＋對應問題編號）；
+  ④檔頭狀態標記與 Review 收檔位置。
+- **狀態變化**：Platform Integration 流程固定為
+  Draft Spec → RFC → 收集 3~5 份 Review → 彙整 → Spec v1.0（Frozen）→
+  Schema → SDK。**收 Review 期間不改規格**。目前＝RFC 已發布、等待 Review。
+- **遺留**：`docs/platform-integration-reviews/` 資料夾等第一份 Review 進來時
+  建立，一份一檔。彙整由使用者發起，不要收到一份就動規格。
+- **版本**：無程式碼變更（未 bump）。
+
 ## 2026-07-10 — 建立 AI_CONTEXT 記憶水庫（含使用者審查修正後定案）
 
 - **任務**：建立 AI 專案記憶水庫，讓任何 agent 不依賴聊天記憶即可接手；
