@@ -20,6 +20,52 @@
 
 ---
 
+## 2026-07-10 — Contract JSON Schema 兩點設計決策定案
+
+- **任務**：使用者針對草稿 README 列出的 6 點開放設計決策中的 2 點
+  （最具結構影響力的兩點）做出裁決。
+- **變更**：`jonaminz.contract.schema.json` 的 `capabilityRequirement`
+  改為 `entryId` 必填（原草稿是可選，代表「省略＝綁定整個合約」）；
+  裁決結果：v1 不支援合約層級 requires，每筆 requires 都必須明確指到
+  一個 entry，避免「省略到底是指整個 App 還是忘記填」的模糊狀態，未來
+  真的需要時再加明確的 scope 欄位。`README.md` 的「not 反面表列是否過嚴」
+  一點裁決維持現狀（出現 enabled/permissions/token 等禁用欄位＝整份
+  合約 invalid，不只是忽略該欄位）。README 兩點決策改標「已確認」，
+  範例＋新反例（requires 缺 entryId）重跑 `npx ajv-cli` 確認行為正確。
+- **狀態變化**：6 點開放設計決策中 2 點定案，4 點仍待挑戰（見
+  PROJECT_STATE.md §4）。
+- **遺留**：剩 4 點（entries/objects 陣列形狀、css 欄位形狀、`$id`
+  placeholder、capability 正則允許 camelCase）風險較低、暫定可用；
+  下一棒若要動 implementation plan 第 2 項（Worker 端合約收取），開工前
+  最後確認一次這 4 點是否也要處理，或直接視為定案。
+- **版本**：無程式碼變更（未 bump；純 `docs/` 修訂）。
+
+## 2026-07-10 — Contract JSON Schema 草稿（implementation plan 第 1 項）
+
+- **任務**：使用者指示開始做 Contract JSON Schema，依
+  `docs/platform-integration-v1-implementation-plan.md` 排定的第 1 項。
+- **變更**：新增 `docs/contract-schema/`：`jonaminz.contract.schema.json`
+  （JSON Schema draft 2020-12，逐條對應 S1-S39）、
+  `jonaminz.contract.example.json`（範本，欄位命名沿用 v0
+  `jonaminz-app.json` 習慣）、`README.md`（逐欄位對應規格條文＋6 點
+  規格未明文釘死、由本次判斷的設計決策，標記待使用者確認）。用
+  `npx ajv-cli validate --spec=draft2020` 跑過範例（valid）與三個反例
+  （缺 `enabled` 等禁用欄位／非法 `projectId`／非法 capability 文法，
+  皆 invalid）確認 schema 本身邏輯正確。純文件/schema 草稿，未動任何
+  程式碼/HTML/CSS/JS/設定檔，也未讓任何現行系統消費這份 schema。
+- **狀態變化**：PROJECT_STATE.md §4「尚未完成的功能」更新：implementation
+  plan 第 1 項從「尚未開始」→「已產出草稿，待確認」。第 2 項（Worker
+  端合約收取）**未開始**，等第 1 項確認後才進行。
+- **遺留**：README 列的 6 點設計決策（entries/objects 陣列形狀、
+  `capabilities.requires` 綁定方式、`css` 欄位形狀、防呆 `not` 清單是否
+  過嚴、`$id` 為未架設的 placeholder、capability 正則允許 camelCase）
+  需使用者確認或修正；schema 本身只做結構驗證，S12 fail-soft／S15 同源
+  ／跨欄位 entryId 一致性檢查明確留給 implementation plan 第 2 項的
+  Worker ingestion validator，不是這份 schema 檔案的職責（已在 README
+  註明範圍）。
+- **版本**：無程式碼變更（未 bump；純 `docs/` 草稿，依 RULES.md §2-1
+  不 bump `version.js`）。
+
 ## 2026-07-10 — Specification v1.0 正式 Frozen
 
 - **任務**：RC2 通過驗收，做兩項一致性最小修訂後標 Frozen。

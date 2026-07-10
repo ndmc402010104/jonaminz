@@ -1,0 +1,33 @@
+{
+  "contractVersion": 1,
+  "app": {
+    "projectId": "example-project",
+    "title": "Example Project",
+    "description": "一句話描述這個專案在做什麼。",
+    "icon": "/assets/icon.png"
+  },
+  "shell": true,
+  "css": "tokens",
+  "entries": [
+    {
+      "entryId": "main",
+      "title": "Example Project",
+      "description": "主入口。",
+      "url": "https://example-project.jonaminz.com/",
+      "deprecated": false
+    }
+  ],
+  "objects": [
+    {
+      "objectType": "photo",
+      "description": "這個專案管理的相片物件。"
+    }
+  ],
+  "capabilities": {
+    "supports": ["search.query@1"],
+    "requests": ["notification.send@1"],
+    "requires": [
+      { "capability": "pin.create@1", "entryId": "main" }
+    ]
+  }
+}

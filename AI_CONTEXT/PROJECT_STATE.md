@@ -62,6 +62,9 @@ jonaminz/
     platform-integration-review-request.md RFC（已凍結）：發給所有審查 Agent 的同一份
                                           Review Request，含 12 個挑戰問題；收到的
                                           Review 一份一檔放 docs/platform-integration-reviews/
+    platform-integration-v1-implementation-plan.md  Spec Frozen 後的工作清單（非規格）
+    contract-schema/                      實作計畫第 1 項產出：Contract JSON Schema 草稿
+                                          （RC，未定案，見該資料夾 README 的 6 點待確認設計決策）
   AI_CONTEXT/                 本資料夾：AI agent 交接文件
 ```
 
@@ -88,8 +91,17 @@ jonaminz/
   **`docs/platform-integration-spec-v1.md` 正式 Frozen（S1–S39）**。
   該文件是唯一權威；S 條文不可修改（RULES.md §一-12）。
   下一階段＝JSON Schema → Contract 範本 → SDK 骨架，依
-  `docs/platform-integration-v1-implementation-plan.md` 的順序，
-  **尚未開始**。
+  `docs/platform-integration-v1-implementation-plan.md` 的順序。
+  **JSON Schema ＋ 範本（implementation plan 第 1 項）已產出草稿**
+  （`docs/contract-schema/`：`jonaminz.contract.schema.json` +
+  `jonaminz.contract.example.json` + README），已用 `npx ajv-cli
+  --spec=draft2020` 驗證正反例通過。README 列了 6 點規格沒明文釘死、
+  由 agent 判斷的 JSON 形狀設計決策，其中 2 點使用者已於 2026-07-10
+  確認定案（`capabilities.requires` 扁平陣列＋`entryId` 必填；禁用欄位
+  `not` 反面表列維持整份合約 invalid）；其餘 4 點（entries/objects 陣列
+  形狀、css 欄位形狀、`$id` 為 placeholder、capability 正則允許
+  camelCase）風險較低、尚未被挑戰，可視為暫定。第 2 項（Worker 端合約
+  收取）**尚未開始**。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。

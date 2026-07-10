@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jonaminz.com/schema/jonaminz.contract.schema.v1.json",
+  "title": "Jonaminz Contract v1",
+  "description": "jonaminz.contract.json 的結構驗證。對應規格 docs/platform-integration-spec-v1.md（Frozen, S1-S39）。此 schema 只驗證單一文件的『結構是否合法』；S12 定義的 fail-soft 行為（單一 entry/object 壞掉時剔除該項、其餘照收）是 Worker 端 ingestion validator 的職責，不是這份 schema 檔案能表達的（JSON Schema 對整份文件只能給 valid/invalid 兩種結果）。",
+  "type": "object",
+  "required": ["contractVersion", "app"],
+  "additionalProperties": true,
+  "properties": {
+    "contractVersion": {
+      "description": "S8：合約 schema 版本，整數，v1 = 1。與 SDK release / capability 版本 / Settings schema 版本是各自獨立的版本維度（Spec『版本維度用語』節）。",
+      "const": 1
+    },
+    "app": {
+      "description": "S1, S8：專案身份與自我描述。",
+      "type": "object",
+      "required": ["projectId", "title"],
+      "additionalProperties": true,
+      "properties": {
+        "projectId": {
+          "description": "S1：永久不可變、不可重用、與網域/repo/URL 無關。小寫英數與連字號、字母開頭、2-63 字元。",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,62}$"
+        },
+        "title": {
+          "description": "S8：顯示名稱，可自由改（不受 S1 的不可變限制，那條只管 projectId 本身）。",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "description": "S9：自我描述類欄位允許（icon/title 可以，排序類不行）。",
+          "type": "string",
+          "maxLength": 2000
+        },
+        "icon": {
+          "description": "S9, S15：icon 允許自我宣告；若為 URL 需符合 S15 的 URL 欄位規則（見 $defs/contractUrl）。",
+          "$ref": "#/$defs/contractUrl"
+        }
+      }
+    },
+    "shell": {
+      "description": "敘事骨架：合約可宣告 shell:false，此時只建 Platform API、不做任何 UI。省略時預設視為 true（由 SDK 認定，不是本 schema 的職責）。",
+      "type": "boolean"
+    },
+    "css": {
+      "description": "S34, 第五部分：CSS 生效等級聲明。v1 對外發布範圍只到 none/tokens；components/full/self 屬保留層，v1 合約不得宣告（要宣告也會被 Worker 依 S11 當成未知值＝不支援，不會 fallback 成更大權限）。",
+      "type": "string",
+      "enum": ["none", "tokens"]
+    },
+    "entries": {
+      "description": "S3, S7-S12：本專案對外暴露的整合入口清單（例如某個可被連結/嵌入的頁面或功能單元）。",
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/entry" }
+    },
+    "objects": {
+      "description": "S2-S5：本專案宣告支援的 object type 清單。宣告存在 ≠ 資料可被平台讀取；實際讀寈由未來 capability 定義（S5）。objectId 由專案自己生成、對平台不透明，不在合約裡列舉實際 object 實例。",
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/objectTypeDeclaration" }
+    },
+    "capabilities": {
+      "description": "S10, S30：能力宣告，三分 supports/requests/requires。",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "supports": {
+          "description": "S10：能整合的能力，平台可自由選擇是否啟用。",
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/capabilityId" },
+          "uniqueItems": true
+        },
+        "requests": {
+          "description": "S10：希望啟用的能力，缺了可降級（不影響宿主頁面運作）。",
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/capabilityId" },
+          "uniqueItems": true
+        },
+        "requires": {
+          "description": "S10：綁定某 entry 或整合單元的能力，缺它該單元不啟用。requires 永不阻止宿主頁面運作、永不造成自動 grant（S10, S16）。",
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/capabilityRequirement" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "S1, S3：projectId/entryId/objectType 共用文法。",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "capabilityId": {
+      "description": "S30：<service>.<capability>@<major> 文法。service/capability 允許 camelCase（保留服務名單如 sharedCache），major 為正整數。",
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9]*\\.[a-z][a-zA-Z0-9]*@[1-9][0-9]*$"
+    },
+    "contractUrl": {
+      "description": "S15：合約中所有具導航/載入/server-side fetch 意義的 URL，必須是 https: 或相對 URL；同源限制由 Worker 依登記網域檢查，非本 schema 能表達。",
+      "type": "string",
+      "pattern": "^(https://|/)\\S*$",
+      "maxLength": 2048
+    },
+    "entry": {
+      "type": "object",
+      "required": ["entryId", "title", "url"],
+      "additionalProperties": true,
+      "properties": {
+        "entryId": {
+          "description": "S3：在 projectId 命名空間內永久穩定；語意永不改，要改就出新 ID。",
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "url": {
+          "description": "S15：入口 URL。",
+          "$ref": "#/$defs/contractUrl"
+        },
+        "icon": {
+          "$ref": "#/$defs/contractUrl"
+        },
+        "deprecated": {
+          "description": "S11：停用靠 deprecated 標記，永不刪除整個 entry 定義。",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "not": {
+        "description": "S9：合約永不含排序/授權/機密類欄位，即使出現也依 S16 無授權效力；此處明確擋掉最常見的誤用，幫合約作者及早發現寫錯。",
+        "anyOf": [
+          { "required": ["enabled"] },
+          { "required": ["visibility"] },
+          { "required": ["placement"] },
+          { "required": ["order"] },
+          { "required": ["weight"] },
+          { "required": ["position"] },
+          { "required": ["permissions"] },
+          { "required": ["grantedCapabilities"] },
+          { "required": ["secret"] },
+          { "required": ["apiKey"] },
+          { "required": ["token"] }
+        ]
+      }
+    },
+    "objectTypeDeclaration": {
+      "type": "object",
+      "required": ["objectType"],
+      "additionalProperties": true,
+      "properties": {
+        "objectType": {
+          "description": "S3：語意永不改，要改就出新 objectType。",
+          "$ref": "#/$defs/id"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "deprecated": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "capabilityRequirement": {
+      "description": "S10：requires 必須明確綁定一個 entry（v1 定案：entryId 必填，避免『沒填到底是指整個合約、還是漏填』的模糊狀態）。未來若真的需要整份合約層級的 requires，屆時再新增明確的 scope 欄位，v1 不預先做。",
+      "type": "object",
+      "required": ["capability", "entryId"],
+      "additionalProperties": true,
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/capabilityId"
+        },
+        "entryId": {
+          "description": "須對應 entries[].entryId。跨欄位參照一致性由 Worker ingestion 檢查，非本 schema 職責。",
+          "$ref": "#/$defs/id"
+        }
+      }
+    }
+  },
+  "not": {
+    "description": "S9：頂層也擋一次常見誤用（enabled/visibility/placement 等排序與授權欄位不應出現在合約頂層）。",
+    "anyOf": [
+      { "required": ["enabled"] },
+      { "required": ["visibility"] },
+      { "required": ["placement"] },
+      { "required": ["order"] },
+      { "required": ["weight"] },
+      { "required": ["position"] },
+      { "required": ["permissions"] },
+      { "required": ["grantedCapabilities"] },
+      { "required": ["secret"] },
+      { "required": ["apiKey"] },
+      { "required": ["token"] }
+    ]
+  }
+}
