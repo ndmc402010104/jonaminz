@@ -29,6 +29,10 @@
           '<span class="jonaminz-admin-link-title">Theme</span>' +
           '<span class="jonaminz-admin-link-desc">CSS 疊加架構展示櫃 / 未來的 playground</span>' +
         '</a>' +
+        '<a class="jonaminz-admin-link-card" href="/pages/admin/contracts/">' +
+          '<span class="jonaminz-admin-link-title">Contract 核准</span>' +
+          '<span class="jonaminz-admin-link-desc">Platform Integration 外部專案的 pending Contract 審核</span>' +
+        '</a>' +
       '</div>';
   }
 

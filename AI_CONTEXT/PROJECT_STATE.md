@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-10（建檔）
+最後更新：2026-07-11
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -47,11 +47,14 @@ jonaminz/
     js/app.js                 首頁業務入口
   pages/
     README.md                 新增頁面的標準流程（重要：新頁面照這份做）
-    admin/                    後台首頁（佔位 + Theme 頁連結）
+    admin/                    後台首頁（佔位 + Theme 頁連結 + Contract 核准連結）
     admin/theme/              Theme 編輯頁：讀寫 Supabase CSS 規則，存檔全站立即換外觀
+    admin/contracts/          Contract 核准後台（implementation plan 第 3 項）：pending
+                              清單、diff 檢視、核准／否決／改判，唯一有身分驗證保護的
+                              寫入動作（Worker secret JONAMINZ_ADMIN_TOKEN 臨時關卡）
   backend/
     README.md                 後端部署說明
-    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，5 個 action（見 §5）
+    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，8 個 action（見 §5）
     cloudflare-worker/wrangler.toml   含 [vars] JONAMINZ_ENVIRONMENT（見 §4 Platform Integration）
     cloudflare-worker/package.json    ajv 依賴（Contract JSON Schema 驗證用）
     cloudflare-worker/integration-settings.json  Contract 收取用的 Integration
@@ -70,7 +73,10 @@ jonaminz/
     supabase/schema.sql       external_app_registrations 表
     supabase/theme_schema.sql theme_css_rules 表
     supabase/contract_schema.sql  contract_snapshots / contract_active_snapshots /
-                                  contract_audit_log 三張表（已套用到 jonaminz-db）
+                                  contract_audit_log 三張表 + approve_contract_snapshot /
+                                  reject_contract_snapshot 兩個 Postgres function
+                                  （原子改狀態＋切換 active 指標＋寫 audit log，已套用到
+                                  jonaminz-db；核准/否決不是終態，可互相改判，見 §4）
   docs/
     external-project-manifest.md          v0 外部專案接入方式（現行有效；作廢需三條件，見 RULES §4）
     platform-integration-spec-review.md   Platform 規格 v1 的架構審查
@@ -96,6 +102,12 @@ jonaminz/
 - Cloudflare Worker 後端已部署：`https://jonaminz-backend.ndmc402010104.workers.dev`。
 - 本機預覽 `dev-server.js`。
 - 多頁架構：新頁面只改 `config.json` + 建資料夾（見 `pages/README.md`）。
+- **Platform Integration 核准後台（implementation plan 第 3 項）端到端可用**：
+  `/pages/admin/contracts/` 後台輸入 Worker secret `JONAMINZ_ADMIN_TOKEN`
+  後可核准／否決／改判 pending Contract，Postgres function 原子處理狀態
+  切換＋active 指標＋audit log，2026-07-11 已用 jonaminz-movies 真實那筆
+  pending（snapshot #3）跑過完整流程（submit→reject→approve→撤回→再核准）
+  並直連 DB 驗證三張表資料正確，細節見 §4。
 
 ## 4. 尚未完成的功能
 
@@ -146,9 +158,41 @@ jonaminz/
     body 大小限制（已寫進 `worker.js`，見上方版本注意事項，**尚未部署**）；
     完整 rate limit 正式留白（不是遺漏）；SKHPSv2 正式接入 jonaminz 是
     真實意圖但不急，排在第 3-9 項之後。
-  - 尚未開始：第 3 項（核准後台）→ 第 9 項（Google OAuth）。SDK
-    （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*` 一行都
-    還沒寫。
+  - **第 3 項（核准後台）：完成並已部署上線（2026-07-11）。**
+    `backend/supabase/contract_schema.sql` 新增 `approve_contract_snapshot`／
+    `reject_contract_snapshot` 兩個 `security definer` Postgres function，
+    透過 Supabase RPC 端點呼叫，一次 function call 在 DB 端就是原子
+    transaction（改 snapshot 狀態＋切換 `contract_active_snapshots`
+    指標＋寫 `contract_audit_log`），不是 Worker 端連續多次 fetch。
+    `worker.js` 新增 `listPendingContracts`（公開唯讀）／`approveContract`／
+    `rejectContract`（`payload.adminToken` 須吻合 Worker secret
+    `JONAMINZ_ADMIN_TOKEN`，不符合回 `UNAUTHORIZED`，200 not 401）。新頁面
+    `/pages/admin/contracts/`：pending 清單、跟目前 active 版本的逐 key
+    diff、核准／否決按鈕。
+    **設計修正（使用者當場發現的真實 bug）**：第一版把 approve/reject
+    寫成只能從 `pending` 狀態發動，否決後永遠卡死無法改判。使用者指出
+    這不合理，重讀規格後確認 S13 原文「核准/否決只改狀態與 active 指標，
+    **永不覆寫歷史**」——「歷史」指 audit log 不可竄改，不是 status 定了
+    就不能再變。改寫兩個 function：不管目前狀態都能核准/否決（可自由
+    在 approved/rejected 間改判）；否決時如果那筆正好是目前生效版本，
+    撤回 `contract_active_snapshots` 指標（沒有版本歷史堆疊可自動退回
+    上一版，安全預設是「暫時沒有生效版本」，要人工重新核准）；每次改判
+    都在 audit log 多插入一筆，不覆寫舊紀錄。前端 `rowActionsHtml` 同步
+    改成已核准顯示「撤回核准」、已否決顯示「改為核准」。
+    **順手修的 UX 問題**（使用者實際操作時發現）：admin token／操作人
+    輸入框在畫面重畫（按重新整理／核准後自動刷新）時會被 `sessionStorage`
+    舊值蓋掉，逼人重打——改成 `input` 事件即時存檔；操作人從自由輸入
+    改成 Jonathan/Minz 兩個切換按鈕（就兩人在用，不用打字）；欄位順序
+    改成操作人在前、token 在後（貼近帳號密碼慣例）；否決備註原本存了
+    但畫面看不到，補上顯示；已裁決列表預設收起技術性欄位（snapshot id／
+    hash）到展開區，摺疊列只留使用者真的會看的資訊。
+    **驗證**：使用者用 jonaminz-movies 那筆真實 pending（snapshot #3）
+    實際跑過 submit→reject→approve→撤回核准→再核准 全流程，直連 DB
+    確認 `contract_snapshots.status`／`contract_active_snapshots`／
+    `contract_audit_log`（5 筆，一筆未覆寫）三張表狀態全部正確。
+  - 尚未開始：第 4 項（Effective Settings endpoint）→ 第 9 項
+    （Google OAuth）。SDK（`jonaminz-entry.js`，常青網址 `/sdk/`）、
+    `window.Jonaminz.*` 一行都還沒寫。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -186,21 +230,23 @@ jonaminz/
 | 前端託管 | GitHub Pages，repo `ndmc402010104/jonaminz`，branch `main`，網域 `www.jonaminz.com`（CNAME） |
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
 | 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。五張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`，皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
-| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`（存在 Cloudflare，不在 repo） |
-| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending，見 backend/README.md） |
+| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`JONAMINZ_ADMIN_TOKEN`（approve/reject 臨時關卡，存在 Cloudflare，不在 repo，Claude 不經手實際值） |
+| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判，見 backend/README.md） |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
 必須另外 `wrangler deploy`，git push 不會部署 Worker。兩者是獨立動作。
 
-## 6. 版本與分支狀態（2026-07-10 掃描）
+## 6. 版本與分支狀態（2026-07-11 掃描）
 
-- 業務版本：`v0.4.1-202607111602`（`version.js`）。規則：每次 push 前要 bump。
-  **2026-07-11 已 `wrangler deploy`＋線上驗證完成**：`jonaminz-movies` 的
-  `integration-settings.json` 登記已上線，`submitContract` 對它已實際
-  成功呼叫過一次（snapshot id=3，`status='pending'`），DB 三張表的
-  `service_role` 權限缺口（見上方 Platform Integration 條目）也已修好。
-  repo 版本與線上部署版本、DB 實際權限狀態目前三方同步。
+- 業務版本：`v0.4.3-202607111911`（`version.js`）。規則：每次 push 前要 bump。
+  **2026-07-11 implementation plan 第 3 項（核准後台）完成並已上線**：
+  Worker 已 `wrangler deploy`（含 `listPendingContracts`/`approveContract`/
+  `rejectContract` 三個新 action）；`contract_schema.sql` 的兩個 approve/
+  reject Postgres function（含改判邏輯的修正版）已直連套用到 jonaminz-db；
+  `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定。前端 `pages/admin/contracts/`
+  尚未經 git push 上線到 GitHub Pages（本次收尾會一併 push）——**Worker/DB
+  已是最終狀態，前端頁面檔案要等這次 push 才會反映到 www.jonaminz.com**。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

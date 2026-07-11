@@ -20,6 +20,61 @@
 
 ---
 
+## 2026-07-11 — Implementation plan 第 3 項：核准後台完成並上線，修正改判設計缺陷
+
+- **任務**：接續 Contract 收取（第 2 項），做 implementation plan 第 3 項——
+  讓 pending Contract 能被人工核准/否決，`/pages/admin/contracts/` 後台，
+  用 Worker secret `JONAMINZ_ADMIN_TOKEN` 當臨時保護（整站還沒有登入系統）。
+- **變更**：
+  - `backend/supabase/contract_schema.sql` 新增 `approve_contract_snapshot`／
+    `reject_contract_snapshot` 兩個 `security definer` Postgres function，
+    透過 Supabase RPC 一次呼叫完成「改狀態＋切換 active 指標＋寫 audit
+    log」的原子操作。`worker.js` 新增 `listPendingContracts`／
+    `approveContract`／`rejectContract` 三個 action；`backend-client.js`
+    新增對應 wrapper；新頁面 `pages/admin/contracts/`（pending 清單、diff
+    檢視、核准/否決按鈕）；`config.json` 登記新頁面；`pages/admin/` 首頁
+    加連結卡片；`backend/README.md`／`pages/README.md` 同步更新。
+  - 直連 `jonaminz-db` 套用 SQL function（第一版：approve/reject 都限定
+    只能從 `pending` 狀態發動）；`wrangler deploy` 上線；本機 `dev-server.js`
+    + headless browser 驗證頁面結構，過程中發現並修好一個真的 CSS 漏樣式
+    （新頁面複製了 Theme 頁的 `.jonaminz-theme-*` class 命名，但那份 CSS
+    是 Theme 頁專屬的 Page Layer，沒被這頁載入，工具列/區塊完全沒框線——
+    補上基礎樣式到 `page-admin-contracts.css`）；curl 驗證錯 token 正確被
+    擋（`UNAUTHORIZED`，DB 無變化）。
+  - **使用者實際操作時發現一個真的設計缺陷**：否決一筆 Contract 後永遠
+    卡死，無法改判回核准（第一版 SQL function 寫死「只能從 pending 發動」）。
+    使用者質疑「否決應該像 pending 一樣可以再被改判，不是終態」——重讀
+    frozen 規格 S13 原文「核准/否決只改狀態與 active 指標，**永不覆寫
+    歷史**」，確認「歷史」指 audit log 不可竄改，不是 status 定了不能再變，
+    第一版是我自己多加的限制，規格沒有要求。改寫兩個 function：不論目前
+    狀態都能核准/否決，可自由在 approved/rejected 間改判；否決時如果那筆
+    正好是目前生效版本才撤回 `contract_active_snapshots` 指標（沒有版本
+    歷史堆疊可自動退回上一版，安全預設是「暫時沒有生效版本」，要人工
+    重新核准）；每次改判在 audit log 多插入一筆，不覆寫舊紀錄。取得使用者
+    明確同意後重新套用到 jonaminz-db。前端 `rowActionsHtml` 同步改成
+    已核准顯示「撤回核准」、已否決顯示「改為核准」，pending 兩個都顯示。
+  - **使用者實際操作時發現的 UX 問題也一併修**：admin token／操作人輸入框
+    在畫面重畫時（按重新整理、核准/否決完自動刷新）會被 sessionStorage
+    舊值蓋掉，逼人重打——改成 token 用 `input` 事件即時存檔；操作人從
+    自由輸入改成 Jonathan/Minz 兩個切換按鈕；欄位順序改成操作人在前、
+    token 在後（貼近帳號密碼慣例）；否決備註原本有存但畫面看不到，補上
+    顯示；已裁決列表摺疊列預設只顯示裁決時間/操作人/備註，技術性的
+    snapshot id／hash 移到展開區才顯示，減少視覺雜訊。
+  - **驗證**：使用者用 jonaminz-movies 真實 pending（snapshot #3）實際
+    跑過 submit→reject→approve→撤回核准→再核准 全流程，直連 DB 確認
+    `contract_snapshots.status='approved'`、`contract_active_snapshots`
+    正確指向該 snapshot、`contract_audit_log` 累積 5 筆且無覆寫，跟預期
+    完全一致。
+- **狀態變化**：implementation plan **第 3 項（核准後台）完成並已上線**。
+  下一步是第 4 項（Effective Settings endpoint）。
+- **遺留**：`docs/contract-schema/README.md` 的「進 Worker 前 release
+  checklist」（`$id` 正式發布）仍是唯一未收尾項目，不擋任何後續工作。
+  完整 rate limit（KV binding）依然正式留白，見 backend/README.md。
+- **版本**：`v0.4.3-202607111911`（已 bump；SQL function、Worker action、
+  前端頁面、schema 皆屬程式碼/schema 變更）。
+
+---
+
 ## 2026-07-11 — jonaminz-movies 正向成功路徑驗證完成，修好 GRANT 權限漏洞
 
 - **任務**：接續上一筆記錄，使用者授權 `wrangler deploy` 把

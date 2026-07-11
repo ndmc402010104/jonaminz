@@ -45,6 +45,18 @@
         "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/theme/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
+    },
+    "admin-contracts": {
+      "pageId": "admin-contracts",
+      "title": "Contract 核准",
+      "path": "/pages/admin/contracts/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/contracts/assets/css/page-admin-contracts.css"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/contracts/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
     }
   },
 

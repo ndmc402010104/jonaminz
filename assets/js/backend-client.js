@@ -84,9 +84,24 @@
     return call("listExternalAppRegistrations", {}, options);
   }
 
+  function listPendingContracts(options) {
+    return call("listPendingContracts", {}, options);
+  }
+
+  function approveContract(payload, options) {
+    return call("approveContract", payload, options);
+  }
+
+  function rejectContract(payload, options) {
+    return call("rejectContract", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
-    listExternalAppRegistrations: listExternalAppRegistrations
+    listExternalAppRegistrations: listExternalAppRegistrations,
+    listPendingContracts: listPendingContracts,
+    approveContract: approveContract,
+    rejectContract: rejectContract
   };
 })();

@@ -65,7 +65,14 @@
    裡宣告，視為合約自相矛盾（該能力宣告視為無效，不阻擋其餘部分）；
    `capabilities.requires[].entryId` 必須對應到某個 `entries[].entryId`，對不到則
    該筆 requires 無效。
-3. **核准後台**：pending 清單、diff 檢視、核准/否決（S14）
+3. **核准後台** —— ✅ 完成並已部署上線（2026-07-11）。pending 清單、
+   跟 active 版本的逐 key diff、核准/否決（S14），透過
+   `approve_contract_snapshot`／`reject_contract_snapshot` 兩個 Postgres
+   function 原子完成狀態切換＋active 指標＋audit log，`/pages/admin/contracts/`
+   後台以 Worker secret `JONAMINZ_ADMIN_TOKEN` 保護。核准/否決可互相改判
+   （不是終態，S13「永不覆寫歷史」指 audit log 不可竄改，不是 status
+   不能再變）；否決時如果那筆正好是目前生效版本，撤回 active 指標。
+   細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、`backend/README.md`。
 4. **flattened Effective Settings 端點**（S38，外觀 vs 授權分兩類）
 5. **SDK loader ＋ 版本指標**（S37：immutable `sdk-<hash>.js`、stable
    指標、kill-switch、per-project channel）＋ **S39 回滾相容 checklist**

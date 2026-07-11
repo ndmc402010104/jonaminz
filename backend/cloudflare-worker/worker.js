@@ -9,9 +9,18 @@
   是已知的暫時限制（見 backend/README.md）。
 - submitContract：Platform Integration（圖書館模型）的合約推送入口。對應規格
   docs/platform-integration-spec-v1.md（Frozen, S13-S16）。收下的合約一律存成
-  immutable snapshot、status 一律 'pending'——推送 ≠ 採信，這裡不會、也不能讓
-  任何合約自動變成 approved（approve/reject 是 implementation plan 第 3 項的
-  後台功能，這次還沒有）。
+  immutable snapshot、status 一律 'pending'——推送 ≠ 採信，不會自動 approve。
+- listPendingContracts：核准後台讀取清單用，公開唯讀（跟
+  listExternalAppRegistrations 同一個原則）。回傳最近 N 筆 snapshot，並附上
+  每個 (project_id, environment) 目前 active 的版本供前端做 diff（S14）。
+- approveContract / rejectContract：implementation plan 第 3 項的核准/否決。
+  **這兩個是目前唯一有身分驗證保護的寫入動作**：整站還沒有登入系統
+  （Google OAuth 是第 9 項），這兩個先用 Worker secret
+  JONAMINZ_ADMIN_TOKEN 當臨時關卡，呼叫時 payload.adminToken 要吻合。
+  實際的狀態切換透過 Supabase RPC 呼叫 Postgres function
+  approve_contract_snapshot / reject_contract_snapshot（見
+  backend/supabase/contract_schema.sql），確保「改狀態＋切換 active 指標＋
+  寫 audit log」是同一個原子操作，不是 Worker 端連續多次 fetch。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -89,6 +98,18 @@ export default {
 
       if (action === "submitContract") {
         return json(await submitContract(env, payload, request), 200);
+      }
+
+      if (action === "listPendingContracts") {
+        return json(await listPendingContracts(env), 200);
+      }
+
+      if (action === "approveContract") {
+        return json(await approveContract(env, payload), 200);
+      }
+
+      if (action === "rejectContract") {
+        return json(await rejectContract(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -425,4 +446,134 @@ async function submitContract(env, payload, request) {
     deduped: false,
     validationResult: validationResult
   };
+}
+
+// 核准後台讀取清單，公開唯讀（S16：讀合約不代表採信，看清單不用保護）。
+async function listPendingContracts(env) {
+  const snapshotsUrl =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/contract_snapshots?select=*&order=submitted_at.desc&limit=50";
+
+  const activeUrl =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/contract_active_snapshots?select=project_id,environment,active_snapshot_id," +
+    "contract_snapshots(id,raw_contract,canonical_hash)";
+
+  const [snapshotsResponse, activeResponse] = await Promise.all([
+    fetch(snapshotsUrl, { method: "GET", headers: supabaseHeaders(env) }),
+    fetch(activeUrl, { method: "GET", headers: supabaseHeaders(env) })
+  ]);
+
+  if (!snapshotsResponse.ok) {
+    throw new Error("Supabase read failed: HTTP " + snapshotsResponse.status + " " + (await snapshotsResponse.text()));
+  }
+  if (!activeResponse.ok) {
+    throw new Error("Supabase read failed: HTTP " + activeResponse.status + " " + (await activeResponse.text()));
+  }
+
+  const snapshots = await snapshotsResponse.json();
+  const activeRows = await activeResponse.json();
+
+  // key = "<project_id>::<environment>" -> 目前 active 的那份合約內容，
+  // 讓前端可以把 pending 的內容跟這個做 diff（S14）。
+  const activeByKey = {};
+  activeRows.forEach(function (row) {
+    const linked = row.contract_snapshots;
+    if (!linked) return;
+    activeByKey[row.project_id + "::" + row.environment] = {
+      snapshotId: linked.id,
+      canonicalHash: linked.canonical_hash,
+      rawContract: linked.raw_contract
+    };
+  });
+
+  const rows = snapshots.map(function (row) {
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      environment: row.environment,
+      status: row.status,
+      canonicalHash: row.canonical_hash,
+      rawContract: row.raw_contract,
+      validationResult: row.validation_result,
+      submittedOrigin: row.submitted_origin,
+      submittedAt: row.submitted_at,
+      decidedAt: row.decided_at,
+      decidedBy: row.decided_by,
+      note: row.note,
+      previousApproved: activeByKey[row.project_id + "::" + row.environment] || null
+    };
+  });
+
+  return { ok: true, rows: rows };
+}
+
+function checkAdminToken(env, payload) {
+  const provided = String((payload && payload.adminToken) || "");
+  const expected = env.JONAMINZ_ADMIN_TOKEN;
+
+  // 沒設定 secret 時一律拒絕，不要因為忘記設定就變成沒有保護。
+  if (!expected || !provided || provided !== expected) {
+    return false;
+  }
+  return true;
+}
+
+// implementation plan 第 3 項：approve/reject 是目前唯一有保護的寫入動作。
+// 整站還沒有登入系統，這裡先用 Worker secret 當臨時關卡（見檔頭註解），
+// 等 Google OAuth（第 9 項）落地後要換成正式驗證。
+async function approveContract(env, payload) {
+  if (!checkAdminToken(env, payload)) {
+    return { ok: false, code: "UNAUTHORIZED", error: "Invalid or missing adminToken" };
+  }
+
+  const snapshotId = Number(payload.snapshotId);
+  if (!snapshotId) {
+    return { ok: false, code: "SNAPSHOT_ID_REQUIRED", error: "snapshotId is required" };
+  }
+
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/rpc/approve_contract_snapshot";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({
+      p_snapshot_id: snapshotId,
+      p_actor: String(payload.actor || "").trim() || null,
+      p_note: String(payload.note || "").trim() || null
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("Supabase RPC failed: HTTP " + response.status + " " + (await response.text()));
+  }
+
+  return { ok: true, snapshotId: snapshotId, status: "approved" };
+}
+
+async function rejectContract(env, payload) {
+  if (!checkAdminToken(env, payload)) {
+    return { ok: false, code: "UNAUTHORIZED", error: "Invalid or missing adminToken" };
+  }
+
+  const snapshotId = Number(payload.snapshotId);
+  if (!snapshotId) {
+    return { ok: false, code: "SNAPSHOT_ID_REQUIRED", error: "snapshotId is required" };
+  }
+
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/rpc/reject_contract_snapshot";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({
+      p_snapshot_id: snapshotId,
+      p_actor: String(payload.actor || "").trim() || null,
+      p_note: String(payload.note || "").trim() || null
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("Supabase RPC failed: HTTP " + response.status + " " + (await response.text()));
+  }
+
+  return { ok: true, snapshotId: snapshotId, status: "rejected" };
 }

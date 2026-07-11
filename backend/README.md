@@ -6,11 +6,13 @@
 2. Theme：全站（含外部專案）共用的外觀來源，selector+property+value 規則存在 Supabase
    的 `theme_css_rules`，`assets/js/theme-runtime.js` 讀出來組成 CSS 套用（見
    `docs/external-project-manifest.md` 的「Theme（共用外觀）」章節）。
-3. Contract 收取（Platform Integration，圖書館模型）：外部專案推送
+3. Contract 收取＋核准（Platform Integration，圖書館模型）：外部專案推送
    `jonaminz.contract.json` 給 `submitContract`，存成 immutable snapshot，
-   一律先進 `pending`——推送 ≠ 採信，approve/reject 是之後的後台功能，這裡沒有。
-   對應規格 `docs/platform-integration-spec-v1.md`（Frozen, S13-S16）與
-   `docs/platform-integration-v1-implementation-plan.md` 第 2 項。
+   一律先進 `pending`——推送 ≠ 採信。`/pages/admin/contracts/` 後台可以看
+   pending 清單、跟目前 active 版本的 diff，手動核准（approveContract）或
+   否決（rejectContract）。對應規格 `docs/platform-integration-spec-v1.md`
+   （Frozen, S13-S16）與 `docs/platform-integration-v1-implementation-plan.md`
+   第 2、3 項。
 
 機密（Supabase secret key，新版命名 `sb_secret_...`，不是 `sb_publishable_...`）只存在
 Cloudflare Worker 的 secret 裡，不會出現在這個 repo、對話紀錄或前端程式碼中。
@@ -62,6 +64,12 @@ npx wrangler secret put SUPABASE_URL
 
 npx wrangler secret put SUPABASE_SECRET_KEY
 # 貼 Supabase 專案設定 → API Keys → secret key（sb_secret_ 開頭，不是 sb_publishable_）
+
+npx wrangler secret put JONAMINZ_ADMIN_TOKEN
+# 自己想一個只有 Jonathan/Minz 知道的字串。這是 approveContract/rejectContract
+# 目前唯一的保護（整站還沒有登入系統，這是臨時關卡，見下方 API 說明），
+# 貼進 /pages/admin/contracts/ 頁面的「Admin token」欄位才能核准/否決。
+# Claude 不會知道、也不需要知道這個值。
 ```
 
 ## 3. 把 Worker 網址接進 jonaminz
@@ -92,6 +100,28 @@ npx wrangler secret put SUPABASE_SECRET_KEY
   `ENVIRONMENT_NOT_REGISTERED` / `SCHEMA_INVALID` / `ORIGIN_MISMATCH` /
   `CONTRACT_TOO_LARGE`）。request body 過大（見下）時沒有 `code`，直接回
   HTTP 413。
+- `listPendingContracts`：不需要 payload，公開唯讀。回傳
+  `{ ok: true, rows: [...] }`，每列含 `status`／`rawContract`／
+  `validationResult`／`previousApproved`（該 (projectId, environment) 目前
+  active 的版本，沒有就是 `null`，給後台做 diff 用）。
+- `approveContract` / `rejectContract`：implementation plan 第 3 項，**唯一
+  有保護的寫入動作**。`payload.snapshotId` 必填；`payload.adminToken` 必填，
+  要吻合 Worker secret `JONAMINZ_ADMIN_TOKEN`，不符合回
+  `{ ok:false, code:"UNAUTHORIZED" }`（200，不是 401，跟現有 style 一致）。
+  `payload.actor`（選填，操作人名字）、`payload.note`（選填，否決原因）。
+  實際的狀態切換是呼叫 Supabase RPC（`approve_contract_snapshot` /
+  `reject_contract_snapshot`，見 `supabase/contract_schema.sql`）——這兩個
+  Postgres function 把「改 snapshot 狀態＋切換 active 指標＋寫 audit log」
+  包成同一個原子操作，不是 Worker 端連續三次 fetch。approve 成功後，該
+  `(projectId, environment)` 的 `contract_active_snapshots` 指標會切到這筆
+  snapshot。**核准/否決都不是終態，可以互相改判**（S13：「核准/否決只改
+  狀態與 active 指標，永不覆寫歷史」——歷史指 audit log 不可竄改，不是
+  status 定了就不能再變）：否決一筆已核准的 snapshot，如果它正好是目前
+  生效版本，會把 `contract_active_snapshots` 整個撤掉（沒有版本歷史堆疊，
+  無法自動退回上一版，安全預設是「暫時沒有生效版本」，要人工重新核准
+  一筆才會再有東西生效）；核准一筆已否決的 snapshot 則會照常把它設為
+  active。每次改判都會在 `contract_audit_log` 多插入一筆，不會覆寫或
+  刪除舊紀錄。
 
 ### Contract 收取的先決條件與已知留白
 
@@ -120,9 +150,8 @@ npx wrangler secret put SUPABASE_SECRET_KEY
   一個部署，`JONAMINZ_ENVIRONMENT="prod"`；要開 dev 環境時在 `wrangler.toml`
   加 `[env.dev]` / `[env.dev.vars] JONAMINZ_ENVIRONMENT="dev"` 另外部署一份，
   指向同一個 Supabase 專案即可，不需要第二套資料庫。
-- **一切寫入永遠是 `status='pending'`**（S13, S16）。approve/reject 動作、
-  pending 清單、diff 檢視是 implementation plan 第 3 項的後台功能，這次沒做，
-  `contract_active_snapshots` 表已建但不會有任何資料。
+- **submitContract 一律寫 `status='pending'`**（S13, S16），永不自動
+  approve——approve/reject 一定要透過 `/pages/admin/contracts/` 後台手動觸發。
 - **Size 限制分兩層**：`fetch()` 一開始（`request.json()` 之前）先檢查
   `Content-Length` header，超過 256KB 直接回 HTTP 413，不無條件把整個 body
   讀進記憶體才發現太大——這層是所有 action 共用的 pre-parse 粗防，不是

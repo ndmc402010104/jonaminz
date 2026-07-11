@@ -73,3 +73,98 @@ alter table contract_audit_log enable row level security;
 grant select, insert, update, delete on contract_snapshots to service_role;
 grant select, insert, update, delete on contract_active_snapshots to service_role;
 grant select, insert, update, delete on contract_audit_log to service_role;
+
+-- implementation plan 第 3 項（核准後台）：approve/reject 各自要同時動到
+-- 三張表（改 snapshot 狀態、切換 active 指標、寫 audit log），這三件事
+-- 必須是同一個原子操作，不能讓 Worker 對 Supabase REST 連續發三次 fetch
+-- （任何一步失敗會留下不一致的資料）。用 Postgres function + Supabase 的
+-- RPC 端點：一次 function call 在資料庫端就是一個隱含 transaction。
+--
+-- 2026-07-11 修正：S13 原文是「核准/否決只改狀態與 active 指標，永不
+-- 覆寫歷史」——「歷史」指的是 audit_log 跟 snapshot 的 raw_contract 本體
+-- 不可竄改，不是說 status 欄位本身定了就不能再變。第一版實作誤加了
+-- 「必須從 pending 出發」的限制，導致否決後永遠卡死、無法改判——使用者
+-- 使用後直接指出這不合理（否決應該像 pending 一樣是可以再被改判的裁決，
+-- 不是終態）。因此拿掉這個限制：approve/reject 現在不管目前狀態是什麼
+-- 都能執行，可以自由在 approved/rejected 之間改判；每次改判都會在
+-- audit_log 多插入一筆紀錄（歷史不會被覆寫，只是累加）。
+create or replace function approve_contract_snapshot(
+  p_snapshot_id bigint,
+  p_actor text,
+  p_note text
+) returns void as $$
+declare
+  v_project_id text;
+  v_environment text;
+  v_new_hash text;
+  v_previous_hash text;
+begin
+  select project_id, environment, canonical_hash
+    into v_project_id, v_environment, v_new_hash
+    from contract_snapshots
+    where id = p_snapshot_id;
+
+  if v_project_id is null then
+    raise exception 'snapshot % not found', p_snapshot_id;
+  end if;
+
+  select cs.canonical_hash into v_previous_hash
+    from contract_active_snapshots a
+    join contract_snapshots cs on cs.id = a.active_snapshot_id
+    where a.project_id = v_project_id and a.environment = v_environment;
+
+  update contract_snapshots
+    set status = 'approved', decided_at = now(), decided_by = p_actor, note = p_note
+    where id = p_snapshot_id;
+
+  insert into contract_active_snapshots (project_id, environment, active_snapshot_id, updated_at)
+    values (v_project_id, v_environment, p_snapshot_id, now())
+    on conflict (project_id, environment)
+    do update set active_snapshot_id = excluded.active_snapshot_id, updated_at = now();
+
+  insert into contract_audit_log (project_id, environment, snapshot_id, action, previous_hash, new_hash, actor, note)
+    values (v_project_id, v_environment, p_snapshot_id, 'approve', v_previous_hash, v_new_hash, p_actor, p_note);
+end;
+$$ language plpgsql security definer;
+
+-- reject 不主動切換 active 指標去指向別的版本（沒有版本歷史堆疊，無法
+-- 安全地自動「退回上一版」）；但如果被否決的這筆正好是目前生效中的
+-- 版本，就把 active 指標整個撤掉——安全預設是「暫時沒有生效版本」，
+-- 要人工重新核准一筆才會再有東西生效，而不是靜默流回更早、可能同樣
+-- 有問題的一版。
+create or replace function reject_contract_snapshot(
+  p_snapshot_id bigint,
+  p_actor text,
+  p_note text
+) returns void as $$
+declare
+  v_project_id text;
+  v_environment text;
+  v_new_hash text;
+begin
+  select project_id, environment, canonical_hash
+    into v_project_id, v_environment, v_new_hash
+    from contract_snapshots
+    where id = p_snapshot_id;
+
+  if v_project_id is null then
+    raise exception 'snapshot % not found', p_snapshot_id;
+  end if;
+
+  update contract_snapshots
+    set status = 'rejected', decided_at = now(), decided_by = p_actor, note = p_note
+    where id = p_snapshot_id;
+
+  delete from contract_active_snapshots
+    where project_id = v_project_id and environment = v_environment
+      and active_snapshot_id = p_snapshot_id;
+
+  insert into contract_audit_log (project_id, environment, snapshot_id, action, previous_hash, new_hash, actor, note)
+    values (v_project_id, v_environment, p_snapshot_id, 'reject', null, v_new_hash, p_actor, p_note);
+end;
+$$ language plpgsql security definer;
+
+-- security definer 的 function 也要明確 grant execute，不會因為
+-- service_role 是呼叫者就自動有權限（跟上面表格 grant 是同一類坑）。
+grant execute on function approve_contract_snapshot(bigint, text, text) to service_role;
+grant execute on function reject_contract_snapshot(bigint, text, text) to service_role;

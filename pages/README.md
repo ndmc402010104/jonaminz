@@ -22,3 +22,7 @@
 - `pages/admin/` — 後台首頁，先做路線佔位（連到 skhps.jonaminz.com）+ Theme 頁連結。
 - `pages/admin/theme/` — Theme 頁：CSS 疊加架構的展示櫃（token + 共用元件的活文件），
   未來會擴充成可以拖拉調整顏色/間距的 CSS playground。
+- `pages/admin/contracts/` — Contract 核准後台（implementation plan 第 3 項）：
+  外部專案推送的 Contract pending 清單、diff 檢視、核准／否決。approve/reject
+  是目前唯一有身分驗證保護的寫入動作（Worker secret `JONAMINZ_ADMIN_TOKEN`
+  臨時關卡，見 backend/README.md）。

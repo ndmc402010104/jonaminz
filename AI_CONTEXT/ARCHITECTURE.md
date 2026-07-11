@@ -100,7 +100,16 @@ jonaminz 的 `registry.json`。
 ```
 
 推送 ≠ 採信：收下的合約一律 `pending`，沒有任何自動 approve/grant（S13, S16）。
-approve/reject、`contract_active_snapshots` 的寫入、後台 UI 都還沒做（見 §7）。
+approve/reject 已實作並上線（`/pages/admin/contracts/` 後台，Worker secret
+`JONAMINZ_ADMIN_TOKEN` 保護）：`listPendingContracts`（公開唯讀）／
+`approveContract`／`rejectContract` 三個 action 呼叫 Supabase RPC
+（`approve_contract_snapshot`／`reject_contract_snapshot`，見
+`backend/supabase/contract_schema.sql`），一次 function call 在 DB 端原子
+完成「改狀態＋切換 `contract_active_snapshots` 指標＋寫
+`contract_audit_log`」。核准/否決都不是終態，可互相改判（S13：只改狀態與
+active 指標，永不覆寫歷史——歷史指 audit log 不可竄改，不是 status 不能
+再變）；否決時如果那筆正好是目前生效版本，會撤回 active 指標（沒有版本
+歷史堆疊可自動退回上一版，安全預設是「暫時沒有生效版本」）。
 完整規格見 `docs/platform-integration-spec-v1.md`（Frozen, S1-S39）；schema 細節見
 `docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`。
 
@@ -151,15 +160,11 @@ DB schema：手動貼 backend/supabase/*.sql 到 Supabase SQL Editor（無 migra
 ## 7. 規劃中、尚未實作——Platform Integration 剩餘部分
 
 規格 `docs/platform-integration-spec-v1.md` 已 **Frozen（S1-S39）**。
-Contract JSON Schema（`docs/contract-schema/`）與 Worker 端合約收取
-（`submitContract`，見上面 §4「Contract 收取」）**已實作並部署上線**，
-不在本節範圍——本節只列真正還沒做的部分，依
+Contract JSON Schema（`docs/contract-schema/`）、Worker 端合約收取
+（`submitContract`，見上面 §4「Contract 收取」）與核准後台（approve/reject，
+同見 §4）**已實作並部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
 `docs/platform-integration-v1-implementation-plan.md` 的順序：
 
-- **核准後台**：pending 清單、diff 檢視、approve/reject action、
-  `contract_active_snapshots` 的原子切換寫入。approve/reject 這種寫入端點
-  上線前，要先確認防護方式（整站目前無登入，`saveThemeCssRules` 已是同類
-  已知裸露缺口的前車之鑑）。
 - **Flattened Effective Settings 端點**（S38，外觀 vs 授權分兩類）。
 - **SDK**：常青網址 `/sdk/jonaminz-entry.js`、官方 snippet 對接（S21-S23）、
   lifecycle 狀態機、錯誤模型（S27-S29）、`window.Jonaminz.*`（未授權時
