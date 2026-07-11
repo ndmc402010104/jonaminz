@@ -6,6 +6,7 @@ node_modules/
 
 # secrets / credentials — never commit
 *pw*.txt
+*pw*.json
 *password*.txt
 *secret*.txt
 .env
