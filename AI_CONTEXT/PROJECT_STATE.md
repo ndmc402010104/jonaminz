@@ -174,11 +174,10 @@ jonaminz/
 ## 6. 版本與分支狀態（2026-07-10 掃描）
 
 - 業務版本：`v0.3.2-202607111415`（`version.js`）。規則：每次 push 前要 bump。
-  **注意**：這個版本號已 commit/push，但 Worker **尚未 `wrangler deploy`**
-  ——`worker.js` 新增的 pre-parse `Content-Length` 檢查目前只在 repo 裡，
-  線上 Worker 還在跑上一版（沒有這層 pre-parse 限制，但 post-parse 的
-  `MAX_CONTRACT_SIZE_CHARS` 那層本來就在線上）。下一棒要留意 repo 版本與
-  線上實際部署版本目前不同步，部署前先跟使用者確認（RULES.md §2-2）。
+  **2026-07-11 已 `wrangler deploy`**：pre-parse `Content-Length` 限制
+  （256KB，超過回 413）已上線，線上 smoke test 過三項：既有 action 正常、
+  `submitContract` 仍正確拒絕未登記 projectId、送一個 300KB 的 request
+  body 確認收到 413。repo 版本與線上部署版本目前同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

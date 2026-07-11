@@ -20,6 +20,19 @@
 
 ---
 
+## 2026-07-11 — pre-parse body size 限制部署上線
+
+- **任務**：使用者授權部署上一筆 commit（`293f929`）新增的 pre-parse
+  `Content-Length` 限制。
+- **變更**：`wrangler deploy` 成功（bundle 104.23 KiB / gzip 11.83 KiB）。
+- **驗證**：線上三項 smoke test 全過——`getThemeCssRules` 正常回傳資料；
+  `submitContract` 對未登記 projectId 仍正確回 `PROJECT_NOT_REGISTERED`；
+  送一個 300,000 bytes 的 request body 確認收到 HTTP 413（新限制生效）。
+- **狀態變化**：repo 版本與線上部署版本重新同步，`PROJECT_STATE.md`§6
+  的「尚未部署」註記已移除。
+- **遺留**：無新遺留。
+- **版本**：`v0.3.2-202607111415`（不變，這筆是部署動作，不是程式碼變更）。
+
 ## 2026-07-11 — 外部 review 核對、文件過期修正、pre-parse body size 限制
 
 - **任務**：使用者拿另一個 AI（ChatGPT，透過 GitHub 純讀取）對 jonaminz
