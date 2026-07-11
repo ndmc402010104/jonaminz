@@ -142,7 +142,15 @@
    `css:"none"` 時完全不呼叫 `getThemeCssRules`（gated 真的擋住）、
    `getThemeCssRules` 失敗時 `ready` 仍正確 resolve（不影響核心
    lifecycle）。細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-12 條目。
-8. **smoke app**（見下方情境清單）
+8. **smoke app** —— ✅ 完成（2026-07-12，純驗證，無程式碼變更）。沒有
+   另外養一個專用假專案——拿 jonaminz-movies（真實、已登記、已核准）
+   當宿主頁面，需要製造邊界情況時用 Playwright `page.route()` 竄改
+   Worker 回應，其餘打真實 production Worker。下方情境清單（來源：
+   ChatGPT Review AR-18）13 項：8 項驗證通過、2 項確認等同於已驗證的
+   情境、3 項 v1 範圍內不適用（optional capability／Shell none／舊
+   Contract schema 配新 SDK——背後系統還沒做，不是遺漏）。完整逐條紀錄
+   見新文件 `docs/platform-integration-v1-acceptance-tests.md`。過程中
+   沒發現需要修的 bug，`sdk-src/sdk.js` 沒有變更。
 9. **Google OAuth 主站登入**（相鄰工程：v1 只做主站身分識別，S6）
 
 **SKHPSv2 正式接入 jonaminz（用 Contract 機制登記成外部專案）是使用者的真實

@@ -20,6 +20,52 @@
 
 ---
 
+## 2026-07-12 — Implementation plan 第 8 項：smoke app（純驗證，無程式碼變更）
+
+- **任務**：接續 tokens CSS（第 7 項），做第 8 項——把
+  `implementation-plan.md` 的固定情境清單（無合約／合約無效／
+  project disabled／Settings timeout／optional capability／Shell
+  none/tokens／SDK 重複載入／SDK rollback／未知欄位／舊 schema 配新
+  SDK／snippet 逾時降級，共 13 項，來源 ChatGPT Review AR-18）逐條跑過。
+- **變更**：
+  - **決定不另外養一個專用 smoke app**：第 6、7 項的驗證方式（拿
+    jonaminz-movies 這個真實、已登記、已核准的專案當宿主頁面，
+    Playwright `page.route()` 只在需要製造邊界情況時竄改 Worker 回應，
+    其餘打真實 production Worker）已經就是 smoke test 的做法，另外
+    養一個假專案是多餘的維護負擔，換不到好處。這個方向有先跟使用者
+    確認過。
+  - 13 項情境裡：8 項已經在第 6、7 項驗證過（無合約、正常合約、合約
+    無效、Shell tokens 等），本輪只需要新測 5 項：Settings timeout
+    （mock `getEffectiveSettings` 斷線 → `degraded`/`NETWORK_ERROR`）、
+    SDK 重複載入（同頁面手動再插入一次 loader，確認不拋錯、不弄壞
+    `ready` 狀態）、SDK rollback（mock `getSdkVersion` 指回第 6 項的
+    舊 Kernel hash，確認舊 release 對現在的資料形狀仍相容）、Worker
+    回傳未知欄位（mock 回應夾帶額外欄位，確認正常忽略不崩潰）、
+    snippet 載入失敗降級（mock loader 腳本本身載入失敗，確認官方
+    snippet 的 `onerror` 正確觸發 degraded）。全部零 JS 錯誤、行為
+    符合預期。
+  - 3 項情境（optional capability 不存在、Shell none、舊 Contract
+    schema 配新 SDK）判定 v1 範圍內**不適用**，不是測試遺漏——背後
+    對應的系統（真實 service／Shell／第二個 schema 版本）根本還沒做，
+    沒有東西可以測，等對應項目做出來才有意義補測。project disabled
+    情境確認等同於已驗證過的 `NOT_APPROVED` 反面路徑，不用重複測。
+  - 新增 `docs/platform-integration-v1-acceptance-tests.md` 逐條記錄
+    上述 13 項的狀態與測試方式。
+- **狀態變化**：implementation plan **第 8 項完成**。下一步是第 9 項
+  （Google OAuth 主站登入）——implementation plan 剩下的最後一項，也是
+  目前為止規模最大的一塊。
+- **遺留**：**發現一個誠實記錄但這次不修的行為**：SDK 重複載入不是
+  嚴格意義的 no-op——S22 規定的冪等目前只保證「不覆寫既有
+  `__snippetVersion` 物件、不炸房子」，沒有做「偵測到已經初始化過就
+  整個跳過」的優化，重複載入會重打一次 `submitContract`／
+  `getEffectiveSettings`。正常使用下 snippet 只會被貼一次，這是異常
+  情況的容錯而非效能關鍵路徑，判定可以接受；如果之後真的有案例受
+  影響，要加一個 init 旗標判斷。
+- **版本**：無程式碼變更（`sdk-src/sdk.js` 沒有改，純文件產出，
+  RULES.md 規則純文件不 bump）。
+
+---
+
 ## 2026-07-12 — Implementation plan 第 7 項：tokens CSS 收編進 SDK
 
 - **任務**：接續 SDK Kernel（第 6 項，能算出「准不准套用 tokens」但

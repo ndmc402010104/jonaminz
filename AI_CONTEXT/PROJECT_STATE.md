@@ -110,6 +110,8 @@ jonaminz/
     platform-integration-v1-implementation-plan.md  Spec Frozen 後的工作清單（非規格）
     sdk-release-checklist.md              S39 回滾相容 checklist（實作計畫第 5 項產出，
                                           純流程文件，發版/回滾/kill-switch 操作步驟）
+    platform-integration-v1-acceptance-tests.md  第 8 項產出：smoke test
+                                          情境清單逐條驗收紀錄（純驗證，非規格）
     contract-schema/                      實作計畫第 1 項產出：Contract JSON Schema 草稿
                                           （RC，未定案，見該資料夾 README 的 6 點待確認設計決策）
   AI_CONTEXT/                 本資料夾：AI agent 交接文件
@@ -345,7 +347,22 @@ jonaminz/
     `"none"`，維持第 4 項的保守選擇，等真的有專案要用 tokens 才一併
     做）；補建完整 24 個 token 的 baseline 交付（現有機制本來就只送
     「已客製的 delta」，這次是照原樣收編，不是新功能）。
-  - 尚未開始：第 8 項（smoke app）→ 第 9 項（Google OAuth）。
+  - **第 8 項（smoke app）：完成（2026-07-12，純驗證，無程式碼變更）。**
+    沒有另外養一個專用假專案——拿 jonaminz-movies（真實、已登記、已
+    核准）當宿主頁面，Playwright `page.route()` 只在需要製造邊界情況時
+    竄改 Worker 回應，其餘打真實 production Worker。固定情境清單
+    （implementation-plan.md 下方，來源 ChatGPT Review AR-18）13 項：
+    8 項驗證通過（含本輪新測的 Settings timeout／SDK 重複載入／SDK
+    rollback／Worker 回傳未知欄位／snippet 載入失敗降級）、2 項確認
+    等同於已驗證情境（project disabled＝NOT_APPROVED 的反面路徑）、
+    3 項 v1 範圍內不適用（optional capability／Shell none／舊 Contract
+    schema 配新 SDK，背後系統還沒做，不是測試遺漏）。**發現一個誠實
+    記錄但不修的行為**：SDK 重複載入不是嚴格 no-op（S22 只保證不覆寫、
+    不炸房子，沒做「偵測已初始化就整個跳過」，重複載入會重打一次
+    網路請求）——判定可接受，真的有案例受影響再回頭加 init 旗標。完整
+    逐條紀錄見新文件 `docs/platform-integration-v1-acceptance-tests.md`。
+    `sdk-src/sdk.js` 這次沒有變更，不需要重新部署。
+  - 尚未開始：第 9 項（Google OAuth）。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
