@@ -62,3 +62,14 @@ create index if not exists contract_audit_log_project_env_idx
 alter table contract_snapshots enable row level security;
 alter table contract_active_snapshots enable row level security;
 alter table contract_audit_log enable row level security;
+
+-- 2026-07-11 踩過的坑：這份 SQL 若透過 Supabase Management API 的
+-- database/query 端點（而不是 Supabase 儀表板的 SQL Editor）執行，
+-- service_role 不會自動拿到表格層級的 DML 權限（RLS 設定是對的，
+-- 但 Postgres GRANT 是分開的一層）——第一次呼叫 submitContract 時
+-- 直接收到 Supabase 403「permission denied for table contract_snapshots」。
+-- 這裡明確補上，跟既有 external_app_registrations/theme_css_rules
+-- 兩張表的權限一致，不管用哪個管道建表都不會漏。
+grant select, insert, update, delete on contract_snapshots to service_role;
+grant select, insert, update, delete on contract_active_snapshots to service_role;
+grant select, insert, update, delete on contract_audit_log to service_role;

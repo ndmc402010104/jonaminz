@@ -8,12 +8,12 @@
 
   window.JONAMINZ_APP_VERSION = {
     appId: "jonaminz",
-    version: "v0.4.0-202607111553",
+    version: "v0.4.1-202607111602",
     major: 0,
     minor: 4,
-    patch: 0,
-    buildTime: "202607111553",
-    updatedAt: "2026-07-11T15:53:51+08:00",
+    patch: 1,
+    buildTime: "202607111602",
+    updatedAt: "2026-07-11T16:02:46+08:00",
     source: "version.js"
   };
 })();

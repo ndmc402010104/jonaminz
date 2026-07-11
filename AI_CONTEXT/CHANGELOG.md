@@ -20,6 +20,44 @@
 
 ---
 
+## 2026-07-11 — jonaminz-movies 正向成功路徑驗證完成，修好 GRANT 權限漏洞
+
+- **任務**：接續上一筆記錄，使用者授權 `wrangler deploy` 把
+  `jonaminz-movies` 的 Integration Settings 登記上線，接著實際跑一次
+  `submitContract` 驗證正向成功路徑。
+- **變更**：
+  - `wrangler deploy` 成功，線上 Worker 認得 `jonaminz-movies` 這個
+    projectId。
+  - 帶正確 `Origin: https://ndmc402010104.github.io` header 呼叫
+    `submitContract`，**第一次回應是 HTTP 200 但 `ok:false`**：
+    `Supabase read failed: HTTP 403 ... permission denied for table
+    contract_snapshots`。查證後發現：三張 `contract_*` 表是這次
+    implementation plan 第 2 項透過 Supabase Management API 的
+    `database/query` 端點建立的（不是儀表板 SQL Editor），`service_role`
+    沒有像既有 `external_app_registrations`／`theme_css_rules` 那樣自動
+    拿到表格層級的 SELECT/INSERT/UPDATE/DELETE 權限——RLS 開了沒錯，但
+    Postgres 的 GRANT 是分開一層，兩者都要過才能讀寫。使用者另外授權
+    （範圍明確限定在這三張表、不動 RLS、不碰 skhps-db）後直連補上
+    `GRANT SELECT, INSERT, UPDATE, DELETE ON ... TO service_role`，並回寫
+    進 `backend/supabase/contract_schema.sql`（新增一段註解說明踩坑經過，
+    避免以後用同樣管道重建表格再漏）。
+  - 補完權限後重打 `submitContract`，回應
+    `{"ok":true,"snapshotId":3,"status":"pending",...,"validationResult":
+    {"valid":true,...}}`，canonical hash 跟本機（node 直接跑
+    `contract-validation.js`）算出來的完全一致。直連 DB 確認
+    `contract_snapshots` 真的多一筆（`status='pending'`、
+    `submitted_origin` 正確記成呼叫時帶的 Origin header）、
+    `contract_audit_log` 正確關聯到那筆 snapshot（`action='submit'`,
+    `previous_hash=null`, `actor=null`）。
+- **狀態變化**：**implementation plan 第 2 項的正向成功路徑第一次被真實
+  資料完整驗證過**，先前 review 抓到的缺口正式關閉。附帶修好一個
+  DB 權限設定漏洞。
+- **遺留**：`docs/contract-schema/README.md` 的「進 Worker 前 release
+  checklist」（`$id` 正式發布）依然是唯一還沒收尾的項目，不擋任何後續
+  工作。下一步是 implementation plan 第 3 項（核准後台）。
+- **版本**：`v0.4.1-202607111602`（已 bump；`contract_schema.sql` 補
+  GRANT 語句，屬 DB schema 變更）。
+
 ## 2026-07-11 — 登記第一個真實外部專案 jonaminz-movies
 
 - **任務**：使用者提供 ChatGPT Work 產出的 jonaminz-movies MVP source

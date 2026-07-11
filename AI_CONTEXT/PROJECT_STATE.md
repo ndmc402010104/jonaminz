@@ -159,10 +159,18 @@ jonaminz/
     刻意排除、建置直接壞掉），已拆掉鷹架改成單純 Vite + React 19 +
     Tailwind v4 SPA，畫面邏輯逐字保留。根目錄 `jonaminz.contract.json`
     只填 S8 必填欄位 + 一個 entry，用 ajv-cli 與 Worker 實際的
-    cross-field/URL 驗證模組都驗證過合法。**這是 implementation plan 第 2
-    項第一次要被真實資料完整走一遍的機會**（上面「外部 review 核對」那筆
-    記的驗證缺口）——是否已呼叫 `submitContract` 並確認 pending
-    snapshot／audit log 真的寫入，見本節最新一筆 CHANGELOG 記錄。
+    cross-field/URL 驗證模組都驗證過合法。**implementation plan 第 2 項的
+    正向成功路徑已完整驗證過**（上面「外部 review 核對」那筆記的驗證缺口
+    已補齊）：已部署＋真的呼叫線上 `submitContract`（帶正確 Origin
+    header）、直連 DB 確認 `contract_snapshots` 多一筆
+    `status='pending'`、`contract_audit_log` 正確連到那筆 snapshot。
+    過程中發現並修好一個真實 bug：**三張 contract_* 表透過 Supabase
+    Management API（而不是儀表板 SQL Editor）建立時，`service_role`
+    沒有自動拿到表格層級 DML 權限**（RLS 設定沒問題，但 Postgres GRANT
+    是分開一層）——第一次呼叫直接收到 403。已直連補上
+    `GRANT SELECT/INSERT/UPDATE/DELETE ... TO service_role`，跟既有兩張表
+    權限一致，並回寫進 `backend/supabase/contract_schema.sql` 避免下次
+    重建再踩到。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。
@@ -187,11 +195,12 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-10 掃描）
 
-- 業務版本：`v0.4.0-202607111553`（`version.js`）。規則：每次 push 前要 bump。
-  **注意**：這個版本號已 commit/push，但 `integration-settings.json`
-  新增的 `jonaminz-movies` 登記**尚未 `wrangler deploy`**——線上 Worker
-  還不認得這個 projectId，要等部署後 `submitContract` 才會接受它。
-  部署前先跟使用者確認（RULES.md §2-2）。
+- 業務版本：`v0.4.1-202607111602`（`version.js`）。規則：每次 push 前要 bump。
+  **2026-07-11 已 `wrangler deploy`＋線上驗證完成**：`jonaminz-movies` 的
+  `integration-settings.json` 登記已上線，`submitContract` 對它已實際
+  成功呼叫過一次（snapshot id=3，`status='pending'`），DB 三張表的
+  `service_role` 權限缺口（見上方 Platform Integration 條目）也已修好。
+  repo 版本與線上部署版本、DB 實際權限狀態目前三方同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、
