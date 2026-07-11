@@ -149,6 +149,20 @@ jonaminz/
   - 尚未開始：第 3 項（核准後台）→ 第 9 項（Google OAuth）。SDK
     （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*` 一行都
     還沒寫。
+  - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
+    （`integration-settings.json` 新增 `prod` origin
+    `https://ndmc402010104.github.io`）。獨立 repo
+    [`ndmc402010104/jonaminz-movies`](https://github.com/ndmc402010104/jonaminz-movies)
+    （公開），部署在 GitHub Pages（`https://ndmc402010104.github.io/jonaminz-movies/`，
+    GitHub Actions 自動建置）。原始 UI 由 ChatGPT Work 產出、依賴 OpenAI
+    自家 `vinext`／site-creator 鷹架且缺一份 `.openai/hosting.json`（匯出時
+    刻意排除、建置直接壞掉），已拆掉鷹架改成單純 Vite + React 19 +
+    Tailwind v4 SPA，畫面邏輯逐字保留。根目錄 `jonaminz.contract.json`
+    只填 S8 必填欄位 + 一個 entry，用 ajv-cli 與 Worker 實際的
+    cross-field/URL 驗證模組都驗證過合法。**這是 implementation plan 第 2
+    項第一次要被真實資料完整走一遍的機會**（上面「外部 review 核對」那筆
+    記的驗證缺口）——是否已呼叫 `submitContract` 並確認 pending
+    snapshot／audit log 真的寫入，見本節最新一筆 CHANGELOG 記錄。
 - **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
   的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
 - 後台 `/pages/admin/` 只是佔位頁。
@@ -173,11 +187,11 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-10 掃描）
 
-- 業務版本：`v0.3.2-202607111415`（`version.js`）。規則：每次 push 前要 bump。
-  **2026-07-11 已 `wrangler deploy`**：pre-parse `Content-Length` 限制
-  （256KB，超過回 413）已上線，線上 smoke test 過三項：既有 action 正常、
-  `submitContract` 仍正確拒絕未登記 projectId、送一個 300KB 的 request
-  body 確認收到 413。repo 版本與線上部署版本目前同步。
+- 業務版本：`v0.4.0-202607111553`（`version.js`）。規則：每次 push 前要 bump。
+  **注意**：這個版本號已 commit/push，但 `integration-settings.json`
+  新增的 `jonaminz-movies` 登記**尚未 `wrangler deploy`**——線上 Worker
+  還不認得這個 projectId，要等部署後 `submitContract` 才會接受它。
+  部署前先跟使用者確認（RULES.md §2-2）。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

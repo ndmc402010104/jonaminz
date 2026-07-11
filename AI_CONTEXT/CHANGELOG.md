@@ -20,6 +20,48 @@
 
 ---
 
+## 2026-07-11 — 登記第一個真實外部專案 jonaminz-movies
+
+- **任務**：使用者提供 ChatGPT Work 產出的 jonaminz-movies MVP source
+  snapshot（電影討論／想看清單／訂票 demo，給 Jonathan/Minz 用），提議當
+  Platform Integration 的第一個真實外部專案，直接補上先前 review 抓到的
+  缺口：submitContract 正向成功路徑從未被真正測過。用 Plan Mode 列出步驟
+  （拆鷹架/建 repo/部署/寫 Contract/登記/驗證）經使用者確認後執行。
+- **變更**（`jonaminz-movies` 是新的獨立 repo，不是 jonaminz 本身；這裡只
+  記跟 jonaminz 有關的部分，完整過程見該 repo 自己的 commit 紀錄）：
+  - jonaminz-movies 原始匯出依賴 OpenAI 自家 `vinext`／site-creator 鷹架
+    （Next.js on Cloudflare Workers、D1、`.openai/hosting.json` 設定），
+    匯出時刻意排除部署身分導致那份設定檔缺失、建置直接壞掉。使用者裁決
+    拆掉鷹架：UI（`app/page.tsx`、`app/globals.css`，純 client-side
+    React，沒有 server component/next-image，Tailwind v4 無外部圖片
+    參照）逐字移植成單純 Vite + React 19 + Tailwind v4 SPA，部署到
+    GitHub Pages（`gh repo create` 公開 repo，GitHub Actions 建置部署，
+    `vite.config.ts` 設 `base: "/jonaminz-movies/"` 對應 project site
+    子路徑）。上線網址：`https://ndmc402010104.github.io/jonaminz-movies/`
+    （已用 curl 確認回 200、`<title>` 正確）。
+  - jonaminz-movies 根目錄新增 `jonaminz.contract.json`：只填 S8 必填
+    （`contractVersion`/`app.projectId`/`app.title`）+ 一個
+    path-absolute entry（`/jonaminz-movies/`），不宣告用不到的
+    capabilities/objects/css/shell。用 `ajv-cli` 對 schema 驗證合法，
+    另外直接呼叫 jonaminz Worker 實際在用的
+    `contract-validation.js`（`validateCrossFields`/`validateUrls`/
+    `computeCanonicalHash`）確認 cross-field 與 URL 同源解析都正確
+    （解析出的完整 URL 跟已確認上線的網址完全吻合）。
+  - jonaminz 這邊：`backend/cloudflare-worker/integration-settings.json`
+    新增 `jonaminz-movies` 的 `prod` origin 登記
+    （`https://ndmc402010104.github.io`——只到 host，不含路徑，路徑差異
+    由 Contract 的 path-absolute URL 表達，這是 origin 定義本身決定的）。
+    用 `npx esbuild --bundle` 直接打包（不透過 wrangler）確認新登記正確
+    被包進 Worker、沒有語法錯誤。
+- **狀態變化**：`integration-settings.json` 從空的變成有第一筆真實登記，
+  但**這筆變更尚未 `wrangler deploy`**——線上 Worker 還不認得
+  `jonaminz-movies` 這個 projectId。submitContract 正向成功路徑的實際
+  驗證（呼叫線上 endpoint、直連 DB 確認 pending snapshot／audit log）
+  排在部署授權之後，見下一筆 CHANGELOG 記錄。
+- **遺留**：`wrangler deploy` 待授權；部署後才能真正驗證正向路徑。
+- **版本**：`v0.4.0-202607111553`（已 bump；新增第一個外部專案登記，
+  視為功能性里程碑，走 minor bump）。
+
 ## 2026-07-11 — pre-parse body size 限制部署上線
 
 - **任務**：使用者授權部署上一筆 commit（`293f929`）新增的 pre-parse
