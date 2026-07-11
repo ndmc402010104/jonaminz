@@ -73,7 +73,15 @@
    （不是終態，S13「永不覆寫歷史」指 audit log 不可竄改，不是 status
    不能再變）；否決時如果那筆正好是目前生效版本，撤回 active 指標。
    細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、`backend/README.md`。
-4. **flattened Effective Settings 端點**（S38，外觀 vs 授權分兩類）
+4. **flattened Effective Settings 端點** —— ✅ 完成並已部署上線
+   （2026-07-11）。`getEffectiveSettings` action（S38，公開唯讀）算
+   S31 公式：沒有 active approved snapshot → `approved:false`、
+   `css:"none"`；有的話 → `css = min(Contract 聲明, Settings 授予)`
+   （S34，v1 只有 none/tokens 兩級）。範圍刻意收窄：`capabilities`
+   固定空陣列佔位（第 6 項才有真實 service 可填），`integration-settings.json`
+   新增選填的 `css` 授予欄位＋檔案層級 `revision` 整數（S38 要求回應帶
+   版本資訊）。細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、
+   `backend/README.md`。
 5. **SDK loader ＋ 版本指標**（S37：immutable `sdk-<hash>.js`、stable
    指標、kill-switch、per-project channel）＋ **S39 回滾相容 checklist**
 6. **SDK Kernel**：官方 snippet 對接（S21–S23）、lifecycle 狀態機、

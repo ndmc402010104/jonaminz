@@ -96,12 +96,17 @@
     return call("rejectContract", payload, options);
   }
 
+  function getEffectiveSettings(payload, options) {
+    return call("getEffectiveSettings", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
     listExternalAppRegistrations: listExternalAppRegistrations,
     listPendingContracts: listPendingContracts,
     approveContract: approveContract,
-    rejectContract: rejectContract
+    rejectContract: rejectContract,
+    getEffectiveSettings: getEffectiveSettings
   };
 })();

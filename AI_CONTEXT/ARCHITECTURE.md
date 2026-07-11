@@ -110,6 +110,16 @@ approve/reject 已實作並上線（`/pages/admin/contracts/` 後台，Worker se
 active 指標，永不覆寫歷史——歷史指 audit log 不可竄改，不是 status 不能
 再變）；否決時如果那筆正好是目前生效版本，會撤回 active 指標（沒有版本
 歷史堆疊可自動退回上一版，安全預設是「暫時沒有生效版本」）。
+
+approved 狀態要真的影響行為，靠 `getEffectiveSettings`（公開唯讀，S31
+公式）：沒有 active approved snapshot → `approved:false, css:"none"`；
+有的話 → `css = min(Contract 聲明的 css, Settings 授予的 css)`（S34，
+v1 只有 none/tokens 兩級）。`capabilities` 固定空陣列佔位——v1 SDK
+規劃是全部 service 一律婉拒（F7/S32），現在還沒有真實 capability 可算，
+形狀先定、第 6 項才填內容。environment 一律用 Worker 自己的
+`JONAMINZ_ENVIRONMENT`，不從 payload 讀（同 submitContract 的理由）。
+目前沒有任何東西會呼叫這個端點——SDK（第 5、6 項）還沒寫。
+
 完整規格見 `docs/platform-integration-spec-v1.md`（Frozen, S1-S39）；schema 細節見
 `docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`。
 
@@ -121,8 +131,9 @@ config.json   站台層設定：pages 登錄表（每頁 styles/afterScripts/loa
 registry.json 外部專案登錄表（v0 拉模式用，目前空）。
 integration-settings.json  Platform Integration 用的 Integration Settings
               （S38：git 檔案＋Worker 供應）：projectId → environment →
-              registered origin。跟 registry.json 是兩個獨立機制，不要混用
-              （v0 尚未作廢，見 §7 與 RULES.md §4）。目前為空，尚無真實外部專案。
+              registered origin ＋ 選填 css 授予值（getEffectiveSettings
+              用）＋檔案層級 revision 整數。跟 registry.json 是兩個獨立
+              機制，不要混用（v0 尚未作廢，見 §7 與 RULES.md §4）。
 version.js    業務版本，push 前 bump。
 wrangler.toml Worker 設定；secrets（SUPABASE_URL/SUPABASE_SECRET_KEY）在
               Cloudflare 上，不在 repo；`[vars] JONAMINZ_ENVIRONMENT` 決定這個
@@ -161,11 +172,13 @@ DB schema：手動貼 backend/supabase/*.sql 到 Supabase SQL Editor（無 migra
 
 規格 `docs/platform-integration-spec-v1.md` 已 **Frozen（S1-S39）**。
 Contract JSON Schema（`docs/contract-schema/`）、Worker 端合約收取
-（`submitContract`，見上面 §4「Contract 收取」）與核准後台（approve/reject，
-同見 §4）**已實作並部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
+（`submitContract`，見上面 §4「Contract 收取」）、核准後台（approve/reject，
+同見 §4）與 Flattened Effective Settings 端點（`getEffectiveSettings`，
+S31/S38，算「approved Contract × Settings 授予」——目前只算 CSS 這個
+維度，`capabilities` 留空陣列佔位，等第 6 項有真實 service 才填內容）
+**已實作並部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
 `docs/platform-integration-v1-implementation-plan.md` 的順序：
 
-- **Flattened Effective Settings 端點**（S38，外觀 vs 授權分兩類）。
 - **SDK**：常青網址 `/sdk/jonaminz-entry.js`、官方 snippet 對接（S21-S23）、
   lifecycle 狀態機、錯誤模型（S27-S29）、`window.Jonaminz.*`（未授權時
   「婉拒」：rejected Promise 固定錯誤碼）、contract discovery（S18-S20）。

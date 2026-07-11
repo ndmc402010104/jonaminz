@@ -54,12 +54,13 @@ jonaminz/
                               寫入動作（Worker secret JONAMINZ_ADMIN_TOKEN 臨時關卡）
   backend/
     README.md                 後端部署說明
-    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，8 個 action（見 §5）
+    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，9 個 action（見 §5）
     cloudflare-worker/wrangler.toml   含 [vars] JONAMINZ_ENVIRONMENT（見 §4 Platform Integration）
     cloudflare-worker/package.json    ajv 依賴（Contract JSON Schema 驗證用）
-    cloudflare-worker/integration-settings.json  Contract 收取用的 Integration
-                                      Settings（git 檔案，S38；projectId→environment→
-                                      registered origin，目前為空，尚無真實外部專案）
+    cloudflare-worker/integration-settings.json  Integration Settings（git 檔案，
+                                      S38）：projectId→environment→registered origin
+                                      ＋選填 css 授予值（getEffectiveSettings 用，
+                                      省略視為 none）＋檔案層級 revision 整數
     cloudflare-worker/contract-validation.js  Contract 收取的純函式驗證模組
                                       （canonical hash / cross-field / URL 同源），
                                       可獨立用 node 測試，不需部署 Worker
@@ -190,9 +191,33 @@ jonaminz/
     實際跑過 submit→reject→approve→撤回核准→再核准 全流程，直連 DB
     確認 `contract_snapshots.status`／`contract_active_snapshots`／
     `contract_audit_log`（5 筆，一筆未覆寫）三張表狀態全部正確。
-  - 尚未開始：第 4 項（Effective Settings endpoint）→ 第 9 項
-    （Google OAuth）。SDK（`jonaminz-entry.js`，常青網址 `/sdk/`）、
-    `window.Jonaminz.*` 一行都還沒寫。
+  - **第 4 項（Flattened Effective Settings 端點）：完成並已部署上線
+    （2026-07-11）。** `worker.js` 新增 `getEffectiveSettings`（公開唯讀，
+    environment 不從 payload 讀、一律用 Worker 自己的
+    `JONAMINZ_ENVIRONMENT`，理由跟 `submitContract` 一樣）算 S31 公式：
+    沒有 active approved snapshot → `approved:false, css:"none"`
+    （S31 明文降級）；有的話 → `css = min(Contract 聲明的 css, Settings
+    授予的 css)`（S34，v1 只有 none/tokens 兩級，未知值視同沒宣告，
+    S11 must-ignore）。**範圍刻意收窄**：`docs/platform-integration-consensus.md`
+    把「Integration Settings 內容 schema」列在保留層，v1 SDK（第 5、6 項）
+    規劃是 `window.Jonaminz.*` 全部 service 一律婉拒（F7/S32），現在唯一
+    有真實內容可算的授權維度只有 CSS，所以這次 `capabilities` 固定回空
+    陣列佔位（形狀先定，第 6 項才填內容，之後不用改 response 形狀）。
+    `integration-settings.json` 新增每個 environment 選填的 `css` 欄位
+    （省略視為 `"none"`）＋檔案層級 `revision` 整數（S38 要求回應帶版本
+    資訊，這份檔案是 git 檔案沒有 DB 版號可用，改一次手動 +1）。純函式
+    的 min 計算邏輯（4 種已知值 × 4 種組合＝16 種）先用 node 窮舉測試過
+    才接進 worker.js。curl 驗證過三條路徑：未登記 projectId →
+    `PROJECT_NOT_REGISTERED`；缺 `projectId` → `PROJECT_ID_REQUIRED`；
+    `jonaminz-movies`（已 approved，但 Contract 沒宣告 `css`）→ 正確回
+    `approved:true, css:"none"`。**這次沒做**：SDK 本身（沒有東西會真的
+    呼叫這個端點）、`capabilities` 真實內容、把 `getThemeCssRules` 的
+    CSS 規則傳遞邏輯收編進來（第 7 項的事，這個端點只回答「准不准」）、
+    「tokens 正向成功」路徑的真實端到端驗證（jonaminz-movies 沒宣告
+    css，等真的有專案要用 tokens 時再一併補）。
+  - 尚未開始：第 5 項（SDK loader）→ 第 9 項（Google OAuth）。SDK
+    （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*`
+    一行都還沒寫。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -231,7 +256,7 @@ jonaminz/
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
 | 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。五張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`，皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
 | Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`JONAMINZ_ADMIN_TOKEN`（approve/reject 臨時關卡，存在 Cloudflare，不在 repo，Claude 不經手實際值） |
-| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判，見 backend/README.md） |
+| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式，見 backend/README.md） |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
@@ -239,14 +264,15 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-11 掃描）
 
-- 業務版本：`v0.4.3-202607111911`（`version.js`）。規則：每次 push 前要 bump。
-  **2026-07-11 implementation plan 第 3 項（核准後台）完成並已上線**：
-  Worker 已 `wrangler deploy`（含 `listPendingContracts`/`approveContract`/
-  `rejectContract` 三個新 action）；`contract_schema.sql` 的兩個 approve/
-  reject Postgres function（含改判邏輯的修正版）已直連套用到 jonaminz-db；
-  `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定。前端 `pages/admin/contracts/`
-  尚未經 git push 上線到 GitHub Pages（本次收尾會一併 push）——**Worker/DB
-  已是最終狀態，前端頁面檔案要等這次 push 才會反映到 www.jonaminz.com**。
+- 業務版本：`v0.5.0-202607112206`（`version.js`）。規則：每次 push 前要 bump。
+  **2026-07-11 implementation plan 第 3、4 項皆完成並已上線**：第 3 項
+  （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
+  reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、
+  `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定、`pages/admin/contracts/`
+  已 push 上線。第 4 項（`getEffectiveSettings`）Worker 已
+  `wrangler deploy`、`integration-settings.json` 的 `css`/`revision`
+  欄位已隨部署生效，curl 已驗證三條路徑正確。目前 Worker 線上版本與
+  repo 完全同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

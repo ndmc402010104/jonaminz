@@ -21,6 +21,17 @@
   approve_contract_snapshot / reject_contract_snapshot（見
   backend/supabase/contract_schema.sql），確保「改狀態＋切換 active 指標＋
   寫 audit log」是同一個原子操作，不是 Worker 端連續多次 fetch。
+- getEffectiveSettings：implementation plan 第 4 項。S31 公式（Effective =
+  Approved Contract supports ∩ Settings 授權 ∩ Runtime 可用 ∩ Actor 允許）
+  在這裡算，公開唯讀。environment 不從 payload 讀，理由跟 submitContract
+  一樣：一律用這個 Worker 部署自己的 JONAMINZ_ENVIRONMENT，避免呼叫端
+  謊報 environment 繞過檢查。沒有 active approved snapshot 時回
+  `approved:false, css:"none"`（S31 明文規定的降級）；有的話回
+  `css: Contract 聲明 × Settings 授予 的 min`（S34，v1 只有 none/tokens
+  兩級）。`capabilities` 目前固定空陣列——第 6 項才會有真實 service，
+  這裡先把回應形狀定下來，之後只加內容不改形狀。這個端點回答的是
+  「准不准套用 tokens」，不是「tokens 的規則長怎樣」，後者仍是
+  getThemeCssRules 的事，這次沒有動它。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -110,6 +121,10 @@ export default {
 
       if (action === "rejectContract") {
         return json(await rejectContract(env, payload), 200);
+      }
+
+      if (action === "getEffectiveSettings") {
+        return json(await getEffectiveSettings(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -576,4 +591,98 @@ async function rejectContract(env, payload) {
   }
 
   return { ok: true, snapshotId: snapshotId, status: "rejected" };
+}
+
+// implementation plan 第 4 項：flattened Effective Settings 端點（S31、S38）。
+const KNOWN_CSS_LEVELS = new Set(["none", "tokens"]);
+
+// S11 must-ignore：schema 認不得的值（例如未來的 components/full/self）
+// 視同沒宣告，不整份判失敗，只是這個值本身不生效。
+function normalizeCssLevel(value) {
+  return KNOWN_CSS_LEVELS.has(value) ? value : "none";
+}
+
+// S34：Effective CSS = min(Contract 聲明, Settings 授予)。v1 只有
+// none/tokens 兩級，min 語意簡化成「兩者都是 tokens 才是 tokens」。
+function computeEffectiveCss(contractCss, settingsCss) {
+  const c = normalizeCssLevel(contractCss);
+  const s = normalizeCssLevel(settingsCss);
+  return c === "tokens" && s === "tokens" ? "tokens" : "none";
+}
+
+async function getEffectiveSettings(env, payload) {
+  const projectId = String((payload && payload.projectId) || "").trim();
+  if (!projectId) {
+    return { ok: false, code: "PROJECT_ID_REQUIRED", error: "projectId is required" };
+  }
+
+  // environment 不從 payload 讀：一律用這個 Worker 部署自己的
+  // JONAMINZ_ENVIRONMENT，理由跟 submitContract 一樣，避免呼叫端謊報
+  // environment 繞過檢查。
+  const environment = env.JONAMINZ_ENVIRONMENT;
+  if (!environment) {
+    return { ok: false, code: "WORKER_MISCONFIGURED", error: "Worker misconfigured: JONAMINZ_ENVIRONMENT is not set" };
+  }
+
+  const projectSettings = integrationSettings.projects && integrationSettings.projects[projectId];
+  if (!projectSettings) {
+    return {
+      ok: false,
+      code: "PROJECT_NOT_REGISTERED",
+      error: 'projectId "' + projectId + '" is not registered in Integration Settings'
+    };
+  }
+  const envSettings = projectSettings.environments && projectSettings.environments[environment];
+  if (!envSettings) {
+    return {
+      ok: false,
+      code: "ENVIRONMENT_NOT_REGISTERED",
+      error: 'projectId "' + projectId + '" has no registered settings for environment "' + environment + '"'
+    };
+  }
+
+  const activeUrl =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/contract_active_snapshots?project_id=eq." + encodeURIComponent(projectId) +
+    "&environment=eq." + encodeURIComponent(environment) +
+    "&select=contract_snapshots(raw_contract)";
+
+  const response = await fetch(activeUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  const active = rows[0] && rows[0].contract_snapshots;
+
+  // S31：沒有 active approved snapshot 時不啟用任何能力、不掛 Shell——
+  // observed 推送照收，這裡只是不採信而已（S13/S16 一路貫徹下來）。
+  if (!active) {
+    return {
+      ok: true,
+      projectId: projectId,
+      environment: environment,
+      approved: false,
+      reason: "NO_APPROVED_SNAPSHOT",
+      settingsVersion: integrationSettings.schemaVersion,
+      revision: integrationSettings.revision,
+      generatedAt: new Date().toISOString(),
+      css: "none",
+      capabilities: []
+    };
+  }
+
+  const effectiveCss = computeEffectiveCss(active.raw_contract && active.raw_contract.css, envSettings.css);
+
+  return {
+    ok: true,
+    projectId: projectId,
+    environment: environment,
+    approved: true,
+    settingsVersion: integrationSettings.schemaVersion,
+    revision: integrationSettings.revision,
+    generatedAt: new Date().toISOString(),
+    css: effectiveCss,
+    // 佔位：第 6 項才會有真實 service capability，形狀先定、內容留白。
+    capabilities: []
+  };
 }

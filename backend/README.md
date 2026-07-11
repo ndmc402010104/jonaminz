@@ -1,6 +1,6 @@
 # jonaminz 後端
 
-三件事：
+四件事：
 1. 接收外部專案「我上線了」的回報（registerExternalApp），存進 Supabase，後台可以讀出來
    看「誰接進來、最後一次回報是什麼時候」。
 2. Theme：全站（含外部專案）共用的外觀來源，selector+property+value 規則存在 Supabase
@@ -13,6 +13,10 @@
    否決（rejectContract）。對應規格 `docs/platform-integration-spec-v1.md`
    （Frozen, S13-S16）與 `docs/platform-integration-v1-implementation-plan.md`
    第 2、3 項。
+4. Effective Settings（`getEffectiveSettings`）：核准完的 Contract 要真的
+   影響行為，靠這個端點——S31 公式在這裡算，目前只算 CSS 這一個維度
+   （`min(Contract 聲明, Settings 授予)`，S34），`capabilities` 先留空陣列
+   佔位。對應 `docs/platform-integration-v1-implementation-plan.md` 第 4 項。
 
 機密（Supabase secret key，新版命名 `sb_secret_...`，不是 `sb_publishable_...`）只存在
 Cloudflare Worker 的 secret 裡，不會出現在這個 repo、對話紀錄或前端程式碼中。
@@ -122,25 +126,54 @@ npx wrangler secret put JONAMINZ_ADMIN_TOKEN
   一筆才會再有東西生效）；核准一筆已否決的 snapshot 則會照常把它設為
   active。每次改判都會在 `contract_audit_log` 多插入一筆，不會覆寫或
   刪除舊紀錄。
+- `getEffectiveSettings`：implementation plan 第 4 項，公開唯讀。
+  `payload.projectId` 必填；**environment 不是 payload 欄位**，一律用這個
+  Worker 部署自己的 `JONAMINZ_ENVIRONMENT`（跟 `submitContract` 同理，避免
+  謊報繞過檢查）。回傳 S31 公式算出來的結果：
+  ```json
+  {
+    "ok": true,
+    "projectId": "jonaminz-movies",
+    "environment": "prod",
+    "approved": true,
+    "settingsVersion": 1,
+    "revision": 2,
+    "generatedAt": "2026-07-11T14:22:33.894Z",
+    "css": "none",
+    "capabilities": []
+  }
+  ```
+  沒有 active approved snapshot 時 `approved:false`、`css:"none"`、多一個
+  `reason:"NO_APPROVED_SNAPSHOT"`（S31：沒 approved snapshot 就不啟用任何
+  能力、不掛 Shell）。`css` 是 `min(Contract 聲明的 css, Settings 授予的
+  css)`（S34，v1 只有 `none`/`tokens` 兩級，Contract 宣告了 schema 認不得
+  的值視同沒宣告，S11 must-ignore）。`capabilities` 目前固定空陣列——
+  第 6 項才會有真實 service，這裡先把回應形狀定下來，之後只加內容不改
+  形狀。**這個端點只回答「准不准套用 tokens」，不回答「tokens 的規則長
+  怎樣」**，後者仍是 `getThemeCssRules` 的事，這次沒有動它、也還沒有任何
+  地方會真的呼叫這個端點（SDK 是第 5、6 項，還沒寫）。
 
 ### Contract 收取的先決條件與已知留白
 
 - **要先在 `integration-settings.json` 登記 projectId**，否則一律回
-  `PROJECT_NOT_REGISTERED`（S15：只收已登記的 projectId）。目前這份檔案是空的
-  （`{"schemaVersion":1,"projects":{}}`），因為還沒有任何真實外部專案——新增一筆
-  範例：
+  `PROJECT_NOT_REGISTERED`（S15：只收已登記的 projectId）。目前一個 project
+  entry 長這樣（`css` 選填，省略視為 `"none"`，是 `getEffectiveSettings`
+  第 4 項用的 Settings 授予值，見下方）：
   ```json
   {
     "schemaVersion": 1,
+    "revision": 2,
     "projects": {
       "example-project": {
         "environments": {
-          "prod": { "origin": "https://example-project.jonaminz.com" }
+          "prod": { "origin": "https://example-project.jonaminz.com", "css": "none" }
         }
       }
     }
   }
   ```
+  `revision` 是整數，S38 要求 Effective Settings 回應要帶版本資訊——這份
+  檔案是 git 檔案沒有資料庫版號可用，**改這份檔案的內容時記得手動 +1**。
   改完要重新 `wrangler deploy`（這份檔案是 build-time 打包進 Worker 的 git 檔案，
   不是 runtime 讀 Supabase，改了不部署不會生效）。
 - **Environment 由 Worker 自己的 `JONAMINZ_ENVIRONMENT`（`wrangler.toml` 的

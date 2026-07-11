@@ -20,6 +20,63 @@
 
 ---
 
+## 2026-07-11 — Implementation plan 第 4 項：Flattened Effective Settings 端點
+
+- **任務**：接續核准後台（第 3 項），做第 4 項——approve 完的 Contract
+  現在還是「資料庫裡的旗標翻成 approved」，沒有下游因此改變行為；這次
+  蓋一個端點讓「approved 狀態」真的能被查詢、算出「這個外部專案現在被
+  允許做什麼」，對應 S31（Effective capability 公式）、S38（flattened
+  Effective Settings 供應方式）。
+- **變更**：
+  - 範圍刻意收窄：`docs/platform-integration-consensus.md` 把「Integration
+    Settings 內容 schema」列在保留層（形狀已定、內容留白），v1 SDK
+    （第 5、6 項，還沒寫）規劃是 `window.Jonaminz.*` 全部 service 一律
+    婉拒（F7/S32），現在唯一有真實內容可算的授權維度只有 CSS（S34：
+    `Effective CSS = min(Contract 聲明, Settings 授予)`）。這次只把
+    CSS 這個維度做完整，`capabilities` 固定回空陣列佔位——第 6 項有
+    真實 service 時只是往這個既有形狀加內容，不需要改 response 結構。
+  - `integration-settings.json` 新增每個 environment 選填的 `css` 欄位
+    （只認 `"none"`/`"tokens"`，省略視為 `"none"`）＋檔案層級 `revision`
+    整數（S38 要求回應帶版本資訊，這份檔案是 git 檔案沒有資料庫版號
+    可用，改一次手動 +1）。
+  - `worker.js` 新增 `getEffectiveSettings` action（公開唯讀，跟
+    `getThemeCssRules`／`listPendingContracts` 同慣例）。environment
+    不從 payload 讀，一律用 Worker 自己的 `JONAMINZ_ENVIRONMENT`（跟
+    `submitContract` 同樣理由：避免呼叫端謊報 environment 繞過檢查）。
+    計算順序：projectId 未登記 → `PROJECT_NOT_REGISTERED`；查
+    `contract_active_snapshots` join `contract_snapshots` 找 active
+    approved snapshot，沒有 → `approved:false, css:"none",
+    reason:"NO_APPROVED_SNAPSHOT"`（S31 明文降級：沒 approved snapshot
+    不啟用任何能力）；有的話 → `css = min(該 snapshot 的 raw_contract.css,
+    Settings 授予的 css)`，未知值一律視同沒宣告（S11 must-ignore）。
+  - `assets/js/backend-client.js` 新增 `getEffectiveSettings(payload)`
+    具名 wrapper。這次不需要新前端頁面——沒有 UI 要顯示這個，純粹是
+    給未來 SDK 呼叫的端點。
+- **驗證**：
+  1. `min` 計算的純函式邏輯先寫 node 腳本窮舉 16 種組合（4 種已知值 ×
+     4 種已知值，含 `undefined`／未知值如 `"components"`）全部通過才
+     接進 `worker.js`。
+  2. `npx esbuild worker.js --bundle` 確認語法正確、無 eval（沿用第 2、
+     3 項已建立的驗證方式）。
+  3. `wrangler deploy` 後 curl 驗證三條路徑：未登記 projectId →
+     `PROJECT_NOT_REGISTERED`；缺 `projectId` → `PROJECT_ID_REQUIRED`；
+     `jonaminz-movies`（已 approved，但 Contract 沒宣告 `css`）→ 正確回
+     `{approved:true, css:"none", settingsVersion:1, revision:2,
+     capabilities:[]}`。部署後第一次呼叫收到 `Unknown action`，等了
+     幾秒重試就正常了——Cloudflare 全球節點的部署傳播延遲，不是真的
+     bug，之後遇到類似狀況先重試再懷疑程式碼。
+- **狀態變化**：implementation plan **第 4 項完成並已上線**。下一步是
+  第 5 項（SDK loader＋版本指標）。
+- **遺留**：「tokens 正向成功」路徑（Contract 宣告 tokens 且 Settings
+  也授予）目前沒有真實資料可測——jonaminz-movies 沒宣告 `css`，純函式
+  窮舉測試已覆蓋邏輯本身，等真的有專案要用 tokens 時再一併做真實端到端
+  驗證，不補假資料。`capabilities` 真實內容、SDK 本身、`getThemeCssRules`
+  收編進 SDK（第 7 項）都還沒做，是後續項目的事，不是這次遺漏。
+- **版本**：`v0.5.0-202607112206`（已 bump；Worker action、schema 欄位
+  皆屬程式碼變更）。
+
+---
+
 ## 2026-07-11 — Implementation plan 第 3 項：核准後台完成並上線，修正改判設計缺陷
 
 - **任務**：接續 Contract 收取（第 2 項），做 implementation plan 第 3 項——
