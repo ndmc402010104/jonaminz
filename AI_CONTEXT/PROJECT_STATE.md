@@ -134,6 +134,18 @@ jonaminz/
     未登記 projectId、DB 沒被寫入）。**下一棒改 Contract Schema 時記得**：
     改完 `docs/contract-schema/jonaminz.contract.schema.json` 一定要重跑
     `node generate-contract-validator.mjs` 才能讓 Worker 吃到新規則。
+    **2026-07-11：外部 review（ChatGPT，純讀取盤點）核對＋文件同步**。
+    盤點基本正確，抓到 `ARCHITECTURE.md` §7 仍寫「Platform Integration
+    零實作」的嚴重過期問題（已修正）、`docs/contract-schema/README.md`
+    仍是「即將開工」語氣（已修正）、`implementation-plan.md` 第 2 項沒標
+    完成（已補）。也發現一個真的存在的驗證缺口：submitContract 的正向
+    成功路徑（已登記專案→合法 Contract→pending snapshot→audit log）
+    **從未透過真正部署的 Worker HTTP endpoint 測過**，只測過反向路徑
+    （未登記 projectId 被拒絕）——使用者裁決不急著補測，留到第一個真實
+    外部專案登記時一併驗證。使用者同時正式裁決：加 pre-parse request
+    body 大小限制（已寫進 `worker.js`，見上方版本注意事項，**尚未部署**）；
+    完整 rate limit 正式留白（不是遺漏）；SKHPSv2 正式接入 jonaminz 是
+    真實意圖但不急，排在第 3-9 項之後。
   - 尚未開始：第 3 項（核准後台）→ 第 9 項（Google OAuth）。SDK
     （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*` 一行都
     還沒寫。
@@ -161,7 +173,12 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-10 掃描）
 
-- 業務版本：`v0.3.1-202607110300`（`version.js`）。規則：每次 push 前要 bump。
+- 業務版本：`v0.3.2-202607111415`（`version.js`）。規則：每次 push 前要 bump。
+  **注意**：這個版本號已 commit/push，但 Worker **尚未 `wrangler deploy`**
+  ——`worker.js` 新增的 pre-parse `Content-Length` 檢查目前只在 repo 裡，
+  線上 Worker 還在跑上一版（沒有這層 pre-parse 限制，但 post-parse 的
+  `MAX_CONTRACT_SIZE_CHARS` 那層本來就在線上）。下一棒要留意 repo 版本與
+  線上實際部署版本目前不同步，部署前先跟使用者確認（RULES.md §2-2）。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

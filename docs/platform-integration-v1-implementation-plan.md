@@ -9,8 +9,21 @@
 
 ## 實作順序（建議）
 
-1. **Contract JSON Schema ＋ 範本**（依 Spec S7–S12）
-2. **Worker 端合約收取**：immutable snapshot 三態（pending/approved/
+1. **Contract JSON Schema ＋ 範本**（依 Spec S7–S12）—— ✅ 完成，RC3.1
+   定案，見 `docs/contract-schema/README.md`。
+2. **Worker 端合約收取** —— ✅ 完成並已部署上線（`submitContract` action，
+   `https://jonaminz-backend.ndmc402010104.workers.dev`）。範圍限於
+   「收取＋存 pending snapshot」，approve/reject 不在這項裡（見第 3 項）。
+   下面原始範圍清單保留供查核，另有兩項 2026-07-11 使用者正式裁決：
+   - **Pre-parse request body 大小限制**：已加（`worker.js` 在
+     `request.json()` 之前檢查 `Content-Length`，超過門檻直接拒絕），
+     跟既有的 post-parse `MAX_CONTRACT_SIZE_CHARS`（針對 `payload.contract`
+     字串長度）是兩層獨立防線。
+   - **完整 rate limit（依 request 頻率擋濫用）正式裁決為留白**，需要
+     Cloudflare KV binding，目前沒有真實外部專案在打這支 API、風險低，
+     等真的要接第一個外部專案時再一併做，不是遺漏。
+
+   （以下為原始規劃範圍，供對照）：immutable snapshot 三態（pending/approved/
    rejected）＋ `activeApprovedSnapshotId` ＋ audit table（S13–S14）＋
    S15 全部防線（登記 projectId 過濾、全 URL 欄位同源、rate/size limit、
    canonical JSON content hash、escape）。**開工前所有寫入一律先進
@@ -62,6 +75,10 @@
    為 `--jz-*`，舊無前綴名（`--color-primary` 等）以別名過渡（S36）
 8. **smoke app**（見下方情境清單）
 9. **Google OAuth 主站登入**（相鄰工程：v1 只做主站身分識別，S6）
+
+**SKHPSv2 正式接入 jonaminz（用 Contract 機制登記成外部專案）是使用者的真實
+意圖，但 2026-07-11 明確裁決不急，排在上面第 3–9 項（核心架構）都做完之後**，
+當作用真實外部專案驗證整套機制的階段，不要提前排進當前優先序。
 
 ## 既有系統技術債（實作期間一併處理）
 

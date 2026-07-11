@@ -1,6 +1,6 @@
 # ARCHITECTURE — jonaminz 系統架構（工程交接版）
 
-最後更新：2026-07-10（建檔）
+最後更新：2026-07-11（補 Platform Integration Contract 收取已上線）
 讀者：接手本專案的下一個工程 agent。
 狀態標記：本文描述「目前實際在跑的系統」；規劃中未實作的部分集中在 §7，
 不要混淆。
@@ -27,7 +27,9 @@
 ├─ 後端（cloudflare-worker/worker.js）─────────────────┤
 │   POST /api/action 唯一端點；持有 Supabase secret        │
 └─ 資料庫（Supabase：theme_css_rules,                      │
-           external_app_registrations，皆 RLS 鎖死）───────┘
+           external_app_registrations,                    │
+           contract_snapshots / contract_active_snapshots /│
+           contract_audit_log，皆 RLS 鎖死）───────────────┘
 ```
 
 ## 3. 頁面載入流程（每一頁都一樣）
@@ -82,22 +84,49 @@ index.html（任何頁面）
 （title/description/href/version）；enabled/position/group/order 永遠在
 jonaminz 的 `registry.json`。
 
+### Contract 收取（Platform Integration，推模式，取代上面的 v0 拉模式）
+
+```
+外部專案 SDK ──submitContract──▶ Worker：
+  1. request Content-Length 超過上限直接拒絕（pre-parse 粗防）
+  2. 查 integration-settings.json：projectId／該 Worker 所屬 environment 是否登記
+  3. 核對請求 Origin header 是否等於登記的 origin
+  4. ajv standalone validator 驗 Contract JSON Schema（build-time 預編譯，
+     見下方「部署流」的重要陷阱）
+  5. cross-field 驗證（entryId/objectType 重複、requests/requires ⊆ supports、
+     requires.entryId 參照）＋ URL 用 WHATWG URL() 重新解析、比對 origin
+  6. canonical content hash 去重
+  7. insert Supabase contract_snapshots（status 永遠 'pending'）＋ contract_audit_log
+```
+
+推送 ≠ 採信：收下的合約一律 `pending`，沒有任何自動 approve/grant（S13, S16）。
+approve/reject、`contract_active_snapshots` 的寫入、後台 UI 都還沒做（見 §7）。
+完整規格見 `docs/platform-integration-spec-v1.md`（Frozen, S1-S39）；schema 細節見
+`docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`。
+
 ## 5. 設定流
 
 ```
 config.json   站台層設定：pages 登錄表（每頁 styles/afterScripts/loadingTasks）、
               backend.worker.baseUrl。新增頁面＝改這份 + 建資料夾，不改 entry-core。
-registry.json 外部專案登錄表（目前空）。
+registry.json 外部專案登錄表（v0 拉模式用，目前空）。
+integration-settings.json  Platform Integration 用的 Integration Settings
+              （S38：git 檔案＋Worker 供應）：projectId → environment →
+              registered origin。跟 registry.json 是兩個獨立機制，不要混用
+              （v0 尚未作廢，見 §7 與 RULES.md §4）。目前為空，尚無真實外部專案。
 version.js    業務版本，push 前 bump。
 wrangler.toml Worker 設定；secrets（SUPABASE_URL/SUPABASE_SECRET_KEY）在
-              Cloudflare 上，不在 repo。
+              Cloudflare 上，不在 repo；`[vars] JONAMINZ_ENVIRONMENT` 決定這個
+              部署自己是哪個 environment（不是 payload 能宣告的，見上面
+              「Contract 收取」）。
 ```
 
 ## 6. 部署流
 
 ```
 前端：git push origin main ──▶ GitHub Pages 自動建置 ──▶ www.jonaminz.com
-Worker：cd backend/cloudflare-worker && npx wrangler deploy（獨立動作！push 不會部署它）
+Worker：cd backend/cloudflare-worker && npm install && npx wrangler deploy
+       （獨立動作！push 不會部署它）
 DB schema：手動貼 backend/supabase/*.sql 到 Supabase SQL Editor（無 migration 工具）
 本機預覽：node dev-server.js → http://localhost:5500/
 ```
@@ -105,20 +134,42 @@ DB schema：手動貼 backend/supabase/*.sql 到 Supabase SQL Editor（無 migra
 陷阱：
 - 專案在 OneDrive 同步資料夾內，本機編輯可能被回滾，改完要總盤點。
 - 只有 main 一個分支、origin 一個 remote（沒有 SKHPS 那種 prod/dev 雙 remote）。
+- **改了 `docs/contract-schema/jonaminz.contract.schema.json` 之後，部署 Worker
+  前必須先重跑 `node generate-contract-validator.mjs`**（在
+  `backend/cloudflare-worker/` 下），重新產生
+  `contract-schema-validator.generated.js`，否則 Worker 用的還是舊 schema——
+  這個依賴關係在 git diff 上看不出來，容易忘記。
+- **Cloudflare Workers 的 V8 isolate 禁止 `new Function`/`eval`**：任何在
+  runtime 才把字串編譯成函式的套件（例如 `ajv.compile()`）部署到 Workers 會
+  直接失敗，而且 `wrangler deploy --dry-run` 測不出來（dry-run 只測 bundle
+  過不過，不會真的執行）。這正是為什麼 Contract Schema 驗證要用 build-time
+  預編譯（上一條），不是在 Worker 裡呼叫 `ajv.compile()`。要驗證這類套件在
+  Workers 上真的能跑，用 `npx esbuild <file> --bundle --platform=node
+  --format=cjs` 打包後 grep 產物確認沒有 `new Function`/`eval(`，比只信賴
+  dry-run 可靠。
 
-## 7. 規劃中（有規格、零實作）——Platform Integration
+## 7. 規劃中、尚未實作——Platform Integration 剩餘部分
 
-詳見 `docs/platform-integration-consensus.md`（共識版，含凍結層 F1-F12）與
-`docs/platform-integration-spec-review.md`（審查）。摘要：
+規格 `docs/platform-integration-spec-v1.md` 已 **Frozen（S1-S39）**。
+Contract JSON Schema（`docs/contract-schema/`）與 Worker 端合約收取
+（`submitContract`，見上面 §4「Contract 收取」）**已實作並部署上線**，
+不在本節範圍——本節只列真正還沒做的部分，依
+`docs/platform-integration-v1-implementation-plan.md` 的順序：
 
-- 圖書館模型：外部專案 head 加一個 script（常青網址 `/sdk/jonaminz-entry.js`）
-  → SDK（專員）讀同站 `jonaminz.contract.json` → 推送給平台（取代 v0 拉模式）
-  → 平台認 Origin 門牌、Integration Settings 決定上架與授權
-  → `window.Jonaminz.*` 工具（未授權時「婉拒」：rejected Promise 固定錯誤碼）
-  → Theme/CSS 收編進 SDK（合約宣告 `css: "tokens"`）。
-- Auth：Google OAuth，v1 只做身分識別（Jonathan/Minz）。
-- 尚待：其他 agent 交叉確認共識文件 → 定稿規格 → JSON Schema / 範本 / SDK。
+- **核准後台**：pending 清單、diff 檢視、approve/reject action、
+  `contract_active_snapshots` 的原子切換寫入。approve/reject 這種寫入端點
+  上線前，要先確認防護方式（整站目前無登入，`saveThemeCssRules` 已是同類
+  已知裸露缺口的前車之鑑）。
+- **Flattened Effective Settings 端點**（S38，外觀 vs 授權分兩類）。
+- **SDK**：常青網址 `/sdk/jonaminz-entry.js`、官方 snippet 對接（S21-S23）、
+  lifecycle 狀態機、錯誤模型（S27-S29）、`window.Jonaminz.*`（未授權時
+  「婉拒」：rejected Promise 固定錯誤碼）、contract discovery（S18-S20）。
+- **tokens CSS 收編**：現有 `theme-runtime.js` 邏輯併入 SDK，變數名正式化為
+  `--jz-*`（S36）。
+- **smoke app** 完整生命週期測試。
+- **Google OAuth**：v1 只做主站身分識別（Jonathan/Minz，S6）。
 
-**下一個 agent 注意**：實作 Platform 時不是蓋平行系統，是把 v0 的三個分散機制
+**下一個 agent 注意**：實作以上項目時不是蓋平行系統，是把 v0 的三個分散機制
 （registry-loader 拉模式、theme-runtime 獨立 script、registerExternalApp fetch）
-收編進一支 SDK。v0 機制在那之前仍是現行系統，不要提前拆。
+收編進一支 SDK。v0 機制在那之前仍是現行系統，不要提前拆（作廢條件見
+RULES.md §4）。

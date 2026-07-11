@@ -28,8 +28,13 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
-// S15：payload size 上限的第一層粗防（完整 rate limit 需要 KV binding，這次沒有，
-// 見 backend/README.md 的「已知留白」）。
+// S15：payload size 上限。兩層防線：MAX_REQUEST_BODY_BYTES 是 pre-parse（在
+// request.json() 之前，用 Content-Length header 擋，避免無條件把任意大小的
+// body 讀進記憶體才發現太大）；MAX_CONTRACT_SIZE_CHARS 是 post-parse，專門
+// 針對 payload.contract 的字串長度。完整 rate limit（依 request 頻率擋濫用）
+// 需要 KV binding，2026-07-11 使用者正式裁決留白——目前沒有真實外部專案在
+// 打這支 API，等第一個真的要接時再做，見 backend/README.md。
+const MAX_REQUEST_BODY_BYTES = 256 * 1024;
 const MAX_CONTRACT_SIZE_CHARS = 200000;
 
 // validateContractSchema 是 build time 用 generate-contract-validator.mjs 預先編譯好的
@@ -44,6 +49,14 @@ export default {
 
     if (request.method !== "POST") {
       return json({ ok: false, error: "Method not allowed" }, 405);
+    }
+
+    // pre-parse 粗防：Content-Length 超過上限直接拒絕，不要無條件把整個 body
+    // 讀進記憶體、parse 完才發現太大。Content-Length 缺席或造假時這層擋不住
+    // （例如 chunked encoding），但擋得住絕大多數正常情況，且成本極低。
+    const contentLength = request.headers.get("Content-Length");
+    if (contentLength && Number(contentLength) > MAX_REQUEST_BODY_BYTES) {
+      return json({ ok: false, error: "Request body too large" }, 413);
     }
 
     let body;

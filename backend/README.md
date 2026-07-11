@@ -90,7 +90,8 @@ npx wrangler secret put SUPABASE_SECRET_KEY
   回傳 `{ ok: true, snapshotId, status: "pending", canonicalHash, deduped, validationResult }`
   或 `{ ok: false, code, error }`（`code` 例如 `PROJECT_NOT_REGISTERED` /
   `ENVIRONMENT_NOT_REGISTERED` / `SCHEMA_INVALID` / `ORIGIN_MISMATCH` /
-  `CONTRACT_TOO_LARGE`）。
+  `CONTRACT_TOO_LARGE`）。request body 過大（見下）時沒有 `code`，直接回
+  HTTP 413。
 
 ### Contract 收取的先決條件與已知留白
 
@@ -122,9 +123,16 @@ npx wrangler secret put SUPABASE_SECRET_KEY
 - **一切寫入永遠是 `status='pending'`**（S13, S16）。approve/reject 動作、
   pending 清單、diff 檢視是 implementation plan 第 3 項的後台功能，這次沒做，
   `contract_active_snapshots` 表已建但不會有任何資料。
-- **Rate limit 是已知留白，不是漏做**：S15 要求 rate limit，但現在沒有 KV
-  binding，也沒有真實外部專案在打這支 API。目前只做了 payload size 上限
-  （200,000 字元）。真的有濫用風險或要接第一個真實外部專案時，要加 KV binding
-  做完整 rate limit。
+- **Size 限制分兩層**：`fetch()` 一開始（`request.json()` 之前）先檢查
+  `Content-Length` header，超過 256KB 直接回 HTTP 413，不無條件把整個 body
+  讀進記憶體才發現太大——這層是所有 action 共用的 pre-parse 粗防，不是
+  `submitContract` 專屬。`submitContract` 內部另外對 `payload.contract`
+  做 post-parse 的字串長度檢查（200,000 字元，回 `CONTRACT_TOO_LARGE`）。
+  兩層是獨立防線：Content-Length 缺席或造假（例如 chunked encoding）時第一層
+  擋不住，但第二層還在。
+- **完整 rate limit（依 request 頻率擋濫用）2026-07-11 使用者正式裁決留白，
+  不是遺漏**：S15 要求 rate limit，但需要 Cloudflare KV binding，現在沒有，
+  也沒有真實外部專案在打這支 API，風險低。真的要接第一個真實外部專案時，
+  要加 KV binding 做完整 rate limit。
 - **本機驗證邏輯不需要部署 Worker**：`contract-validation.js` 是純函式模組，
   可以直接 `node` import 測試 canonical hash／cross-field／URL 驗證的邏輯。

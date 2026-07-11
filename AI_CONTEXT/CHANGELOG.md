@@ -20,6 +20,58 @@
 
 ---
 
+## 2026-07-11 — 外部 review 核對、文件過期修正、pre-parse body size 限制
+
+- **任務**：使用者拿另一個 AI（ChatGPT，透過 GitHub 純讀取）對 jonaminz
+  Platform Integration 進度的盤點回來核對，指定這輪「只核對＋規劃，不改
+  程式碼/DB/Schema/Frozen Spec，不 deploy」。核對完回報後，使用者依報告
+  裁決了幾項，這次任務把裁決落地。
+- **核對結果**（完整推理見對話紀錄，這裡只記結論）：ChatGPT 的技術盤點
+  （已完成 7 項、未完成 8 項、body size/rate limit 缺口）全部正確；建議
+  順序第 9 項「SKHPSv2 接入」不是 repo 既有計畫的一部分（`implementation-
+  plan.md` 第 9 項明文是 Google OAuth），是使用者昨天口頭跟 ChatGPT 提過
+  的另一個意圖，經使用者確認屬實但裁決不急。
+- **變更**：
+  - `AI_CONTEXT/ARCHITECTURE.md`：§2 架構圖補三張新表；新增「Contract
+    收取（Platform Integration，推模式）」小節在 §4；§5 補
+    `integration-settings.json`／`JONAMINZ_ENVIRONMENT`；§6 部署流補兩條
+    陷阱（改 schema 要重跑預編譯腳本；Workers 禁 eval/new Function，
+    dry-run 測不出來，要用 esbuild 打包驗證）；§7 從「規劃中、零實作」
+    改成只列真正還沒做的部分（核准後台／Effective Settings／SDK／tokens
+    CSS／smoke app／OAuth），移除已完成的 Contract Schema／Worker 收取。
+    **這是本次核對抓到落差最大的檔案**——整個 Worker 實作與部署期間都
+    沒碰過。
+  - `docs/contract-schema/README.md`：標題與「下一步」段落從「即將開工」
+    改成「已完成並部署」的時態；補一句正向成功路徑尚未經真正 Worker
+    endpoint 驗證、留到第一個真實外部專案登記時一併測。
+  - `docs/platform-integration-v1-implementation-plan.md`：第 1、2 項加
+    ✅ 完成標記；第 2 項下补記 body size／rate limit 的正式裁決；底部
+    補 SKHPSv2 是真實但不急的意圖，避免下次規劃時漏掉或誤植入優先序。
+  - `backend/cloudflare-worker/worker.js`：新增 `MAX_REQUEST_BODY_BYTES`
+    （256KB）與 pre-parse 檢查——`request.json()` 之前先看
+    `Content-Length` header，超過直接回 413，不無條件把整個 body 讀進
+    記憶體才發現太大。跟既有的 post-parse `MAX_CONTRACT_SIZE_CHARS`
+    是兩層獨立防線（Content-Length 缺席/造假時第一層擋不住，第二層還在）。
+    **完整 rate limit 正式裁決留白**，理由寫進 `backend/README.md`。
+  - `backend/README.md`：同步記錄兩層 size 限制與 rate limit 的正式裁決。
+- **驗證**：這輪明確禁止 `wrangler deploy`（含 `--dry-run`，Claude Code
+  的 auto mode 分類器把兩者都當成同一個受限動作擋下），改用
+  `npx esbuild worker.js --bundle --platform=neutral --format=esm` 直接
+  打包（不透過 wrangler），grep 產物確認零 `new Function`/`eval(`、
+  `node --check` 確認語法合法。**這次的 pre-parse body size 檢查邏輯
+  沒有部署到線上**，只是 commit 進 repo——下一次 `wrangler deploy` 時才會
+  生效，部署前需要另外跟使用者確認（RULES.md §2-2）。
+- **狀態變化**：交接文件與實際部署狀態重新同步。implementation plan
+  第 2 項的兩個安全留白（body size、rate limit）從「單方面記在 README」
+  變成「使用者正式裁決」。SKHPSv2 接入意圖正式記錄但排在低優先序。
+- **遺留**：`worker.js` 的新 pre-parse 檢查待部署；submitContract 正向
+  成功路徑待第一個真實外部專案登記時一併驗證；approve/reject 寫入端點
+  上線前的臨時防護方式（討論中提出「比照直連 DB 的每次明確授權模式，或
+  加陽春 shared-secret，等 OAuth 落地再換正式驗證」的建議）尚待使用者
+  在真的要動工核准後台時裁決，這次沒有定案。
+- **版本**：`v0.3.2-202607111415`（已 bump；程式碼有變更但**未部署**，
+  見上方驗證段落）。
+
 ## 2026-07-10 — submitContract 部署修正：ajv standalone 預編譯，正式上線
 
 - **任務**：使用者授權 `wrangler deploy`。第一次部署直接失敗：
