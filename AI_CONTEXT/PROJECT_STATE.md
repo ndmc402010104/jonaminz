@@ -381,7 +381,8 @@ jonaminz/
     逐條紀錄見新文件 `docs/platform-integration-v1-acceptance-tests.md`。
     `sdk-src/sdk.js` 這次沒有變更，不需要重新部署。
   - **第 9 項（Google OAuth 主站登入 ＋ identity capability）：階段 A
-    程式碼完成、本機驗證通過，尚未部署／尚未套用 DB schema（2026-07-12）。**
+    程式碼完成、本機驗證通過、DB schema 已套用、Worker 已部署
+    （2026-07-12）。剩使用者自行設定 secrets 才能真正登入，見下方。**
     範圍比原始 implementation-plan.md 寫的（只做主站身分識別）擴大成
     三件事（使用者明確要求）：內部密語登入＋Google OAuth 兩條路都要有；
     Jonathan/Minz 在 jonaminz 登入後身分要能傳給 skhpsv2（單向、僅供
@@ -403,14 +404,19 @@ jonaminz/
     （階段 B 才會掛這個命名空間），DNS 若未來真的搬去 Cloudflare只需要
     換掉這段內部實作，外部呼叫端程式碼不用改。
     **階段 A 已完成的部分**：新表 `sessions`／`oauth_states`
-    （`backend/supabase/auth_schema.sql`，含 service_role grant，尚未
-    套用到正式 DB）；`worker.js` 新增非 `/api/action` 路由
-    `GET /auth/google/start`／`GET /auth/google/callback`（標準
+    （`backend/supabase/auth_schema.sql`，含 service_role grant，**已於
+    2026-07-12 直連套用到正式 jonaminz-db**，套用前後各查了一次
+    `information_schema.tables` 跟 `role_table_grants` 確認兩張新表跟
+    grant 都正確、沒動到既有五張表）；`worker.js` 新增非 `/api/action`
+    路由 `GET /auth/google/start`／`GET /auth/google/callback`（標準
     authorization code flow，ID token 解碼不驗簽名——來源是 server-to-server
     對 Google 的 TLS 連線，理由跟瀏覽器端第三方 ID token 不同）＋三個新
     action `loginWithInternalToken`／`getCurrentIdentity`／`logout`
-    （esbuild 打包＋`node --check`＋eval/new Function grep 驗證過語法乾淨，
-    **尚未 `wrangler deploy`**）；`assets/js/backend-client.js` 新增對應
+    （esbuild 打包＋`node --check`＋eval/new Function grep 驗證過語法
+    乾淨，**已於 2026-07-12 `wrangler deploy` 上線**，curl smoke test
+    確認 `getCurrentIdentity`/`loginWithInternalToken` 回應正確、
+    `/auth/google/start` 因 secrets 未設回 500（預期行為）、既有
+    `getSdkVersion` 不受影響）；`assets/js/backend-client.js` 新增對應
     wrapper；新頁 `pages/login/`（內部密語表單＋Google 登入連結）；
     `assets/js/header.js` 擴充暴露 `window.JonaminzIdentity`（見 §2）。
     **本機驗證（Playwright，mock `/api/action` 的登入/身分查詢回應，
@@ -426,9 +432,8 @@ jonaminz/
     邏輯搬到 IIFE 最外層無條件執行，元素存不存在只影響要不要 render
     身分區塊；同時讓首頁自己的 `assets/js/app.js` 呼叫
     `JonaminzIdentity.mount()` 把身分狀態插進它自己的 nav-links。
-    **這次還沒做（尚未部署／需要使用者操作）**：`auth_schema.sql` 套用
-    到正式 `jonaminz-db`（需要直連 DB 授權）；`worker.js` 這批改動
-    `wrangler deploy`（需要部署授權）；使用者自行
+    **DB schema 套用與 `wrangler deploy` 都已完成（2026-07-12，使用者
+    透過 AskUserQuestion 明確授權）。這次還沒做（需要使用者自行操作）**：
     `wrangler secret put JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`；
     使用者自行去 Google Cloud Console 建立 OAuth Client（redirect URI
     `https://jonaminz-backend.ndmc402010104.workers.dev/auth/google/callback`）
@@ -478,9 +483,9 @@ jonaminz/
 |---|---|
 | 前端託管 | GitHub Pages，repo `ndmc402010104/jonaminz`，branch `main`，網域 `www.jonaminz.com`（CNAME） |
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
-| 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。五張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`，皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
-| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`JONAMINZ_ADMIN_TOKEN`（approve/reject 臨時關卡，存在 Cloudflare，不在 repo，Claude 不經手實際值） |
-| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標，`sdk/jonaminz-entry.js` 用，見 backend/README.md） |
+| 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。七張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`、`sessions`、`oauth_states`（後兩張 2026-07-12 新增，第 9 項階段 A），皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
+| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`JONAMINZ_ADMIN_TOKEN`（approve/reject 臨時關卡）；第 9 項階段 A 新增（**尚未設定，登入功能要這些才會真的動**）：`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`（內部密語登入）、`JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`（Google OAuth，Client ID/Secret 需使用者自行去 Google Cloud Console 申請）。全部存在 Cloudflare，不在 repo，Claude 不經手實際值 |
+| Worker API | `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標）/ `loginWithInternalToken`／`getCurrentIdentity`／`logout`（第 9 項階段 A，2026-07-12 上線）。另有兩個非 `/api/action` 的 GET 路由：`/auth/google/start`／`/auth/google/callback`（Google OAuth，同上線日期） |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝

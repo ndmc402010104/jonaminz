@@ -20,6 +20,43 @@
 
 ---
 
+## 2026-07-12 — 第 9 項階段 A 部署：DB schema 套用 + wrangler deploy
+
+- **任務**：接續上一筆（階段 A 程式碼完成但未部署），取得使用者透過
+  AskUserQuestion 的明確授權後執行部署。
+- **變更**：
+  - 直連 `jonaminz-db`（用根目錄密碼檔＋pg client，跑完立刻刪除含密碼
+    的 scratchpad script）套用 `backend/supabase/auth_schema.sql`。
+    套用前先查 `information_schema.tables` 確認連的是正確資料庫、
+    套用後再查一次確認新增 `sessions`／`oauth_states` 兩張表且沒動到
+    既有五張表，並查 `role_table_grants` 確認 `service_role` 權限正確。
+  - `cd backend/cloudflare-worker && npx wrangler deploy`，上傳成功
+    （Version ID `22eaa5a1-759c-4175-a6c4-38832f82a1c8`）。
+  - 正式環境 curl smoke test：`getCurrentIdentity`（無 token）正確回
+    `{ok:true, identity:null}`；`loginWithInternalToken`（錯密語）正確
+    回 `INVALID_TOKEN`；`GET /auth/google/start` 因 Google secrets 尚未
+    設定回 500（**這是預期行為**，不是部署失敗，代表路由本身已經
+    正確掛上去了）；既有 `getSdkVersion` 回應不受影響，確認這次部署
+    沒有動到既有功能。
+- **狀態變化**：DB schema／Worker 部署都已完成。**Auth 功能仍然
+  「上線但打不開」**——`loginWithInternalToken` 現在會一律回
+  `INVALID_TOKEN`（因為 `JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`
+  secret 還沒設定，沒有任何字串比對得中）、Google 登入完全不能用
+  （四個 Google secret 都沒設）。這是刻意的：secret 值不該由 Claude
+  經手，要使用者自己用 `wrangler secret put` 設定。
+- **遺留**：(1) 使用者自行 `wrangler secret put JONAMINZ_LOGIN_JONATHAN`／
+  `JONAMINZ_LOGIN_MINZ`，設定完內部密語登入就會真的可用；(2) 使用者
+  自行去 Google Cloud Console 建立 OAuth Client（redirect URI
+  `https://jonaminz-backend.ndmc402010104.workers.dev/auth/google/callback`），
+  設定 `JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／
+  `JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ` 四個
+  secret；(3) 兩者都設定好後，需要在正式環境重新端到端驗證一次（尤其
+  Google OAuth 全流程，本機/mock 測試完全沒覆蓋到真實 Google 那一段）；
+  (4) 之後才進階段 B（identity capability）與階段 C（skhpsv2 接入）。
+- **版本**：無程式碼變更（純部署操作＋文件更新），`version.js` 不動。
+
+---
+
 ## 2026-07-12 — Implementation plan 第 9 項階段 A：jonaminz 主站登入（程式碼完成，尚未部署）
 
 - **任務**：接續第 8 項，做第 9 項（原計畫最後一項）。範圍在討論中被
