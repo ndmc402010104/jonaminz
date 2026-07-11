@@ -151,7 +151,16 @@
    Contract schema 配新 SDK——背後系統還沒做，不是遺漏）。完整逐條紀錄
    見新文件 `docs/platform-integration-v1-acceptance-tests.md`。過程中
    沒發現需要修的 bug，`sdk-src/sdk.js` 沒有變更。
-9. **Google OAuth 主站登入**（相鄰工程：v1 只做主站身分識別，S6）
+9. **Google OAuth 主站登入**（相鄰工程：v1 只做主站身分識別，S6）—— ✅
+   階段 A 完成並經正式環境端到端驗證（2026-07-12）。範圍在討論中擴大
+   成三件事（使用者明確要求，細節見 `AI_CONTEXT/CHANGELOG.md` 對應
+   日期條目）：內部密語登入＋Google OAuth 兩條路都有、身分要能單向
+   傳給 skhpsv2（僅供前端顯示問候語）、整件事做成 jonaminz 可選擇要不
+   要開放的 capability（S30-33），不是外部專案硬依賴的東西。分三階段：
+   **階段 A**（jonaminz 自己的登入/登出，這次做的）使用者已親自測過
+   內部密語登入與 Google OAuth 兩條路都正常運作；**階段 B**（把 identity
+   接成正式 `identity.currentUser@1` capability）與**階段 C**（skhpsv2
+   正式接入，另一個 repo）尚未開始，排程見下方 SKHPSv2 段落。
 
 **SKHPSv2 正式接入 jonaminz（用 Contract 機制登記成外部專案）是使用者的真實
 意圖，但 2026-07-11 明確裁決不急，排在上面第 3–9 項（核心架構）都做完之後**，

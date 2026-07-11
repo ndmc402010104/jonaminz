@@ -20,6 +20,50 @@
 
 ---
 
+## 2026-07-12 — 第 9 項階段 A 正式環境端到端驗證通過，implementation-plan.md 原始範圍完成
+
+- **任務**：接續上一筆部署，使用者親自在正式環境測試登入功能。
+- **變更**：
+  - 使用者自行用 `wrangler secret put` 設定六個新 secret
+    （`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`／
+    `JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／
+    `JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`）。
+    過程中一次操作失誤把 `JONAMINZ_ADMIN_TOKEN`（既有的合約核准密語）
+    也重設了一次（PowerShell 用全形頓號串指令失敗、user 誤貼成
+    admin token 的指令），已提醒使用者若值有變要記得用新值登入
+    `/pages/admin/contracts/`；後續用 `wrangler secret list` 確認六個
+    新 secret 名稱都存在（只看名字不看值）。
+  - 使用者去 Google Cloud Console 設定 OAuth 品牌（App 名稱
+    `Jonaminz`）、建立 Web application 類型的 OAuth Client、redirect
+    URI 設定正確。過程中發現 Google 同意畫面一度顯示原始網域
+    `ndmc402010104.workers.dev` 而非設定好的 App 名稱——判斷是 Google
+    branding 快取生效延遲（OAuth Client 剛建立就馬上測試），不是設定
+    錯誤，等待後應會恢復正常，不影響功能。
+  - **使用者親自完整測試兩條登入路，皆正常**：內部密語登入成功、
+    Google OAuth 完整走過同意畫面成功登入、兩者登入後身分顯示都正確、
+    登出正常清除狀態。
+  - 一併新增 `.gitignore` 規則 `*pw*.json`（原本只有 `*pw*.txt`）：
+    使用者存 Google OAuth Client Secret 用的檔案是 `.json`，沒被舊規則
+    擋到，發現時檔案還沒被 commit，已補規則防堵。
+  - 討論中確認 Google OAuth Testing 模式（未發布、未做 Search Console
+    網域驗證）對本系統完全足夠：只有白名單內的 Test users（Jonathan/
+    Minz 的 Google 帳號）能通過同意畫面，公開發布／網域驗證是給不特定
+    公眾使用的服務才需要的機制，2 人固定身分系統不需要；Testing 模式
+    下 Google refresh token 7 天過期的限制也不影響本系統，因為系統
+    從未使用 Google refresh token（身分改用自己的 `sessions` 表
+    30 天 TTL 管理）。
+  - 更新 `docs/platform-integration-v1-implementation-plan.md` 第 9 項
+    標記完成。
+- **狀態變化**：**implementation-plan.md 原始範圍的第 9 項（主站登入）
+  正式完成**——至此 implementation-plan.md 列出的 9 個項目全部完成並
+  驗證過。討論中額外擴大的階段 B（identity capability）與階段 C
+  （skhpsv2 接入）尚未開始，是否/何時進行由使用者決定。
+- **遺留**：`saveThemeCssRules` 等既有寫入 action 仍未接上這套新的
+  登入驗證（見 `PROJECT_STATE.md` Auth 段落）；階段 B/C 待辦。
+- **版本**：無程式碼變更（純測試+文件更新），`version.js` 不動。
+
+---
+
 ## 2026-07-12 — 第 9 項階段 A 部署：DB schema 套用 + wrangler deploy
 
 - **任務**：接續上一筆（階段 A 程式碼完成但未部署），取得使用者透過

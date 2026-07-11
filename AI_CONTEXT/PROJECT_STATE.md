@@ -381,8 +381,9 @@ jonaminz/
     逐條紀錄見新文件 `docs/platform-integration-v1-acceptance-tests.md`。
     `sdk-src/sdk.js` 這次沒有變更，不需要重新部署。
   - **第 9 項（Google OAuth 主站登入 ＋ identity capability）：階段 A
-    程式碼完成、本機驗證通過、DB schema 已套用、Worker 已部署
-    （2026-07-12）。剩使用者自行設定 secrets 才能真正登入，見下方。**
+    完成，已在正式環境端到端驗證通過（2026-07-12）。implementation-plan.md
+    原始第 9 項需求（主站登入）到此全部完成；階段 B/C 是討論中額外
+    擴大的範圍，見下方。**
     範圍比原始 implementation-plan.md 寫的（只做主站身分識別）擴大成
     三件事（使用者明確要求）：內部密語登入＋Google OAuth 兩條路都要有；
     Jonathan/Minz 在 jonaminz 登入後身分要能傳給 skhpsv2（單向、僅供
@@ -441,8 +442,29 @@ jonaminz/
     `JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ` 四個
     secret；部署後在正式環境端到端驗證內部登入與 Google OAuth 全流程
     （Google 那段目前完全沒測過，本機只測得到內部密語登入，因為 OAuth
-    需要真實 Google Client Secret 才能跑完整流程）。之後才會做階段
-    B（identity capability）與階段 C（skhpsv2 接入）。
+    需要真實 Google Client Secret 才能跑完整流程）。
+    **正式環境部署與驗證（2026-07-12，使用者親自測試）**：DB schema
+    已直連套用到 `jonaminz-db`（套用前後查 `information_schema.tables`／
+    `role_table_grants` 確認）、`worker.js` 已 `wrangler deploy`（Version
+    ID `22eaa5a1-759c-4175-a6c4-38832f82a1c8`）、六個新增 secret
+    （`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`／
+    `JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／
+    `JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`）
+    使用者已自行用 `wrangler secret put` 設定完成（`wrangler secret list`
+    確認名稱都存在）。使用者親自在 `https://www.jonaminz.com/pages/login/`
+    完整測過兩條路：內部密語登入成功並正確顯示身分、Google OAuth
+    完整走一次同意畫面並成功登入、登出正確清除狀態，**兩條路皆正常，
+    無 bug**。Google Cloud OAuth Client 目前是「測試中」狀態（只有
+    Jonathan/Minz 兩個 Google 帳號被加進 Test users 白名單），**刻意
+    不發布成正式應用程式／不做網域驗證**——這是給公開服務用的機制，
+    2 人固定身分系統不需要；Testing 模式下 Google refresh token 7 天
+    會過期的限制對本系統無影響，因為本系統從未使用 Google refresh
+    token（每次都重新走一次 authorization code flow，身分靠自己的
+    `sessions` 表 30 天 TTL 管理，跟 Google token 生命週期無關）。
+    至此 implementation-plan.md 原始第 9 項（主站登入）需求已全部
+    達成並驗證完畢；之後才會做討論中額外擴大的階段 B（identity
+    capability）與階段 C（skhpsv2 接入），排程見 implementation-plan.md
+    SKHPSv2 段落（不急，等核心架構做完再排）。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -465,12 +487,13 @@ jonaminz/
     `GRANT SELECT/INSERT/UPDATE/DELETE ... TO service_role`，跟既有兩張表
     權限一致，並回寫進 `backend/supabase/contract_schema.sql` 避免下次
     重建再踩到。
-- **Auth**：目前整站無登入（第 9 項階段 A 程式碼已寫完但未部署，見上）。
-  `saveThemeCssRules` 無身分驗證，任何知道 Worker 網址的人都能改全站
-  外觀——已知安全缺口，第 9 項部署後這個缺口本身仍不會自動補上（那是
-  另一個 action 的事，這次沒有把 `saveThemeCssRules` 接上登入驗證，
-  純粹是新增獨立的登入系統，之後要不要把既有寫入動作接上身分驗證是
-  未來的事，不在這次範圍內）。
+- **Auth**：主站登入（內部密語＋Google OAuth）已上線並驗證通過，見上
+  第 9 項。**但這個登入系統目前只有「能不能登入」的功能，沒有接到
+  任何既有寫入動作上**——`saveThemeCssRules` 仍然無身分驗證，任何知道
+  Worker 網址的人都還是能改全站外觀，這是已知安全缺口，這次新增的
+  是獨立的登入系統本體，沒有把它接上 `saveThemeCssRules` 之類既有
+  action 當守門機制；要不要把既有寫入動作接上身分驗證是未來的事，
+  不在第 9 項範圍內。
 - 後台 `/pages/admin/` 只是佔位頁。
 - Reservoir 願景中的 Slot Engine、Home Portal slots、Global Search、AI Gateway、
   Storage Layer：全部只在願景/規格層面，未實作。
