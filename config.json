@@ -57,6 +57,18 @@
         "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/contracts/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
+    },
+    "login": {
+      "pageId": "login",
+      "title": "登入",
+      "path": "/pages/login/",
+      "group": "main",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/login/assets/css/page-login.css"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/login/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
     }
   },
 

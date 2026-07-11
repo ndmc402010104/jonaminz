@@ -104,6 +104,18 @@
     return call("getSdkVersion", payload, options);
   }
 
+  function loginWithInternalToken(payload, options) {
+    return call("loginWithInternalToken", payload, options);
+  }
+
+  function getCurrentIdentity(payload, options) {
+    return call("getCurrentIdentity", payload, options);
+  }
+
+  function logout(payload, options) {
+    return call("logout", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -112,6 +124,9 @@
     approveContract: approveContract,
     rejectContract: rejectContract,
     getSdkVersion: getSdkVersion,
-    getEffectiveSettings: getEffectiveSettings
+    getEffectiveSettings: getEffectiveSettings,
+    loginWithInternalToken: loginWithInternalToken,
+    getCurrentIdentity: getCurrentIdentity,
+    logout: logout
   };
 })();

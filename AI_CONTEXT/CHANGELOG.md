@@ -20,6 +20,72 @@
 
 ---
 
+## 2026-07-12 — Implementation plan 第 9 項階段 A：jonaminz 主站登入（程式碼完成，尚未部署）
+
+- **任務**：接續第 8 項，做第 9 項（原計畫最後一項）。範圍在討論中被
+  使用者明確擴大成三件事：內部密語登入＋Google OAuth 兩條路都要有、
+  身分要能單向傳給 skhpsv2（僅供前端顯示問候語）、整件事要做成
+  jonaminz 可以選擇要不要開放給外部專案的 capability（不是硬依賴）。
+  分三階段，這次做階段 A（jonaminz 自己的登入/登出）。
+- **變更**：
+  - 新表 `sessions`（token/identity/provider/expires_at）、`oauth_states`
+    （CSRF state，短 TTL）：`backend/supabase/auth_schema.sql`，含
+    service_role grant（照第 2 項踩過的 Supabase Management API 建表
+    坑，這次先補不等出事）。
+  - `worker.js`：新增兩個非 `/api/action` 的 GET 路由
+    `/auth/google/start`（產生 state、302 去 Google 同意畫面）、
+    `/auth/google/callback`（核對 state、換 token、解 ID token 的
+    email、比對允許清單、建立 session、302 導回首頁並把 token 帶在
+    URL fragment）；新增三個 action：`loginWithInternalToken`（比對
+    `JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ` 兩個新 secret）、
+    `getCurrentIdentity`（查 session 是否有效）、`logout`（刪 session
+    row）。esbuild 打包＋`node --check`＋eval/new Function grep 驗證
+    語法乾淨，**這批改動尚未 `wrangler deploy`**。
+  - `assets/js/backend-client.js` 新增三個對應 wrapper。
+  - 新頁 `pages/login/`（`index.html`／`assets/js/app.js`／
+    `assets/css/page-login.css`，照 `pages/README.md` 標準流程，已在
+    `config.json` 註冊），兩條登入路都在這頁。
+  - 新頁 `pages/identity-relay/index.html`：極簡、不走 entry-core.js
+    bootstrap，給未來 skhpsv2 之類的專案隱藏嵌入 iframe 用，讀
+    localStorage token、查 `getCurrentIdentity`、`postMessage` 給父
+    頁面（階段 B/C 才會真的被用到，這次先把頁面本身寫好）。
+  - `assets/js/header.js` 大幅擴充：暴露 `window.JonaminzIdentity`
+    （`captureTokenFromHash`／`mount`），共用 header 元素存在時顯示
+    「OO你好」＋登出按鈕，或「登入」連結。
+  - `assets/css/reservoir/04-layout.css` 新增 `.jonaminz-header`
+    flex 版面＋身分區塊樣式（共用 shell 層，非頁面專屬）。
+- **自己抓到並修好的 bug**：header.js 第一版把「讀 URL hash 存
+  session token」的邏輯包在「找不到 `[data-jonaminz-header]` 元素就
+  return」的判斷式裡——但首頁（Google OAuth callback 固定導回的目的
+  地）是簽名式導覽版型，本來就沒有這個共用元素，會導致 OAuth 登入
+  永遠存不進 token。改成 hash 擷取邏輯移到模組最外層無條件執行；
+  同時發現首頁的身分顯示原本也會整個消失（同一個原因），所以額外
+  改了 `index.html`（`nav-links` 新增 `[data-nav-identity]` 容器）、
+  `assets/js/app.js`（呼叫 `JonaminzIdentity.mount()`）、
+  `assets/css/page-home.css`（新增 `.nav-identity` 系列樣式，只加
+  規則、不動既有 `.nav-links` 規則），讓身分狀態在首頁也看得到。
+  這個發現是本機 Playwright 端到端測試（mock `/api/action` 的登入/
+  身分查詢回應）跑出來的，不是純程式碼審查抓到的。
+- **本機驗證**：內部密語登入成功/失敗、登入後首頁 nav 與各頁共用
+  header 正確顯示身分、登出正確清 token、hash-fragment token 擷取
+  （模擬 OAuth 導回）正確運作，皆截圖確認視覺正常。Google OAuth 那段
+  完全沒測過（需要真實 Google Client Secret，等使用者申請完才能測）。
+- **狀態變化**：implementation plan 第 9 項**階段 A 程式碼完成、本機
+  驗證通過，尚未部署**（DB schema 未套用、Worker 未 deploy、Google
+  OAuth secrets 未設定）。細節見 `AI_CONTEXT/PROJECT_STATE.md` §4。
+- **遺留**：部署前需要：(1) 使用者授權直連套用 `auth_schema.sql` 到
+  `jonaminz-db`；(2) 使用者授權 `wrangler deploy`；(3) 使用者自行設定
+  `JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ` 兩個 secret；
+  (4) 使用者自行去 Google Cloud Console 申請 OAuth Client（redirect
+  URI 見上）並設定四個 Google 相關 secret。部署完才能做正式環境端到端
+  驗證（尤其 Google OAuth 全流程本機測不到）。之後才進階段 B（identity
+  變成正式 `identity.currentUser@1` capability）與階段 C（skhpsv2
+  接入，另一個 repo，需要另外授權）。
+- **版本**：`v0.9.0-202607120900`（`version.js`，前端程式碼/HTML/CSS/
+  設定檔變更需要 bump；worker.js／SQL 這批還沒部署，不影響此版號）。
+
+---
+
 ## 2026-07-12 — Implementation plan 第 8 項：smoke app（純驗證，無程式碼變更）
 
 - **任務**：接續 tokens CSS（第 7 項），做第 8 項——把

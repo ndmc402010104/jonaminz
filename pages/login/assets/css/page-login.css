@@ -1,0 +1,67 @@
+/*
+檔案位置：jonaminz/pages/login/assets/css/page-login.css
+用途：CSS 疊加第 7 層 - Page Layer，只給登入頁用。版型沿用
+pages/admin/assets/css/page-admin.css 的 .jonaminz-admin-* 置中卡片，
+這裡只新增登入表單本身需要的樣式，不去改 reservoir 1-6 層本體。
+其他頁面不會載到這份檔案（見 config.json -> pages.login.entry.styles）。
+*/
+
+.jonaminz-login-page {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) 0;
+  background: radial-gradient(circle at top, rgba(99, 102, 241, 0.15), transparent 60%);
+}
+
+.jonaminz-login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.jonaminz-login-hero {
+  text-align: center;
+}
+
+.jonaminz-login-google-btn {
+  width: 100%;
+  text-decoration: none;
+  margin-top: var(--space-2);
+}
+
+.jonaminz-login-divider {
+  margin: var(--space-4) 0;
+  opacity: 0.5;
+  font-size: var(--text-xs);
+}
+
+.jonaminz-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  text-align: left;
+}
+
+.jonaminz-login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.jonaminz-login-form input {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.jonaminz-login-error {
+  min-height: 1.2em;
+  margin: var(--space-3) 0 0;
+  color: crimson;
+  font-size: var(--text-sm);
+}

@@ -40,6 +40,27 @@
   用來決定該載入哪個 `sdk/sdk-<hash>.js` 的唯一依據；回滾／kill-switch
   都是直接改 `sdk-versions.json` 對應 channel 的指標再 `wrangler deploy`，
   不是複雜系統（S39）。
+- loginWithInternalToken / getCurrentIdentity / logout：implementation
+  plan 第 9 項階段 A，jonaminz 主站登入（S6：只做 Jonathan/Minz 兩個
+  固定身分，不是開放註冊系統）。內部密語登入跟 JONAMINZ_ADMIN_TOKEN
+  同精神，但要分辨是誰（JONAMINZ_LOGIN_JONATHAN／JONAMINZ_LOGIN_MINZ
+  兩個 secret）。登入成功後的身分存在 Supabase `sessions` 表（不是
+  自簽 JWT，是為了能真的登出/撤銷），token 由前端存自己的
+  localStorage、之後每次呼叫 getCurrentIdentity/logout 都帶在
+  payload 裡——不是 cookie（`jonaminz.com` 的 DNS 掛在 Squarespace，
+  Worker 沒辦法對 `.jonaminz.com` 設 cookie，見
+  `docs/platform-integration-v1-implementation-plan.md` 第 9 項的
+  查證紀錄）。這三個 action 走既有的 `Access-Control-Allow-Origin: *`，
+  不涉及 credentials，不用改 CORS。
+- `GET /auth/google/start` ／ `GET /auth/google/callback`：**唯二
+  不是 `POST /api/action` 的路徑**——Google OAuth 的 authorization
+  code flow 本質是瀏覽器導航（302 redirect），不是 fetch() 呼叫。
+  `start` 產生一次性 `state`（存 Supabase `oauth_states` 表，短
+  TTL，CSRF 防護）導去 Google 同意畫面；`callback` 核對 `state`、拿
+  `code` 跟 Google 換 token、解出 email、比對允許清單
+  （JONAMINZ_GOOGLE_EMAIL_JONATHAN／JONAMINZ_GOOGLE_EMAIL_MINZ，不在
+  清單內一律拒絕）、建立 session，302 導回站內、token 放在 URL
+  fragment（`#jonaminzSessionToken=...`，fragment 不會送到伺服器）。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -72,6 +93,27 @@ const MAX_CONTRACT_SIZE_CHARS = 200000;
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // Google OAuth 的 redirect flow 是瀏覽器導航，不是 fetch()——這兩條
+    // 路徑刻意不走下面 POST /api/action 那套，各自獨立處理、獨立回應，
+    // 自己包 try/catch（不燒房子：拋出例外也要回一個看得懂的錯誤頁，
+    // 不是丟 Cloudflare 預設的 500 頁面）。
+    if (request.method === "GET" && url.pathname === "/auth/google/start") {
+      try {
+        return await handleGoogleStart(env);
+      } catch (error) {
+        return new Response("Login failed: " + (error.message || String(error)), { status: 500 });
+      }
+    }
+    if (request.method === "GET" && url.pathname === "/auth/google/callback") {
+      try {
+        return await handleGoogleCallback(env, url);
+      } catch (error) {
+        return new Response("Login failed: " + (error.message || String(error)), { status: 500 });
+      }
+    }
+
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS_HEADERS });
     }
@@ -138,6 +180,18 @@ export default {
 
       if (action === "getSdkVersion") {
         return json(getSdkVersion(payload), 200);
+      }
+
+      if (action === "loginWithInternalToken") {
+        return json(await loginWithInternalToken(env, payload), 200);
+      }
+
+      if (action === "getCurrentIdentity") {
+        return json(await getCurrentIdentity(env, payload), 200);
+      }
+
+      if (action === "logout") {
+        return json(await logout(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -736,4 +790,201 @@ function getSdkVersion(payload) {
     revision: sdkVersions.revision,
     generatedAt: new Date().toISOString()
   };
+}
+
+// implementation plan 第 9 項階段 A：jonaminz 主站登入（S6）。兩種登入
+// 方式（內部密語／Google OAuth）都導向同一張 sessions 表——用真的
+// session row，不是自簽 JWT，才能真的登出/撤銷，不用維護 blocklist。
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天，兩人自用不逼頻繁重登入
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 分鐘，只是 redirect 往返這段時間需要存在
+const GOOGLE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.dev/auth/google/callback";
+
+function randomToken() {
+  return crypto.randomUUID() + crypto.randomUUID();
+}
+
+async function createSession(env, identity, provider) {
+  const token = randomToken();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/sessions";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ token: token, identity: identity, provider: provider, expires_at: expiresAt })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { token: token, expiresAt: expiresAt };
+}
+
+async function loginWithInternalToken(env, payload) {
+  const provided = String((payload && payload.token) || "").trim();
+  if (!provided) {
+    return { ok: false, code: "TOKEN_REQUIRED", error: "token is required" };
+  }
+
+  let identity = null;
+  if (env.JONAMINZ_LOGIN_JONATHAN && provided === env.JONAMINZ_LOGIN_JONATHAN) {
+    identity = "jonathan";
+  } else if (env.JONAMINZ_LOGIN_MINZ && provided === env.JONAMINZ_LOGIN_MINZ) {
+    identity = "minz";
+  }
+
+  if (!identity) {
+    return { ok: false, code: "INVALID_TOKEN", error: "Invalid login token" };
+  }
+
+  const session = await createSession(env, identity, "internal");
+  return { ok: true, identity: identity, token: session.token, expiresAt: session.expiresAt };
+}
+
+async function getCurrentIdentity(env, payload) {
+  const token = String((payload && payload.token) || "").trim();
+  if (!token) {
+    return { ok: true, identity: null };
+  }
+
+  const url =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/sessions?token=eq." + encodeURIComponent(token) +
+    "&select=identity,expires_at&limit=1";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  const row = rows[0];
+
+  // 過期的 session 當作沒登入，不主動刪（下次登入自然會蓋掉/新增，
+  // 過期資料留著不影響任何行為，不值得為了清理另外排 cron）。
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) {
+    return { ok: true, identity: null };
+  }
+
+  return { ok: true, identity: row.identity };
+}
+
+async function logout(env, payload) {
+  const token = String((payload && payload.token) || "").trim();
+  if (!token) {
+    return { ok: true };
+  }
+
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/sessions?token=eq." + encodeURIComponent(token);
+  const response = await fetch(url, { method: "DELETE", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+async function handleGoogleStart(env) {
+  if (!env.JONAMINZ_GOOGLE_CLIENT_ID) {
+    return new Response("Google OAuth not configured", { status: 500 });
+  }
+
+  const state = randomToken();
+  const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
+
+  const insertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/oauth_states";
+  const insertResponse = await fetch(insertUrl, {
+    method: "POST",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ state: state, expires_at: expiresAt })
+  });
+  if (!insertResponse.ok) {
+    throw new Error("Supabase insert failed: HTTP " + insertResponse.status + " " + (await insertResponse.text()));
+  }
+
+  const authorizeUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  authorizeUrl.searchParams.set("client_id", env.JONAMINZ_GOOGLE_CLIENT_ID);
+  authorizeUrl.searchParams.set("redirect_uri", GOOGLE_REDIRECT_URI);
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("scope", "openid email");
+  authorizeUrl.searchParams.set("state", state);
+  authorizeUrl.searchParams.set("prompt", "select_account");
+
+  return Response.redirect(authorizeUrl.toString(), 302);
+}
+
+// JWT 只取中間那段 payload，base64url decode——這個 ID token 是 Worker
+// 自己拿 client_secret 跟 Google 換來的（server-to-server，走 TLS），
+// 不是瀏覽器轉交的第三方憑證，不需要再驗簽章。前端直接收 ID token
+// 那種用法才需要驗簽章防偽造，這裡不是那種情況。
+function decodeGoogleIdTokenEmail(idToken) {
+  const parts = String(idToken || "").split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(payloadJson);
+    return payload && payload.email ? String(payload.email).toLowerCase() : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function handleGoogleCallback(env, url) {
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+
+  if (!code || !state) {
+    return new Response("Missing code or state", { status: 400 });
+  }
+
+  const stateUrl =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/oauth_states?state=eq." + encodeURIComponent(state) +
+    "&select=state,expires_at";
+  const stateResponse = await fetch(stateUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!stateResponse.ok) {
+    throw new Error("Supabase read failed: HTTP " + stateResponse.status + " " + (await stateResponse.text()));
+  }
+  const stateRows = await stateResponse.json();
+  const stateRow = stateRows[0];
+
+  // state 核對後立刻刪除，一次性——防止重放，不管核對結果是否有效都刪。
+  await fetch(
+    env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/oauth_states?state=eq." + encodeURIComponent(state),
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  );
+
+  if (!stateRow || new Date(stateRow.expires_at).getTime() < Date.now()) {
+    return new Response("Invalid or expired state", { status: 400 });
+  }
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code: code,
+      client_id: env.JONAMINZ_GOOGLE_CLIENT_ID,
+      client_secret: env.JONAMINZ_GOOGLE_CLIENT_SECRET,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      grant_type: "authorization_code"
+    })
+  });
+  if (!tokenResponse.ok) {
+    throw new Error("Google token exchange failed: HTTP " + tokenResponse.status + " " + (await tokenResponse.text()));
+  }
+  const tokenData = await tokenResponse.json();
+  const email = decodeGoogleIdTokenEmail(tokenData.id_token);
+
+  let identity = null;
+  if (email && env.JONAMINZ_GOOGLE_EMAIL_JONATHAN && email === String(env.JONAMINZ_GOOGLE_EMAIL_JONATHAN).toLowerCase()) {
+    identity = "jonathan";
+  } else if (email && env.JONAMINZ_GOOGLE_EMAIL_MINZ && email === String(env.JONAMINZ_GOOGLE_EMAIL_MINZ).toLowerCase()) {
+    identity = "minz";
+  }
+
+  if (!identity) {
+    // 不在允許清單——這不是開放註冊系統（S6：只有 Jonathan/Minz 兩個
+    // 固定身分），拒絕任何其他 Google 帳號登入。
+    return new Response("This Google account is not authorized for jonaminz.", { status: 403 });
+  }
+
+  const session = await createSession(env, identity, "google");
+  const redirectUrl = "https://www.jonaminz.com/#jonaminzSessionToken=" + encodeURIComponent(session.token);
+  return Response.redirect(redirectUrl, 302);
 }

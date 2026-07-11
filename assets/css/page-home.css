@@ -92,6 +92,36 @@ body {
   color: #111411;
 }
 
+/* 身分登入狀態（implementation plan 第 9 項），assets/js/app.js 動態插入
+   [data-nav-identity] 容器。只加規則、不動上面既有的 .nav-links 規則。 */
+.nav-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-identity-greeting {
+  font-size: 13px;
+  color: rgba(247, 240, 229, 0.78);
+  font-weight: 820;
+}
+
+.nav-identity a,
+.nav-identity button {
+  padding: 9px 13px;
+  border-radius: var(--radius-pill);
+  background: rgba(12, 14, 12, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 13px;
+  color: rgba(247, 240, 229, 0.78);
+  font-weight: 820;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  text-decoration: none;
+}
+
 .signature {
   position: absolute;
   left: clamp(28px, 5vw, 74px);

@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12
+最後更新：2026-07-12（第 9 項階段 A 進行中）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -39,7 +39,13 @@ jonaminz/
     css/page-home.css         第 7 層（Page Layer），只有首頁載
     img/home-hero.jpg         首頁背景相片
     js/entry-core.js          水庫本體：loading gate、CSS 八層疊加、shell、載入頁面 app.js
-    js/header.js / footer.js  共用 shell（footer 顯示版本）
+    js/header.js / footer.js  共用 shell（footer 顯示版本）。header.js 額外暴露
+                              window.JonaminzIdentity（{captureTokenFromHash, mount}）
+                              ——implementation plan 第 9 項：讀 localStorage session
+                              token、查 getCurrentIdentity、顯示「OO你好」＋登出，或
+                              「登入」連結。首頁 index.html 是簽名式導覽版型沒有共用
+                              [data-jonaminz-header] 元素，所以 assets/js/app.js 自己
+                              呼叫 mount() 插進 nav-links 的 [data-nav-identity]
     js/registry-loader.js     讀 registry.json、抓外部專案 manifest 顯示卡片（目前拉模式）
     js/backend-client.js      呼叫 Cloudflare Worker 的統一入口
     js/theme-runtime.js       CSS 第 8 層：從 Worker 讀 theme_css_rules 動態組 CSS 注入；
@@ -52,6 +58,15 @@ jonaminz/
     admin/contracts/          Contract 核准後台（implementation plan 第 3 項）：pending
                               清單、diff 檢視、核准／否決／改判，唯一有身分驗證保護的
                               寫入動作（Worker secret JONAMINZ_ADMIN_TOKEN 臨時關卡）
+    login/                    登入頁（implementation plan 第 9 項階段 A）：內部密語
+                              表單＋Google 登入連結，兩條路都能選。**程式碼已寫完、
+                              本機 Playwright 驗證過完整流程，尚未部署／尚未套用 DB
+                              schema，見 §4 第 9 項**
+    identity-relay/           跨子網域身分轉發頁（implementation plan 第 9 項階段
+                              A，給 skhpsv2 之類的其他 *.jonaminz.com 專案未來用）：
+                              極簡、不走 entry-core.js bootstrap，讀自己
+                              （www.jonaminz.com）的 localStorage token、查
+                              getCurrentIdentity、postMessage 給嵌入它的父頁面
   sdk/
     jonaminz-entry.js          常青 SDK loader（implementation plan 第 5 項，S37）：
                               向 getSdkVersion 問版本指標 → 動態載入對應的
@@ -95,6 +110,9 @@ jonaminz/
                                       呼叫 ajv.compile()
     supabase/schema.sql       external_app_registrations 表
     supabase/theme_schema.sql theme_css_rules 表
+    supabase/auth_schema.sql  sessions／oauth_states 兩張表（implementation plan
+                              第 9 項階段 A）：已寫好、esbuild 驗證過，**尚未套用到
+                              正式 jonaminz-db**（見 §4 第 9 項，等待授權）
     supabase/contract_schema.sql  contract_snapshots / contract_active_snapshots /
                                   contract_audit_log 三張表 + approve_contract_snapshot /
                                   reject_contract_snapshot 兩個 Postgres function
@@ -362,7 +380,64 @@ jonaminz/
     網路請求）——判定可接受，真的有案例受影響再回頭加 init 旗標。完整
     逐條紀錄見新文件 `docs/platform-integration-v1-acceptance-tests.md`。
     `sdk-src/sdk.js` 這次沒有變更，不需要重新部署。
-  - 尚未開始：第 9 項（Google OAuth）。
+  - **第 9 項（Google OAuth 主站登入 ＋ identity capability）：階段 A
+    程式碼完成、本機驗證通過，尚未部署／尚未套用 DB schema（2026-07-12）。**
+    範圍比原始 implementation-plan.md 寫的（只做主站身分識別）擴大成
+    三件事（使用者明確要求）：內部密語登入＋Google OAuth 兩條路都要有；
+    Jonathan/Minz 在 jonaminz 登入後身分要能傳給 skhpsv2（單向、僅供
+    前端顯示「OO你好」，不是真的跨系統授權）；整件事必須是 jonaminz
+    可以選擇要不要開放給外部專案調用的**能力**（S30-33 capability
+    機制），不是外部專案硬依賴的東西——這正好對上第 4/6 項刻意留白的
+    `getEffectiveSettings.capabilities` 陣列。完整設計見核准過的計畫檔
+    `docs/platform-integration-v1-implementation-plan.md` 第 9 項段落
+    （若尚未同步，另見對話歷史的 plan mode 產出）。三階段：
+    **階段 A**（這次做的）＝jonaminz 自己的登入／登出；**階段 B**＝把
+    identity 接成正式 `identity.currentUser@1` capability（`getEffectiveSettings`
+    的 `capabilities` 陣列這次才真的有內容）；**階段 C**＝skhpsv2 正式
+    接入（另一個 repo，需要另外授權、先讀那邊的 AI_CONTEXT）。
+    **DNS 查證發現**：`jonaminz.com` 掛在 Squarespace DNS（不是
+    Cloudflare），Worker 無法掛 `*.jonaminz.com` custom domain，原本設想
+    的 `Domain=.jonaminz.com` 共用 cookie 不可行——改用 iframe +
+    postMessage 轉發（`pages/identity-relay/`）+ localStorage 存 token，
+    對外的穩定介面仍是未來 `window.Jonaminz.identity.currentUser()`
+    （階段 B 才會掛這個命名空間），DNS 若未來真的搬去 Cloudflare只需要
+    換掉這段內部實作，外部呼叫端程式碼不用改。
+    **階段 A 已完成的部分**：新表 `sessions`／`oauth_states`
+    （`backend/supabase/auth_schema.sql`，含 service_role grant，尚未
+    套用到正式 DB）；`worker.js` 新增非 `/api/action` 路由
+    `GET /auth/google/start`／`GET /auth/google/callback`（標準
+    authorization code flow，ID token 解碼不驗簽名——來源是 server-to-server
+    對 Google 的 TLS 連線，理由跟瀏覽器端第三方 ID token 不同）＋三個新
+    action `loginWithInternalToken`／`getCurrentIdentity`／`logout`
+    （esbuild 打包＋`node --check`＋eval/new Function grep 驗證過語法乾淨，
+    **尚未 `wrangler deploy`**）；`assets/js/backend-client.js` 新增對應
+    wrapper；新頁 `pages/login/`（內部密語表單＋Google 登入連結）；
+    `assets/js/header.js` 擴充暴露 `window.JonaminzIdentity`（見 §2）。
+    **本機驗證（Playwright，mock `/api/action` 的登入/身分查詢回應，
+    dev-server.js 起本機站）**：內部密語登入成功/失敗兩條路、登入後
+    首頁與各頁共用 header 都正確顯示「OO你好」＋登出、登出正確清除
+    token 並重新整理、Google OAuth callback 的 hash-fragment token 擷取
+    （模擬 `#jonaminzSessionToken=...` 導回首頁）正確存進 localStorage
+    並清掉網址列。**過程中自己抓到並修好一個真的會發生的 bug**：
+    `header.js` 第一版把「讀 URL hash 存 token」的邏輯包在
+    「找不到 `[data-jonaminz-header]` 元素就 return」的判斷式裡面——
+    但首頁（Google OAuth 固定導回的目的地）剛好沒有這個共用元素（自己的
+    簽名式導覽版型），導致 OAuth 登入永遠存不進 token。改成 hash 擷取
+    邏輯搬到 IIFE 最外層無條件執行，元素存不存在只影響要不要 render
+    身分區塊；同時讓首頁自己的 `assets/js/app.js` 呼叫
+    `JonaminzIdentity.mount()` 把身分狀態插進它自己的 nav-links。
+    **這次還沒做（尚未部署／需要使用者操作）**：`auth_schema.sql` 套用
+    到正式 `jonaminz-db`（需要直連 DB 授權）；`worker.js` 這批改動
+    `wrangler deploy`（需要部署授權）；使用者自行
+    `wrangler secret put JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`；
+    使用者自行去 Google Cloud Console 建立 OAuth Client（redirect URI
+    `https://jonaminz-backend.ndmc402010104.workers.dev/auth/google/callback`）
+    並設定 `JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／
+    `JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ` 四個
+    secret；部署後在正式環境端到端驗證內部登入與 Google OAuth 全流程
+    （Google 那段目前完全沒測過，本機只測得到內部密語登入，因為 OAuth
+    需要真實 Google Client Secret 才能跑完整流程）。之後才會做階段
+    B（identity capability）與階段 C（skhpsv2 接入）。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -385,8 +460,12 @@ jonaminz/
     `GRANT SELECT/INSERT/UPDATE/DELETE ... TO service_role`，跟既有兩張表
     權限一致，並回寫進 `backend/supabase/contract_schema.sql` 避免下次
     重建再踩到。
-- **Auth**：目前整站無登入。`saveThemeCssRules` 無身分驗證，任何知道 Worker 網址
-  的人都能改全站外觀——已知安全缺口，規劃由 Google OAuth 補上。
+- **Auth**：目前整站無登入（第 9 項階段 A 程式碼已寫完但未部署，見上）。
+  `saveThemeCssRules` 無身分驗證，任何知道 Worker 網址的人都能改全站
+  外觀——已知安全缺口，第 9 項部署後這個缺口本身仍不會自動補上（那是
+  另一個 action 的事，這次沒有把 `saveThemeCssRules` 接上登入驗證，
+  純粹是新增獨立的登入系統，之後要不要把既有寫入動作接上身分驗證是
+  未來的事，不在這次範圍內）。
 - 後台 `/pages/admin/` 只是佔位頁。
 - Reservoir 願景中的 Slot Engine、Home Portal slots、Global Search、AI Gateway、
   Storage Layer：全部只在願景/規格層面，未實作。
@@ -409,7 +488,12 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.8.0-202607120206`（`version.js`）。規則：每次 push 前要 bump。
+- 業務版本：`v0.9.0-202607120900`（`version.js`，第 9 項階段 A 前端
+  bump）。規則：每次 push 前要 bump。**注意**：這次 bump 只反映前端
+  程式碼變更（新頁面/header.js/首頁 nav），worker.js 這批新 action/路由
+  還沒部署——`getSdkVersion` 等既有端點回的 Kernel hash 不受這次 bump
+  影響，Worker 沒有自己的 version.js 版號，靠 `wrangler deploy` 本身
+  當作部署時間點。
   **2026-07-11～12 implementation plan 第 3-7 項皆完成並已上線**：第 3 項
   （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
   reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/login/index.html
+用途：登入頁（implementation plan 第 9 項）。複製自 pages/admin/index.html 的
+bootstrap，只改 pageId / title / 內容。兩條登入路都在這頁：內部密語表單，
+或導去 Google OAuth。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="登入"
+  data-jonaminz-page-id="login"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>登入 - Jonaminz</title>
+
+  <script>
+    (function () {
+      "use strict";
+
+      window.JONAMINZ_ENTRY_VERSION = String(Date.now());
+      window.JONAMINZ_SITE_CONFIG_URL = "/config.json";
+
+      document.write('<link rel="stylesheet" href="/assets/css/jonaminz-loading.css?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '">');
+      document.write('<script src="/assets/js/entry-core.js?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '"><\/script>');
+    })();
+  </script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page jonaminz-login-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-login-container">
+      <section class="jonaminz-admin-hero jonaminz-login-hero" data-app-root>
+        <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>
