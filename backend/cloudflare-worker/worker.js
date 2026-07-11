@@ -1,6 +1,6 @@
 /*
 檔案位置：jonaminz/backend/cloudflare-worker/worker.js
-用途：jonaminz 水庫唯一後端入口。目前支援五個 action：
+用途：jonaminz 水庫唯一後端入口。目前支援的 action：
 - registerExternalApp：外部專案自己的頁面載入時回報「我上線了」，upsert 進 Supabase。
 - listExternalAppRegistrations：後台讀取回報清單。
 - getThemeCssRules：讀取 Theme（CSS 疊加第 8 層）目前的規則，任何頁面 / 外部專案都能讀
@@ -32,6 +32,14 @@
   這裡先把回應形狀定下來，之後只加內容不改形狀。這個端點回答的是
   「准不准套用 tokens」，不是「tokens 的規則長怎樣」，後者仍是
   getThemeCssRules 的事，這次沒有動它。
+- getSdkVersion：implementation plan 第 5 項（S37）。公開唯讀，回傳
+  `sdk-versions.json` 裡某個 channel（stable/next）目前指向哪個
+  immutable release（`hash`/`url`）。`payload.projectId` 選填——有給的話
+  查 `integration-settings.json` 該專案的 `channel` 欄位決定金絲雀
+  channel，省略/查無 → `"stable"`。這是 SDK loader（`sdk/jonaminz-entry.js`）
+  用來決定該載入哪個 `sdk/sdk-<hash>.js` 的唯一依據；回滾／kill-switch
+  都是直接改 `sdk-versions.json` 對應 channel 的指標再 `wrangler deploy`，
+  不是複雜系統（S39）。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -40,6 +48,7 @@ Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_..
 
 import validateContractSchema from "./contract-schema-validator.generated.js";
 import integrationSettings from "./integration-settings.json";
+import sdkVersions from "./sdk-versions.json";
 import { computeCanonicalHash, validateCrossFields, validateUrls } from "./contract-validation.js";
 
 const CORS_HEADERS = {
@@ -125,6 +134,10 @@ export default {
 
       if (action === "getEffectiveSettings") {
         return json(await getEffectiveSettings(env, payload), 200);
+      }
+
+      if (action === "getSdkVersion") {
+        return json(getSdkVersion(payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -684,5 +697,43 @@ async function getEffectiveSettings(env, payload) {
     css: effectiveCss,
     // 佔位：第 6 項才會有真實 service capability，形狀先定、內容留白。
     capabilities: []
+  };
+}
+
+// implementation plan 第 5 項：SDK loader 用的版本指標（S37）。純讀 git
+// 檔案（sdk-versions.json），不碰 Supabase，不需要 async。
+function getSdkVersion(payload) {
+  const projectId = String((payload && payload.projectId) || "").trim();
+
+  // v1 的 loader 呼叫時不帶 projectId（永遠拿 stable）；有給的話查該專案
+  // 的 channel 授權，查無或沒登記一律回退 stable，不讓打錯字的 projectId
+  // 意外拿到 next channel。
+  let channel = "stable";
+  if (projectId) {
+    const projectSettings = integrationSettings.projects && integrationSettings.projects[projectId];
+    // 注意：這裡故意不用 env.JONAMINZ_ENVIRONMENT 查特定 environment
+    // （getSdkVersion 不接 request context，也不需要）——channel 授權只看
+    // projectId 底下任一 environment 有沒有登記 channel:"next"。v1 沒有
+    // 專案會設非 stable 的 channel，這段路徑目前恆等於 stable，只是
+    // 形狀先定，之後 loader 真的知道自己的 projectId 時直接補傳就有效。
+    const anyEnvSettings =
+      projectSettings && projectSettings.environments && Object.values(projectSettings.environments)[0];
+    if (anyEnvSettings && anyEnvSettings.channel === "next") {
+      channel = "next";
+    }
+  }
+
+  const channelInfo = sdkVersions.channels && sdkVersions.channels[channel];
+  if (!channelInfo) {
+    return { ok: false, code: "CHANNEL_NOT_CONFIGURED", error: 'channel "' + channel + '" has no configured release' };
+  }
+
+  return {
+    ok: true,
+    channel: channel,
+    hash: channelInfo.hash,
+    url: channelInfo.url,
+    revision: sdkVersions.revision,
+    generatedAt: new Date().toISOString()
   };
 }

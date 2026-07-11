@@ -20,6 +20,78 @@
 
 ---
 
+## 2026-07-11 — Implementation plan 第 5 項：SDK Loader ＋ 版本指標
+
+- **任務**：接續 Effective Settings 端點（第 4 項），做第 5 項——把「怎麼
+  把 SDK 送到外部專案頁面上」這條運送機制蓋好，對應 S37（常青
+  loader＋immutable release＋版本指標＋kill-switch＋金絲雀）與 S39
+  （Contract schema／SDK 回滾相容 checklist）。
+- **變更**：
+  - 範圍刻意跟第 6 項（SDK Kernel）切開：implementation plan 把
+    「loader＋版本指標」跟「官方 snippet 對接、lifecycle 狀態機、錯誤
+    模型、contract discovery」（S18-23、S26-29）分成兩項不是巧合——
+    S37 說 loader 該是「極小、幾乎永不改動」的東西，這次只證明「pointer
+    →immutable 檔案→執行」這條運送鏈是通的，不做 `window.Jonaminz.*`
+    骨架或 Promise/ready 語意。
+  - 新增 `sdk/generate-sdk-release.mjs`（跟
+    `generate-contract-validator.mjs` 同精神的 build-time 腳本）：讀
+    `sdk/sdk-src/sdk.js`、算 sha256 前 12 碼、寫出 immutable 的
+    `sdk/sdk-<hash>.js`，不自動改版本指標——發不發版是人的決定。這次
+    `sdk-src/sdk.js` 放極簡 placeholder（`window.Jonaminz.status=
+    "degraded"`），真正的 SDK 邏輯是第 6 項的事。另準備
+    `sdk/sdk-empty.js`（真的什麼都不做，kill-switch 目標）。
+  - 新增 `backend/cloudflare-worker/sdk-versions.json`（git 檔案，跟
+    `integration-settings.json` 同模式）：`stable`/`next` channel 各自
+    指向哪個 hash/url。`worker.js` 新增 `getSdkVersion` action（公開
+    唯讀）：`payload.projectId` 選填，v1 的 loader 呼叫時不帶（一律拿
+    stable），端點本身先支援有給時查 `integration-settings.json`
+    （新增選填 `channel` 欄位）決定金絲雀，形狀先定、v1 沒有專案會設
+    非 stable 的 channel。
+  - 新增 `sdk/jonaminz-entry.js` 常青 loader：讀 localStorage 短 TTL
+    快取（5 分鐘）→ 沒有才打 `getSdkVersion`（5 秒逾時）→ 動態插入
+    `<script>` 載入拿到的 immutable 檔案；抓不到指標時退回
+    last-known-good（不論多舊），兩者都沒有就靜默退場；全程 `try/catch`
+    （S24 不燒房子）。
+  - **自己寫完後測試時抓到一個真的 bug**：第一版把載入 SDK 檔案的網址
+    誤用 `window.location.origin`（宿主頁面的 origin）——但
+    `sdk-<hash>.js` 是放在 jonaminz.com，不是外部專案自己的網域，本機
+    測試網址（`localhost:5500`）跟正式站不一樣時會直接拿錯網址。改用
+    `document.currentScript.src` 反推 loader 自己是從哪個網域載入的，
+    在同步執行階段先存成常數（`document.currentScript` 在非同步 fetch
+    callback 裡不可靠，要先存起來）。
+  - 新增 `docs/sdk-release-checklist.md`（S39 回滾相容 checklist，純
+    流程文件）：發布新 Contract schema 前，要先確認「如果現在要回滾，
+    回滾目標支不支援這個新 schema」，兩階段發布順序寫成可照做的步驟。
+- **驗證**：
+  1. headless browser 測試（真實載入 `http://localhost:5500/sdk/
+     jonaminz-entry.js`，不是用 `page.setContent()` 的 about:blank
+     頁面——那個環境下 localStorage/fetch 行為跟真實頁面不一樣，第一次
+     測試因此得到誤導性的空結果，改用真實 `goto()` 頁面才測出正確
+     行為）：確認 `getSdkVersion` 被呼叫、`sdk-<hash>.js` 被正確載入
+     並執行、`window.Jonaminz.status === "degraded"`、console 印出
+     placeholder 訊息、零 JS 錯誤。
+  2. **在正式環境實際操作 kill-switch 並復原**：把 `stable` channel
+     指到 `sdk/sdk-empty.js`、`wrangler deploy`，headless browser 確認
+     `sdk-empty.js` 真的被請求並執行（200，不是請求失敗導致的假陽性）、
+     `window.Jonaminz` 是 `undefined`；改回原本的 placeholder hash、
+     `wrangler deploy`，確認恢復 `status:"degraded"`。這兩次部署都各自
+     另外用 AskUserQuestion 取得授權（跟原本「開發完部署一次」的授權
+     內容不同，classifier 正確擋下要求重新確認）。
+  3. `npx esbuild worker.js --bundle` 與 `node --check` 確認 `worker.js`
+     與 `sdk/jonaminz-entry.js` 語法正確、無 eval。
+- **狀態變化**：implementation plan **第 5 項完成並已上線**。下一步是
+  第 6 項（SDK Kernel：官方 snippet 對接、lifecycle 狀態機、錯誤模型、
+  contract discovery）。
+- **遺留**：`sdk/` 資料夾本次只在本機 `dev-server.js` 驗證過，git push
+  後才會是 `https://jonaminz.com/sdk/jonaminz-entry.js` 這個常青網址
+  真正上線（Worker 端 `getSdkVersion` 已經上線，只有靜態檔案還沒推）。
+  金絲雀（`next` channel）目前沒有真實專案在用，純粹機制就位。S39
+  checklist 沒有自動化檢查，純靠人工遵守（規格允許的簡化）。
+- **版本**：`v0.6.0-202607112352`（已 bump；Worker action、新 git
+  設定檔、新靜態檔案皆屬程式碼變更）。
+
+---
+
 ## 2026-07-11 — Implementation plan 第 4 項：Flattened Effective Settings 端點
 
 - **任務**：接續核准後台（第 3 項），做第 4 項——approve 完的 Contract

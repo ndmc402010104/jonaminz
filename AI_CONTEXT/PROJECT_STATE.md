@@ -52,15 +52,31 @@ jonaminz/
     admin/contracts/          Contract 核准後台（implementation plan 第 3 項）：pending
                               清單、diff 檢視、核准／否決／改判，唯一有身分驗證保護的
                               寫入動作（Worker secret JONAMINZ_ADMIN_TOKEN 臨時關卡）
+  sdk/
+    jonaminz-entry.js          常青 SDK loader（implementation plan 第 5 項，S37）：
+                              向 getSdkVersion 問版本指標 → 動態載入對應的
+                              sdk-<hash>.js。極簡、try/catch 全包，不做 Contract
+                              discovery／window.Jonaminz.* 骨架（那是第 6 項）
+    sdk-src/sdk.js             目前發布中的 SDK release 原始碼（現在是 placeholder，
+                              只設 window.Jonaminz.status="degraded"）
+    generate-sdk-release.mjs   build-time 腳本：讀 sdk-src/sdk.js、算 sha256 前 12 碼、
+                              產生 immutable 的 sdk-<hash>.js（不自動改 sdk-versions.json，
+                              要不要發版是人的決定）
+    sdk-<hash>.js               上面腳本的產出，immutable，內容一改檔名就要換
+    sdk-empty.js                kill-switch 目標，內容真的什麼都不做
   backend/
     README.md                 後端部署說明
-    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，9 個 action（見 §5）
+    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，10 個 action（見 §5）
     cloudflare-worker/wrangler.toml   含 [vars] JONAMINZ_ENVIRONMENT（見 §4 Platform Integration）
     cloudflare-worker/package.json    ajv 依賴（Contract JSON Schema 驗證用）
     cloudflare-worker/integration-settings.json  Integration Settings（git 檔案，
                                       S38）：projectId→environment→registered origin
                                       ＋選填 css 授予值（getEffectiveSettings 用，
-                                      省略視為 none）＋檔案層級 revision 整數
+                                      省略視為 none）＋選填 channel 值（getSdkVersion
+                                      用，省略視為 stable）＋檔案層級 revision 整數
+    cloudflare-worker/sdk-versions.json  SDK 版本指標（git 檔案，S37）：
+                                      stable/next channel → 各自指向哪個 hash/url，
+                                      回滾／kill-switch＝改這份檔案再 wrangler deploy
     cloudflare-worker/contract-validation.js  Contract 收取的純函式驗證模組
                                       （canonical hash / cross-field / URL 同源），
                                       可獨立用 node 測試，不需部署 Worker
@@ -86,6 +102,8 @@ jonaminz/
                                           Review Request，含 12 個挑戰問題；收到的
                                           Review 一份一檔放 docs/platform-integration-reviews/
     platform-integration-v1-implementation-plan.md  Spec Frozen 後的工作清單（非規格）
+    sdk-release-checklist.md              S39 回滾相容 checklist（實作計畫第 5 項產出，
+                                          純流程文件，發版/回滾/kill-switch 操作步驟）
     contract-schema/                      實作計畫第 1 項產出：Contract JSON Schema 草稿
                                           （RC，未定案，見該資料夾 README 的 6 點待確認設計決策）
   AI_CONTEXT/                 本資料夾：AI agent 交接文件
@@ -109,6 +127,12 @@ jonaminz/
   切換＋active 指標＋audit log，2026-07-11 已用 jonaminz-movies 真實那筆
   pending（snapshot #3）跑過完整流程（submit→reject→approve→撤回→再核准）
   並直連 DB 驗證三張表資料正確，細節見 §4。
+- **Flattened Effective Settings 端點（implementation plan 第 4 項）已上線**：
+  `getEffectiveSettings` 算 S31 公式，目前只算 CSS 這個維度，細節見 §4。
+- **SDK Loader（implementation plan 第 5 項）已上線**：`sdk/jonaminz-entry.js`
+  常青 loader＋`getSdkVersion` 版本指標，運送機制（pointer→immutable 檔案
+  →執行）、kill-switch、回滾都已在正式環境實際操作驗證過，放的是極簡
+  placeholder release，真正的 SDK 邏輯待第 6 項，細節見 §4。
 
 ## 4. 尚未完成的功能
 
@@ -215,9 +239,36 @@ jonaminz/
     CSS 規則傳遞邏輯收編進來（第 7 項的事，這個端點只回答「准不准」）、
     「tokens 正向成功」路徑的真實端到端驗證（jonaminz-movies 沒宣告
     css，等真的有專案要用 tokens 時再一併補）。
-  - 尚未開始：第 5 項（SDK loader）→ 第 9 項（Google OAuth）。SDK
-    （`jonaminz-entry.js`，常青網址 `/sdk/`）、`window.Jonaminz.*`
-    一行都還沒寫。
+  - **第 5 項（SDK Loader＋版本指標）：完成並已部署上線（2026-07-11）。**
+    範圍刻意跟第 6 項（SDK Kernel）切開——這裡只蓋「運送機制」，不做
+    S21-23 的 `window.Jonaminz.*` 骨架／Promise/ready 語意。
+    `sdk/jonaminz-entry.js`：常青 loader（`https://jonaminz.com/sdk/`
+    這個路徑），向 `getSdkVersion`（新 Worker action，S37，公開唯讀）
+    問某個 channel（stable/next）目前指向哪個 immutable
+    `sdk/sdk-<hash>.js`，全程 `try/catch`（S24 不燒房子），localStorage
+    5 分鐘短 TTL 快取，抓不到指標時退回 last-known-good（不論多舊），
+    兩者都沒有就靜默退場。**踩過一個真的 bug 並自己抓到修好**：第一版
+    把載入 SDK 檔案的網址誤用 `window.location.origin`（宿主頁面的
+    origin）——但 SDK 檔案是放在 jonaminz.com，不是外部專案自己的網域，
+    本機測試網址跟正式站不同時會直接載入失敗。改用
+    `document.currentScript.src` 反推 loader 自己是從哪個網域載入的，
+    在同步階段先存起來（`document.currentScript` 在非同步 callback 裡
+    不可靠）。`sdk/generate-sdk-release.mjs`：build-time 腳本，讀
+    `sdk/sdk-src/sdk.js`、算 sha256 前 12 碼產生 immutable 檔名，跟
+    `generate-contract-validator.mjs` 同精神；不自動改
+    `sdk-versions.json`，發版是人的決定。這次放的是極簡 placeholder
+    release（`window.Jonaminz.status="degraded"`），只證明「pointer→
+    immutable 檔案→執行」這條鏈通了，不假裝實作真正的 SDK 邏輯。
+    **kill-switch 與回滾都已在正式環境實際操作驗證過**（不是只看程式碼
+    推論）：把 `stable` channel 指到 `sdk/sdk-empty.js`（真的什麼都不做）
+    並部署，headless browser 確認 `window.Jonaminz` 變成 `undefined`；
+    改回 placeholder hash 再部署，確認恢復正常。S39 回滾相容 checklist
+    見新文件 `docs/sdk-release-checklist.md`（純流程文件，S39 原文允許
+    不做自動化系統）。`integration-settings.json` 新增選填的 `channel`
+    欄位（getSdkVersion 用來決定金絲雀，v1 沒有專案會設，形狀先定）。
+  - 尚未開始：第 6 項（SDK Kernel）→ 第 9 項（Google OAuth）。
+    `window.Jonaminz.*` 真實骨架、Promise/ready/degraded 完整語意、
+    contract discovery 一行都還沒寫。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -256,7 +307,7 @@ jonaminz/
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
 | 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。五張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`，皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
 | Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`JONAMINZ_ADMIN_TOKEN`（approve/reject 臨時關卡，存在 Cloudflare，不在 repo，Claude 不經手實際值） |
-| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式，見 backend/README.md） |
+| Worker API | 唯一端點 `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標，`sdk/jonaminz-entry.js` 用，見 backend/README.md） |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
@@ -264,15 +315,21 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-11 掃描）
 
-- 業務版本：`v0.5.0-202607112206`（`version.js`）。規則：每次 push 前要 bump。
-  **2026-07-11 implementation plan 第 3、4 項皆完成並已上線**：第 3 項
+- 業務版本：`v0.6.0-202607112352`（`version.js`）。規則：每次 push 前要 bump。
+  **2026-07-11 implementation plan 第 3、4、5 項皆完成並已上線**：第 3 項
   （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
   reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、
   `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定、`pages/admin/contracts/`
   已 push 上線。第 4 項（`getEffectiveSettings`）Worker 已
   `wrangler deploy`、`integration-settings.json` 的 `css`/`revision`
-  欄位已隨部署生效，curl 已驗證三條路徑正確。目前 Worker 線上版本與
-  repo 完全同步。
+  欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）
+  Worker 已 `wrangler deploy`（`getSdkVersion`）、`sdk/` 資料夾（loader、
+  placeholder release、kill-switch 空檔案）已在本機驗證但**尚未 git
+  push**（本次收尾會一併 push，push 之後 `https://jonaminz.com/sdk/
+  jonaminz-entry.js` 才會是真的常青網址，之前只在 localhost 測過）。
+  kill-switch／回滾已在正式環境的 `sdk-versions.json` 上實際操作並復原
+  過，目前 `stable`/`next` 都指回 placeholder release（hash
+  `58350efc5a86`），Worker 線上版本與 repo 完全同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、

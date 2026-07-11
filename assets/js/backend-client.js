@@ -100,6 +100,10 @@
     return call("getEffectiveSettings", payload, options);
   }
 
+  function getSdkVersion(payload, options) {
+    return call("getSdkVersion", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -107,6 +111,7 @@
     listPendingContracts: listPendingContracts,
     approveContract: approveContract,
     rejectContract: rejectContract,
+    getSdkVersion: getSdkVersion,
     getEffectiveSettings: getEffectiveSettings
   };
 })();

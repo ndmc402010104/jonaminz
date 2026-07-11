@@ -82,8 +82,21 @@
    新增選填的 `css` 授予欄位＋檔案層級 `revision` 整數（S38 要求回應帶
    版本資訊）。細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、
    `backend/README.md`。
-5. **SDK loader ＋ 版本指標**（S37：immutable `sdk-<hash>.js`、stable
-   指標、kill-switch、per-project channel）＋ **S39 回滾相容 checklist**
+5. **SDK loader ＋ 版本指標** —— ✅ 完成並已部署上線（2026-07-11）。
+   範圍刻意跟第 6 項切開：這裡只蓋「運送機制」（loader 找到並載入正確的
+   immutable 檔案），不做 S21-23 的 window.Jonaminz.* 骨架／Promise/ready
+   語意（那是第 6 項）。`getSdkVersion` action（S37，公開唯讀）回傳某個
+   channel（stable/next）目前指向哪個 `sdk/sdk-<hash>.js`；
+   `sdk/generate-sdk-release.mjs` 算 sha256 前 12 碼產生 immutable 檔名；
+   `sdk/jonaminz-entry.js` 是常青 loader（try/catch 全包、localStorage
+   短 TTL 快取＋last-known-good 降級，S24/S37）。放了一個極簡 placeholder
+   release（`window.Jonaminz.status="degraded"`）證明「pointer→immutable
+   檔案→執行」這條鏈真的通了。**kill-switch 與回滾都已在正式環境實際
+   操作過**（改 channel 指標指向 `sdk/sdk-empty.js` 再指回來，headless
+   browser 各驗證一次），不是只看程式碼推論。**S39 回滾相容 checklist**：
+   `docs/sdk-release-checklist.md`，純文件流程，沒有自動化檢查（S39
+   原文允許）。細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、
+   `backend/README.md`。
 6. **SDK Kernel**：官方 snippet 對接（S21–S23）、lifecycle 狀態機、
    錯誤模型（S27–S29）、診斷面（S26）、contract discovery（S18–S20）
 7. **tokens CSS**：收編現有 `theme-runtime.js` 邏輯進 SDK；變數名正式化

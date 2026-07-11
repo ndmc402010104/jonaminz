@@ -118,10 +118,23 @@ v1 只有 none/tokens 兩級）。`capabilities` 固定空陣列佔位——v1 S
 規劃是全部 service 一律婉拒（F7/S32），現在還沒有真實 capability 可算，
 形狀先定、第 6 項才填內容。environment 一律用 Worker 自己的
 `JONAMINZ_ENVIRONMENT`，不從 payload 讀（同 submitContract 的理由）。
-目前沒有任何東西會呼叫這個端點——SDK（第 5、6 項）還沒寫。
+目前沒有任何東西會呼叫這個端點——第 5 項（SDK Loader）只蓋了運送機制，
+真正會呼叫 `getEffectiveSettings` 的 SDK 邏輯要等第 6 項（SDK Kernel）。
+
+運送機制本身（S37）：`sdk/jonaminz-entry.js` 是常青 loader，向
+`getSdkVersion`（公開唯讀）問某個 channel（stable/next）目前指向哪個
+immutable `sdk/sdk-<hash>.js`（`sdk/generate-sdk-release.mjs` 算內容
+sha256 前 12 碼產生檔名，跟 `generate-contract-validator.mjs` 同精神）。
+回滾／kill-switch 都是改 `backend/cloudflare-worker/sdk-versions.json`
+（git 檔案，跟 `integration-settings.json` 同模式）再 `wrangler deploy`，
+不需要複雜系統（S39）；kill-switch 目標是真的什麼都不做的
+`sdk/sdk-empty.js`。這次放的 `sdk/sdk-src/sdk.js` 是極簡 placeholder
+（只設 `window.Jonaminz.status="degraded"`），只證明「pointer→immutable
+檔案→執行」這條鏈通了，不是真正的 SDK 邏輯（那是第 6 項）。
 
 完整規格見 `docs/platform-integration-spec-v1.md`（Frozen, S1-S39）；schema 細節見
-`docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`。
+`docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`；
+SDK 發版/回滾流程見 `docs/sdk-release-checklist.md`。
 
 ## 5. 設定流
 
@@ -132,8 +145,13 @@ registry.json 外部專案登錄表（v0 拉模式用，目前空）。
 integration-settings.json  Platform Integration 用的 Integration Settings
               （S38：git 檔案＋Worker 供應）：projectId → environment →
               registered origin ＋ 選填 css 授予值（getEffectiveSettings
-              用）＋檔案層級 revision 整數。跟 registry.json 是兩個獨立
-              機制，不要混用（v0 尚未作廢，見 §7 與 RULES.md §4）。
+              用）＋選填 channel 值（getSdkVersion 用，決定金絲雀）＋
+              檔案層級 revision 整數。跟 registry.json 是兩個獨立機制，
+              不要混用（v0 尚未作廢，見 §7 與 RULES.md §4）。
+sdk-versions.json  SDK 版本指標（S37：git 檔案＋Worker 供應，跟
+              integration-settings.json 同模式）：stable/next channel
+              → hash/url。改這份檔案＋wrangler deploy＝發版/回滾/
+              kill-switch，見 docs/sdk-release-checklist.md。
 version.js    業務版本，push 前 bump。
 wrangler.toml Worker 設定；secrets（SUPABASE_URL/SUPABASE_SECRET_KEY）在
               Cloudflare 上，不在 repo；`[vars] JONAMINZ_ENVIRONMENT` 決定這個
@@ -173,15 +191,19 @@ DB schema：手動貼 backend/supabase/*.sql 到 Supabase SQL Editor（無 migra
 規格 `docs/platform-integration-spec-v1.md` 已 **Frozen（S1-S39）**。
 Contract JSON Schema（`docs/contract-schema/`）、Worker 端合約收取
 （`submitContract`，見上面 §4「Contract 收取」）、核准後台（approve/reject，
-同見 §4）與 Flattened Effective Settings 端點（`getEffectiveSettings`，
+同見 §4）、Flattened Effective Settings 端點（`getEffectiveSettings`，
 S31/S38，算「approved Contract × Settings 授予」——目前只算 CSS 這個
-維度，`capabilities` 留空陣列佔位，等第 6 項有真實 service 才填內容）
-**已實作並部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
+維度，`capabilities` 留空陣列佔位，等第 6 項有真實 service 才填內容）與
+SDK Loader（`sdk/jonaminz-entry.js` 常青 loader＋`getSdkVersion` 版本
+指標，S37；只是運送機制，載入的內容目前是極簡 placeholder）**已實作並
+部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
 `docs/platform-integration-v1-implementation-plan.md` 的順序：
 
-- **SDK**：常青網址 `/sdk/jonaminz-entry.js`、官方 snippet 對接（S21-S23）、
-  lifecycle 狀態機、錯誤模型（S27-S29）、`window.Jonaminz.*`（未授權時
-  「婉拒」：rejected Promise 固定錯誤碼）、contract discovery（S18-S20）。
+- **SDK Kernel**：`sdk/sdk-src/sdk.js` 目前的 placeholder 內容要換成
+  真實邏輯——官方 snippet 對接（S21-S23）、lifecycle 狀態機、錯誤模型
+  （S27-S29）、`window.Jonaminz.*`（未授權時「婉拒」：rejected Promise
+  固定錯誤碼）、contract discovery（S18-S20）。運送機制（loader、版本
+  指標、kill-switch、回滾）已經蓋好，這裡只是往裡面填真實內容。
 - **tokens CSS 收編**：現有 `theme-runtime.js` 邏輯併入 SDK，變數名正式化為
   `--jz-*`（S36）。
 - **smoke app** 完整生命週期測試。
