@@ -118,9 +118,7 @@ v1 只有 none/tokens 兩級）。`capabilities` 固定空陣列佔位——v1 S
 規劃是全部 service 一律婉拒（F7/S32），現在還沒有真實 capability 可算，
 形狀先定、第 6 項才填內容。environment 一律用 Worker 自己的
 `JONAMINZ_ENVIRONMENT`，不從 payload 讀（同 submitContract 的理由）。
-目前沒有任何東西會呼叫這個端點——第 5 項（SDK Loader）只蓋了運送機制，
-真正會呼叫 `getEffectiveSettings` 的是 SDK Kernel（`sdk/sdk-src/sdk.js`，
-第 6 項，已上線）。
+真正呼叫這個端點的是 SDK Kernel（`sdk/sdk-src/sdk.js`，第 6 項，已上線）。
 
 運送機制（S37）：`sdk/jonaminz-entry.js` 是常青 loader，向
 `getSdkVersion`（公開唯讀）問某個 channel（stable/next）目前指向哪個
@@ -136,7 +134,8 @@ Kernel 本體（S18-23、S26-29，第 6 項）：判斷 `window.Jonaminz.__snipp
 discovery（`data-contract` 或預設 `/jonaminz.contract.json`，限同源，
 S18-20）→ F5/S8 最小必填客戶端粗篩 → 推送 `submitContract`（失敗不致命，
 S13/S16）→ 查 `getEffectiveSettings` 決定 `ready`/`degraded`（S23/S31）→
-`settle()` 官方 snippet 的 `ready` Promise，或就地更新（Kernel 姍姍來遲、
+`effectiveCss === "tokens"` 就順便呼叫 `applyTokens()`（第 7 項，見下）
+→ `settle()` 官方 snippet 的 `ready` Promise，或就地更新（Kernel 姍姍來遲、
 snippet 已被 15 秒逾時 settle 過的情況，S21）。**`data-contract` 讀取有
 一個銜接細節**：S18 規定這個屬性寫在載入 loader 的 `<script>` 標籤上，
 但 Kernel 是 loader 動態插入的「另一個」`<script>` 標籤，讀不到原始
@@ -145,6 +144,15 @@ snippet 已被 15 秒逾時 settle 過的情況，S21）。**`data-contract` 讀
 `dataset.stale`，Kernel 才讀得到。v1 沒有已正式發布的 service，
 `window.Jonaminz.*` 不掛任何 service 命名空間（S32 只保障已發布
 service 永久存在）。
+
+tokens CSS（S34-36，第 7 項）：`applyTokens()` 收編 `assets/js/
+theme-runtime.js` 現有的「讀 `theme_css_rules`、組 CSS、注入
+`<style>`」邏輯，但走 gated 路徑（原本 v0 機制任何人貼 script 標籤就
+拿得到，不經審核；`theme-runtime.js` 本身這次沒動，jonaminz 自己網站
+繼續用它，v0 尚未作廢）。只挑 `:root` 那些列（S35：跨專案共用介面，
+其他 selector 是 jonaminz 元件微調，不送）；每個變數同時輸出舊名與
+`--jz-*` 新名（S36 機械式轉換，別名過渡）。不 await、不擋 `ready`
+settle，失敗只 `console.warn`（S24）。
 
 完整規格見 `docs/platform-integration-spec-v1.md`（Frozen, S1-S39）；schema 細節見
 `docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`；
@@ -209,16 +217,13 @@ Contract JSON Schema（`docs/contract-schema/`）、Worker 端合約收取
 S31/S38，算「approved Contract × Settings 授予」——目前只算 CSS 這個
 維度，`capabilities` 留空陣列佔位，等第一個真實 service 出現才填內容）、
 SDK Loader（`sdk/jonaminz-entry.js` 常青 loader＋`getSdkVersion` 版本
-指標，S37）與 SDK Kernel（`sdk/sdk-src/sdk.js`，S18-23/S26-29，真的做
+指標，S37）、SDK Kernel（`sdk/sdk-src/sdk.js`，S18-23/S26-29，真的做
 contract discovery、推送合約、查 Effective Settings、settle `ready`
-Promise，見上面 §4）**已實作並部署上線**，不在本節範圍——本節只列
-真正還沒做的部分，依 `docs/platform-integration-v1-implementation-plan.md`
-的順序：
+Promise，見上面 §4）與 tokens CSS 收編（`applyTokens()`，S34-36，
+`effectiveCss==="tokens"` 時套用 CSS custom properties，見上面 §4）
+**已實作並部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
+`docs/platform-integration-v1-implementation-plan.md` 的順序：
 
-- **tokens CSS 收編**：現有 `theme-runtime.js` 邏輯併入 SDK Kernel，
-  變數名正式化為 `--jz-*`（S36）。目前 `getEffectiveSettings` 已經能
-  算出「准不准套用 tokens」，但 Kernel 拿到這個結果後不做任何 DOM
-  操作（刻意留給這項）。
 - **`window.Jonaminz.*` 真實 service**：capability 文法（S30）、
   Effective capability 交集運算（S31）的完整實作、
   `CAPABILITY_NOT_GRANTED` 的真實 reject 路徑——v1 沒有任何已發布的

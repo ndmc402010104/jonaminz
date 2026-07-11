@@ -1,6 +1,6 @@
 # jonaminz 後端
 
-六件事：
+七件事：
 1. 接收外部專案「我上線了」的回報（registerExternalApp），存進 Supabase，後台可以讀出來
    看「誰接進來、最後一次回報是什麼時候」。
 2. Theme：全站（含外部專案）共用的外觀來源，selector+property+value 規則存在 Supabase
@@ -27,6 +27,12 @@
    `getEffectiveSettings`、settle S21 官方 snippet 的 `ready` Promise。
    v1 沒有已發布的 service，`window.Jonaminz.*` 不掛任何 service 命名
    空間。對應 implementation plan 第 6 項。
+7. tokens CSS 收編（`applyTokens()`，同樣在 `sdk/sdk-src/sdk.js`）：
+   `effectiveCss === "tokens"` 時呼叫既有的 `getThemeCssRules`（第 2 點
+   那個 action，沒改），只挑 `:root` 列輸出成 CSS custom properties，
+   舊名與 `--jz-*` 新名並存（S36）。`assets/js/theme-runtime.js` 本身
+   沒動，繼續是 jonaminz 自己網站用的 v0 機制。對應 implementation
+   plan 第 7 項。
 
 機密（Supabase secret key，新版命名 `sb_secret_...`，不是 `sb_publishable_...`）只存在
 Cloudflare Worker 的 secret 裡，不會出現在這個 repo、對話紀錄或前端程式碼中。

@@ -58,11 +58,13 @@ jonaminz/
                               sdk-<hash>.js，並把 data-contract／是否來自快取／
                               自己的 release hash 轉貼給 Kernel（第 6 項新增，
                               S18 銜接缺口，見 §4）。極簡、try/catch 全包
-    sdk-src/sdk.js             SDK Kernel 真實邏輯（implementation plan 第 6 項）：
-                              contract discovery、推送合約、查 Effective
-                              Settings、settle S21 官方 snippet 的 ready
-                              Promise。v1 不掛任何 window.Jonaminz.* service
-                              命名空間（沒有已發布的 service 可掛，見 §4）
+    sdk-src/sdk.js             SDK Kernel 真實邏輯（implementation plan 第 6、
+                              7 項）：contract discovery、推送合約、查
+                              Effective Settings、settle S21 官方 snippet 的
+                              ready Promise、effectiveCss==="tokens" 時套用
+                              CSS custom properties（收編 theme-runtime.js，
+                              舊名＋--jz-* 新名並存）。v1 不掛任何
+                              window.Jonaminz.* service 命名空間（見 §4）
     generate-sdk-release.mjs   build-time 腳本：讀 sdk-src/sdk.js、算 sha256 前 12 碼、
                               產生 immutable 的 sdk-<hash>.js（不自動改 sdk-versions.json，
                               要不要發版是人的決定）
@@ -141,6 +143,11 @@ jonaminz/
   Effective Settings、settle S21 官方 snippet 的 ready Promise。對
   jonaminz-movies 真實已上線頁面注入完整官方 snippet 測過 ready 路徑跟
   三條降級路徑，全部正確，細節見 §4。
+- **tokens CSS 收編（implementation plan 第 7 項）已上線**：Kernel 的
+  `applyTokens()` 在 `effectiveCss === "tokens"` 時收編既有
+  `getThemeCssRules` 的資料，只送 `:root` 變數，舊名／`--jz-*` 新名
+  都輸出。`theme-runtime.js` 本身沒動，仍是 jonaminz 自己網站用的 v0
+  機制，細節見 §4。
 
 ## 4. 尚未完成的功能
 
@@ -314,7 +321,31 @@ jonaminz/
     `settingsRevision` 是真實數字。另外驗證三條降級路徑（合約 404、
     projectId 未登記、合約缺必填欄位）皆正確 `degraded` 且 reason 正確、
     零 JS 錯誤（S24 底線）。
-  - 尚未開始：第 7 項（tokens CSS 收編）→ 第 9 項（Google OAuth）。
+  - **第 7 項（tokens CSS 收編進 SDK）：完成並已部署上線（2026-07-12）。**
+    `sdk/sdk-src/sdk.js` 新增 `applyTokens()`：`effectiveCss === "tokens"`
+    時呼叫既有的 `getThemeCssRules`（不改 Worker、不改 Supabase），只挑
+    `:root` 那些列（S35：這才是跨專案共用介面，其他 selector 如 `.card`
+    是 jonaminz 自己共用元件的微調，對外部專案沒有意義，不送）；每個
+    變數同時輸出舊名（`--color-primary`）與 `--jz-*` 新名
+    （`--jz-primary`，S36 機械式轉換：拿掉舊前綴、換 `--jz-`，其餘語意
+    名稱不變，值相同）。套用是 fire-and-forget，不 await、不擋 `ready`
+    settle（S23 沒有把 CSS 套用列進 ready 必要條件）；失敗只
+    `console.warn`，不影響 `ready`/`degraded` 判定。**`theme-runtime.js`
+    本身這次沒動**：它是 jonaminz 自己網站依賴的 v0 機制（任何人貼
+    script 標籤就拿到外觀，不經 Contract／Settings 審核），RULES.md
+    §4 規定作廢需三條件都成立，這次沒有要作廢它——第 7 項是在 Kernel
+    裡新增一份收編後的 gated 邏輯，不是重構原檔案。**驗證**：Playwright
+    mock `getEffectiveSettings`／`getThemeCssRules`（其餘走真實
+    production Worker），確認 tokens 正向路徑（舊名+新名都輸出、
+    `.card` 這類非 `:root` selector 正確排除）、`css:"none"` 時完全
+    不呼叫 `getThemeCssRules`（gated 真的擋住）、`getThemeCssRules`
+    失敗時 `ready` 仍正確 resolve（不影響核心 lifecycle），三種情況
+    皆零 JS 錯誤。**這次沒做**：真實外部專案端到端跑一次「tokens 正向
+    成功」（jonaminz-movies 的 Contract 沒宣告 css、Settings 授予也是
+    `"none"`，維持第 4 項的保守選擇，等真的有專案要用 tokens 才一併
+    做）；補建完整 24 個 token 的 baseline 交付（現有機制本來就只送
+    「已客製的 delta」，這次是照原樣收編，不是新功能）。
+  - 尚未開始：第 8 項（smoke app）→ 第 9 項（Google OAuth）。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -361,17 +392,17 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.7.0-202607120134`（`version.js`）。規則：每次 push 前要 bump。
-  **2026-07-11～12 implementation plan 第 3-6 項皆完成並已上線**：第 3 項
+- 業務版本：`v0.8.0-202607120206`（`version.js`）。規則：每次 push 前要 bump。
+  **2026-07-11～12 implementation plan 第 3-7 項皆完成並已上線**：第 3 項
   （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
   reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、
   `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定、`pages/admin/contracts/`
   已 push 上線。第 4 項（`getEffectiveSettings`）Worker 已
   `wrangler deploy`、`integration-settings.json` 的 `css`/`revision`
-  欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）與
-  第 6 項（SDK Kernel）都已 `wrangler deploy`（`getSdkVersion` 指標
-  現在指向真實 Kernel，hash `0c9953079f7a`，不是 placeholder 了）；
-  `sdk/` 資料夾本次收尾會一併 git push（push 之後
+  欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）、
+  第 6 項（SDK Kernel）、第 7 項（tokens CSS 收編）都已 `wrangler deploy`
+  （`getSdkVersion` 指標現在指向含 tokens 邏輯的 Kernel，hash
+  `c0d679686951`）；`sdk/` 資料夾本次收尾會一併 git push（push 之後
   `https://jonaminz.com/sdk/jonaminz-entry.js` 才會是真的常青網址上線，
   之前都在 localhost／mock 指標測試）。第 5 項的 kill-switch／回滾已在
   正式環境的 `sdk-versions.json` 上實際操作並復原過。Worker 線上版本與

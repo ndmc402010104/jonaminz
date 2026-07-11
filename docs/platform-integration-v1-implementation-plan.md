@@ -122,8 +122,26 @@
    resolve、diagnostics 正確；另外驗證三條降級路徑（合約 404、
    projectId 未登記、合約缺必填欄位）皆正確 degraded 且零 JS 錯誤。
    細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-12 條目。
-7. **tokens CSS**：收編現有 `theme-runtime.js` 邏輯進 SDK；變數名正式化
-   為 `--jz-*`，舊無前綴名（`--color-primary` 等）以別名過渡（S36）
+7. **tokens CSS** —— ✅ 完成並已部署上線（2026-07-12）。`sdk/sdk-src/sdk.js`
+   新增 `applyTokens()`：`effectiveCss === "tokens"` 時呼叫既有的
+   `getThemeCssRules`（不改 Worker、不改 Supabase），只挑 `:root`
+   那些列（S35：這才是跨專案共用介面，其他 selector 是 jonaminz 自己
+   共用元件的微調，對外部專案沒有意義，不送）；每個變數同時輸出舊名
+   （`--color-primary`）與 `--jz-*` 新名（`--jz-primary`，S36 機械式
+   轉換：拿掉舊前綴、換 `--jz-`，其餘語意名稱不變，兩者值相同）。
+   套用是 fire-and-forget，不 await、不擋 `ready` settle（S23 沒有把
+   CSS 套用列進 ready 必要條件，tokens 純視覺、best-effort）；失敗只
+   `console.warn`，不影響 `ready`/`degraded` 判定（跟既有
+   `theme-runtime.js` 同樣的容錯哲學）。**`theme-runtime.js` 本身這次
+   沒動**：它是 jonaminz 自己網站依賴的 v0 機制（任何人貼 script 標籤
+   就能拿到外觀，不經 Contract／Settings 審核），RULES.md §4 規定作廢
+   需三條件，這次沒有要作廢它——第 7 項是在 Kernel 裡新增一份收編後的
+   gated 邏輯，不是重構原檔案。**驗證**：Playwright mock
+   `getEffectiveSettings`／`getThemeCssRules`，確認 tokens 正向路徑
+   （舊名+新名都輸出、`.card` 這類非 `:root` selector 正確被排除）、
+   `css:"none"` 時完全不呼叫 `getThemeCssRules`（gated 真的擋住）、
+   `getThemeCssRules` 失敗時 `ready` 仍正確 resolve（不影響核心
+   lifecycle）。細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-12 條目。
 8. **smoke app**（見下方情境清單）
 9. **Google OAuth 主站登入**（相鄰工程：v1 只做主站身分識別，S6）
 

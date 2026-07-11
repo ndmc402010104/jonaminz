@@ -20,6 +20,62 @@
 
 ---
 
+## 2026-07-12 — Implementation plan 第 7 項：tokens CSS 收編進 SDK
+
+- **任務**：接續 SDK Kernel（第 6 項，能算出「准不准套用 tokens」但
+  什麼都沒做），做第 7 項——把 CSS custom properties 真的送到外部專案
+  頁面上。對應 S34（CSS 生效等級）、S35（tokens 最小語意）、S36
+  （token 命名）。
+- **變更**：
+  - 現有 `assets/js/theme-runtime.js` 已經做了「讀 Supabase
+    `theme_css_rules`、組 CSS、注入 `<style>`」，但走 v0 舊模式：任何
+    人貼一行 script 標籤就拿得到外觀，不經 Contract／Integration
+    Settings 審核。這次是在 Kernel 裡新增一份**收編後、gated** 的邏輯
+    ——`theme-runtime.js` 本身沒動，jonaminz 自己網站繼續用原本機制
+    （v0 尚未作廢，RULES.md §4 三條件未全部成立）。
+  - **範圍收窄**：重讀 `docs/external-project-manifest.md` 與 S35 後
+    確認只有 `:root` 那些列是「跨專案共用介面」，其他 selector（例如
+    `.card`）是 jonaminz 自己共用元件的微調，外部專案沒有同名 class
+    對它們來說沒有意義——Kernel 只挑 `:root` 列轉成 CSS 變數，其餘不送。
+  - `sdk/sdk-src/sdk.js` 新增 `jzTokenName()`（S36 機械式轉換：
+    `--color-primary` → `--jz-primary`，拿掉舊前綴、換 `--jz-`，其餘
+    語意名稱不變，不引入新的命名意見）與 `applyTokens()`（呼叫既有
+    `getThemeCssRules`——不改 Worker、不改 Supabase——只處理 `:root`
+    列，每個變數同時輸出舊名與新名，值相同，S36 別名過渡規定）。
+    `effectiveCss === "tokens"` 時呼叫，**不 await、不擋 `ready`
+    settle**——S23 沒有把 CSS 套用列進 ready 必要條件，tokens 純視覺、
+    best-effort，套用失敗只 `console.warn`，不影響核心 lifecycle
+    （跟 `theme-runtime.js` 一樣的容錯哲學，S24）。
+- **驗證**：
+  1. 直連 Supabase 核對 `theme_css_rules` 目前實際只有一筆資料
+     （`:root { --color-primary: #6366f1 }`），確認這次是照現有機制的
+     真實行為收編，不是憑空造了一套沒人在用的假資料在測。
+  2. 用 Playwright mock `getEffectiveSettings`（回 `approved:true,
+     css:"tokens"`）與 `getThemeCssRules`（回兩筆 `:root` 規則＋一筆
+     `.card` selector 規則），其餘打真實 production Worker：確認注入的
+     `<style id="jonaminz-sdk-tokens">` 同時含舊名與 `--jz-*` 新名、
+     `.card` 規則正確被排除、`window.Jonaminz.ready` 正確 resolve
+     `status:"ready"`。
+  3. 驗證 `effectiveCss` 不是 `"tokens"`（mock 成 `"none"`）時完全不會
+     呼叫 `getThemeCssRules`——gated 路徑真的擋住，不是永遠套用。
+  4. 驗證 `getThemeCssRules` mock 成 500 時：`ready` 仍正確 resolve、
+     沒有插入 `<style>` 標籤、`console.warn` 有印但零 JS 錯誤。
+  5. `node sdk/generate-sdk-release.mjs` 產生新 hash
+     （`c0d679686951`），`sdk-versions.json` 兩個 channel 都指過去、
+     `wrangler deploy`，curl 確認 `getSdkVersion` 正確回傳新 hash。
+- **狀態變化**：implementation plan **第 7 項完成並已上線**。下一步是
+  第 8 項（smoke app 完整生命週期測試）。
+- **遺留**：`theme-runtime.js` 本身沒有收編／作廢，繼續作為 jonaminz
+  自己網站的獨立機制存在。沒有真實外部專案端到端測過「tokens 正向
+  成功」（jonaminz-movies 的 Contract 沒宣告 `css`、Settings 授予也是
+  `"none"`，維持第 4 項的保守選擇，等真的有專案要用 tokens 才一併
+  做）。沒有補建完整 24 個 token 的 baseline 交付系統（現有機制本來就
+  只送「已客製的 delta」，這次是照原樣收編，不是新功能）。
+- **版本**：`v0.8.0-202607120206`（已 bump；SDK Kernel、
+  `sdk-versions.json` 皆屬程式碼變更）。
+
+---
+
 ## 2026-07-12 — Implementation plan 第 6 項：SDK Kernel
 
 - **任務**：接續 SDK Loader（第 5 項，只蓋了運送機制），做第 6 項——把
