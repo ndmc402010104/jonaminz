@@ -119,18 +119,32 @@ v1 只有 none/tokens 兩級）。`capabilities` 固定空陣列佔位——v1 S
 形狀先定、第 6 項才填內容。environment 一律用 Worker 自己的
 `JONAMINZ_ENVIRONMENT`，不從 payload 讀（同 submitContract 的理由）。
 目前沒有任何東西會呼叫這個端點——第 5 項（SDK Loader）只蓋了運送機制，
-真正會呼叫 `getEffectiveSettings` 的 SDK 邏輯要等第 6 項（SDK Kernel）。
+真正會呼叫 `getEffectiveSettings` 的是 SDK Kernel（`sdk/sdk-src/sdk.js`，
+第 6 項，已上線）。
 
-運送機制本身（S37）：`sdk/jonaminz-entry.js` 是常青 loader，向
+運送機制（S37）：`sdk/jonaminz-entry.js` 是常青 loader，向
 `getSdkVersion`（公開唯讀）問某個 channel（stable/next）目前指向哪個
 immutable `sdk/sdk-<hash>.js`（`sdk/generate-sdk-release.mjs` 算內容
 sha256 前 12 碼產生檔名，跟 `generate-contract-validator.mjs` 同精神）。
 回滾／kill-switch 都是改 `backend/cloudflare-worker/sdk-versions.json`
 （git 檔案，跟 `integration-settings.json` 同模式）再 `wrangler deploy`，
 不需要複雜系統（S39）；kill-switch 目標是真的什麼都不做的
-`sdk/sdk-empty.js`。這次放的 `sdk/sdk-src/sdk.js` 是極簡 placeholder
-（只設 `window.Jonaminz.status="degraded"`），只證明「pointer→immutable
-檔案→執行」這條鏈通了，不是真正的 SDK 邏輯（那是第 6 項）。
+`sdk/sdk-empty.js`。
+
+Kernel 本體（S18-23、S26-29，第 6 項）：判斷 `window.Jonaminz.__snippetVersion`
+標記決定要不要初始化（S22，沒標記＝不覆寫、靜默退場）→ contract
+discovery（`data-contract` 或預設 `/jonaminz.contract.json`，限同源，
+S18-20）→ F5/S8 最小必填客戶端粗篩 → 推送 `submitContract`（失敗不致命，
+S13/S16）→ 查 `getEffectiveSettings` 決定 `ready`/`degraded`（S23/S31）→
+`settle()` 官方 snippet 的 `ready` Promise，或就地更新（Kernel 姍姍來遲、
+snippet 已被 15 秒逾時 settle 過的情況，S21）。**`data-contract` 讀取有
+一個銜接細節**：S18 規定這個屬性寫在載入 loader 的 `<script>` 標籤上，
+但 Kernel 是 loader 動態插入的「另一個」`<script>` 標籤，讀不到原始
+標籤的屬性——loader 在自己的同步階段先讀出來，動態插入 Kernel
+`<script>` 時轉貼成 `dataset.contract`／`dataset.release`／
+`dataset.stale`，Kernel 才讀得到。v1 沒有已正式發布的 service，
+`window.Jonaminz.*` 不掛任何 service 命名空間（S32 只保障已發布
+service 永久存在）。
 
 完整規格見 `docs/platform-integration-spec-v1.md`（Frozen, S1-S39）；schema 細節見
 `docs/contract-schema/README.md`；Worker 端細節見 `backend/README.md`；
@@ -193,20 +207,24 @@ Contract JSON Schema（`docs/contract-schema/`）、Worker 端合約收取
 （`submitContract`，見上面 §4「Contract 收取」）、核准後台（approve/reject，
 同見 §4）、Flattened Effective Settings 端點（`getEffectiveSettings`，
 S31/S38，算「approved Contract × Settings 授予」——目前只算 CSS 這個
-維度，`capabilities` 留空陣列佔位，等第 6 項有真實 service 才填內容）與
+維度，`capabilities` 留空陣列佔位，等第一個真實 service 出現才填內容）、
 SDK Loader（`sdk/jonaminz-entry.js` 常青 loader＋`getSdkVersion` 版本
-指標，S37；只是運送機制，載入的內容目前是極簡 placeholder）**已實作並
-部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
-`docs/platform-integration-v1-implementation-plan.md` 的順序：
+指標，S37）與 SDK Kernel（`sdk/sdk-src/sdk.js`，S18-23/S26-29，真的做
+contract discovery、推送合約、查 Effective Settings、settle `ready`
+Promise，見上面 §4）**已實作並部署上線**，不在本節範圍——本節只列
+真正還沒做的部分，依 `docs/platform-integration-v1-implementation-plan.md`
+的順序：
 
-- **SDK Kernel**：`sdk/sdk-src/sdk.js` 目前的 placeholder 內容要換成
-  真實邏輯——官方 snippet 對接（S21-S23）、lifecycle 狀態機、錯誤模型
-  （S27-S29）、`window.Jonaminz.*`（未授權時「婉拒」：rejected Promise
-  固定錯誤碼）、contract discovery（S18-S20）。運送機制（loader、版本
-  指標、kill-switch、回滾）已經蓋好，這裡只是往裡面填真實內容。
-- **tokens CSS 收編**：現有 `theme-runtime.js` 邏輯併入 SDK，變數名正式化為
-  `--jz-*`（S36）。
-- **smoke app** 完整生命週期測試。
+- **tokens CSS 收編**：現有 `theme-runtime.js` 邏輯併入 SDK Kernel，
+  變數名正式化為 `--jz-*`（S36）。目前 `getEffectiveSettings` 已經能
+  算出「准不准套用 tokens」，但 Kernel 拿到這個結果後不做任何 DOM
+  操作（刻意留給這項）。
+- **`window.Jonaminz.*` 真實 service**：capability 文法（S30）、
+  Effective capability 交集運算（S31）的完整實作、
+  `CAPABILITY_NOT_GRANTED` 的真實 reject 路徑——v1 沒有任何已發布的
+  service，第一個 service 出現時才有東西可以掛。
+- **smoke app** 完整生命週期測試（固定情境清單見
+  `docs/platform-integration-v1-implementation-plan.md`）。
 - **Google OAuth**：v1 只做主站身分識別（Jonathan/Minz，S6）。
 
 **下一個 agent 注意**：實作以上項目時不是蓋平行系統，是把 v0 的三個分散機制

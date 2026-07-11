@@ -20,6 +20,80 @@
 
 ---
 
+## 2026-07-12 — Implementation plan 第 6 項：SDK Kernel
+
+- **任務**：接續 SDK Loader（第 5 項，只蓋了運送機制），做第 6 項——把
+  被載入的 placeholder 換成真正的 Kernel：讀合約、推送給平台、查
+  Effective Settings、正確 settle S21 官方 snippet 的 `ready` Promise。
+  對應 S18-23（contract discovery、snippet 協定）、S26（lifecycle）、
+  S27-29（錯誤模型）。
+- **變更**：
+  - **範圍再收窄一次（照規格推論，不是漏做）**：v1 沒有任何已正式發布
+    的 service，S32「未授權的工具存在但婉拒」只適用於已發布的
+    service——現在一個都沒有，所以 `window.Jonaminz.*` 這次不掛任何
+    service 命名空間；`JonaminzError` 形狀（S27）只在 `SDK_INIT_FAILED`
+    這唯一的 reject 情況用到，沒有生一個沒有呼叫端的 constructor。
+  - **重讀 S21 原文凍結的 snippet 程式碼後發現第 5 項沒處理到的銜接點**：
+    `data-contract` 屬性寫在載入 `jonaminz-entry.js` 的那個 `<script>`
+    標籤上（S18），但 Contract Discovery 邏輯屬於 Kernel，Kernel 是
+    loader 動態插入的「另一個」`<script>` 標籤，自己的
+    `document.currentScript` 讀不到原始標籤的屬性。小幅修改已上線的
+    `sdk/jonaminz-entry.js`：同步階段先讀出 `data-contract`，動態插入
+    Kernel `<script>` 時轉貼 `dataset.contract`／`dataset.release`
+    （Kernel 自己的 hash，Kernel 讀不到自己檔名）／`dataset.stale`
+    （這次版本指標是不是從 localStorage 快取來的，只有 loader 知道，
+    給 Kernel 填 `diagnostics.staleCache`）。
+  - `sdk/sdk-src/sdk.js` 整份改寫：(1) 判斷 `window.Jonaminz.__snippetVersion`
+    標記決定要不要初始化（S22：沒標記＝命名空間被占用或沒走官方
+    snippet，靜默退場）；(2) contract discovery（S18-20）：
+    `data-contract` 或預設 `/jonaminz.contract.json`，`new URL(path,
+    location.origin)` 解析後核對 origin，跨源直接視為 discovery 失敗
+    （S19，拒絕絕對 URL 覆寫同源限制）；(3) F5/S8 最小必填客戶端粗篩；
+    (4) 呼叫 `submitContract` 推送——**推送失敗用 `.catch()` 吞掉、不
+    中斷後續流程**（S13/S16：推送 ≠ 採信，即使這次推送失敗，只要之前
+    approved 過，整合仍應正常運作）；(5) 呼叫 `getEffectiveSettings`
+    決定 `ready`/`degraded`（S23/S31）；(6) `report()` 依 `__bootstrap`
+    是否還在決定呼叫 `.settle()` 或就地更新 `status`/`reason`/
+    `diagnostics`（S21：Kernel 姍姍來遲、bootstrap 已被 15 秒逾時
+    settle 過的情況，不重播 Promise）。
+  - **自己動手後的一個小改進**：`getEffectiveSettings` 回傳 `ok:false`
+    時，第一版寫死回傳泛用的 `SETTINGS_UNAVAILABLE`，測試時發現 Worker
+    其實有給更精確的 `code`（例如 `PROJECT_NOT_REGISTERED`）——改成優先
+    用 Worker 給的實際 code，`SETTINGS_UNAVAILABLE` 只留給 Worker 真的
+    打不通的情況，diagnostics 因此有意義得多。
+- **驗證**：
+  1. 對 **jonaminz-movies 真實已上線頁面**
+     （`https://ndmc402010104.github.io/jonaminz-movies/`，有真實
+     Contract、已 registered、已 approved）注入完整 S21 官方 snippet，
+     loader 網址指本機 `http://localhost:5500/sdk/jonaminz-entry.js`；
+     直接對真實 HTTPS 頁面測試時撞到 Chromium 的 Private Network
+     Access 限制（公開網站不能對 loopback 位址發請求，被 CORS 擋下）
+     ——改用本機頁面（同源 localhost）＋Playwright `page.route()` 只
+     mock `getSdkVersion` 這一個 action 指向新 Kernel，`submitContract`／
+     `getEffectiveSettings` 照樣打**真實production Worker**：
+     `await window.Jonaminz.ready` 正確 resolve `status:"ready"`、
+     `diagnostics.release` 吻合新 hash（證明轉貼機制真的通了）、
+     `settingsRevision` 是真實數字、`rejectedCapabilities` 空陣列。
+  2. 三條降級路徑（合約 404、合約有效但 projectId 未登記、合約缺必填
+     欄位）皆用同一套本機＋mock 手法測過，`status` 正確變 `degraded`、
+     `reason` 精確對應（`CONTRACT_NOT_FOUND`／`PROJECT_NOT_REGISTERED`／
+     `CONTRACT_INVALID`），全程零 JS 錯誤（S24 底線）。
+  3. `node sdk/generate-sdk-release.mjs` 產生新 hash（`0c9953079f7a`），
+     `sdk-versions.json` 的 `stable`/`next` 都指過去、`wrangler deploy`，
+     curl 確認 `getSdkVersion` 正確回傳新 hash。
+- **狀態變化**：implementation plan **第 6 項完成並已上線**。下一步是
+  第 7 項（tokens CSS 收編進 SDK）。
+- **遺留**：`sdk/` 資料夾（含這次改的 `jonaminz-entry.js` 與新的
+  Kernel）本次跟這篇 CHANGELOG 一起 push，push 之後才會是
+  `https://jonaminz.com/sdk/jonaminz-entry.js` 這個常青網址真正在跑
+  新 Kernel（Worker 端 `getSdkVersion` 已經上線）。`window.Jonaminz.*`
+  真實 service、CSS tokens 套用、smoke app、Google OAuth 都還沒做，是
+  第 7-9 項的事。
+- **版本**：`v0.7.0-202607120134`（已 bump；SDK Kernel、loader 轉貼
+  邏輯、`sdk-versions.json` 皆屬程式碼變更）。
+
+---
+
 ## 2026-07-11 — Implementation plan 第 5 項：SDK Loader ＋ 版本指標
 
 - **任務**：接續 Effective Settings 端點（第 4 項），做第 5 項——把「怎麼

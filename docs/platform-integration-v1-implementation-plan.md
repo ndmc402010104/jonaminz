@@ -97,8 +97,31 @@
    `docs/sdk-release-checklist.md`，純文件流程，沒有自動化檢查（S39
    原文允許）。細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、
    `backend/README.md`。
-6. **SDK Kernel**：官方 snippet 對接（S21–S23）、lifecycle 狀態機、
-   錯誤模型（S27–S29）、診斷面（S26）、contract discovery（S18–S20）
+6. **SDK Kernel** —— ✅ 完成並已部署上線（2026-07-12）。取代第 5 項的
+   placeholder，`sdk/sdk-src/sdk.js` 真的做 contract discovery
+   （S18-20：`data-contract` 覆寫或預設 `/jonaminz.contract.json`，限
+   同源）、F5/S8 最小必填客戶端粗篩、推送合約（呼叫 `submitContract`，
+   推送失敗不致命——S13/S16）、查 `getEffectiveSettings` 決定
+   `ready`/`degraded`（S23/S31）、正確 settle S21 官方 snippet 的
+   `ready` Promise（含「Kernel 姍姍來遲、bootstrap 已被 15 秒逾時
+   settle 過」的就地更新路徑，S21）。**範圍刻意收窄**：v1 沒有任何
+   已正式發布的 service，所以 `window.Jonaminz.*` 這次不掛任何 service
+   命名空間（S32 只保障「已發布」service 永久存在，現在一個都沒有）；
+   `JonaminzError` 形狀（S27）只在 `SDK_INIT_FAILED` 這唯一的 reject
+   情況用到，沒有生一個沒有呼叫端的 constructor；`diagnostics.rollback`
+   刻意恆 `false`（沒有 caller 需要這個資訊，見
+   `AI_CONTEXT/CHANGELOG.md`）。**銜接第 5 項發現的設計缺口**：S18
+   規定 `data-contract` 寫在載入 loader 的 `<script>` 標籤上，但
+   Contract Discovery 邏輯屬於 Kernel（loader 動態插入的「另一個」
+   `<script>` 標籤，讀不到原始標籤的屬性）——小幅修改
+   `sdk/jonaminz-entry.js`（第 5 項已上線的檔案）把 `data-contract`／
+   是否來自快取／自己的 release hash 轉貼給 Kernel。**驗證**：對
+   jonaminz-movies 真實已上線頁面注入完整 S21 官方 snippet（本機
+   loader＋mock `getSdkVersion` 指標指向新 Kernel、真實
+   `submitContract`／`getEffectiveSettings`），確認 `ready` 正確
+   resolve、diagnostics 正確；另外驗證三條降級路徑（合約 404、
+   projectId 未登記、合約缺必填欄位）皆正確 degraded 且零 JS 錯誤。
+   細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-12 條目。
 7. **tokens CSS**：收編現有 `theme-runtime.js` 邏輯進 SDK；變數名正式化
    為 `--jz-*`，舊無前綴名（`--color-primary` 等）以別名過渡（S36）
 8. **smoke app**（見下方情境清單）

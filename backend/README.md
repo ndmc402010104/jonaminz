@@ -1,6 +1,6 @@
 # jonaminz 後端
 
-五件事：
+六件事：
 1. 接收外部專案「我上線了」的回報（registerExternalApp），存進 Supabase，後台可以讀出來
    看「誰接進來、最後一次回報是什麼時候」。
 2. Theme：全站（含外部專案）共用的外觀來源，selector+property+value 規則存在 Supabase
@@ -20,10 +20,13 @@
 5. SDK Loader（`getSdkVersion` ＋ `sdk/jonaminz-entry.js`）：常青 loader
    向這個端點問「現在 stable/next channel 該載哪個 immutable
    `sdk/sdk-<hash>.js`」，回滾／kill-switch 都是改
-   `backend/cloudflare-worker/sdk-versions.json` 的指標再部署。這次只放
-   一個極簡 placeholder release，證明運送機制通了；真正的 SDK 邏輯是
-   implementation plan 第 6 項的事。對應 `docs/sdk-release-checklist.md`
-   （S39）與該計畫第 5 項。
+   `backend/cloudflare-worker/sdk-versions.json` 的指標再部署。對應
+   `docs/sdk-release-checklist.md`（S39）與 implementation plan 第 5 項。
+6. SDK Kernel（`sdk/sdk-src/sdk.js`）：loader 載入的內容，真的做
+   contract discovery、推送合約（呼叫 `submitContract`）、查
+   `getEffectiveSettings`、settle S21 官方 snippet 的 `ready` Promise。
+   v1 沒有已發布的 service，`window.Jonaminz.*` 不掛任何 service 命名
+   空間。對應 implementation plan 第 6 項。
 
 機密（Supabase secret key，新版命名 `sb_secret_...`，不是 `sb_publishable_...`）只存在
 Cloudflare Worker 的 secret 裡，不會出現在這個 repo、對話紀錄或前端程式碼中。
@@ -155,11 +158,11 @@ npx wrangler secret put JONAMINZ_ADMIN_TOKEN
   能力、不掛 Shell）。`css` 是 `min(Contract 聲明的 css, Settings 授予的
   css)`（S34，v1 只有 `none`/`tokens` 兩級，Contract 宣告了 schema 認不得
   的值視同沒宣告，S11 must-ignore）。`capabilities` 目前固定空陣列——
-  第 6 項才會有真實 service，這裡先把回應形狀定下來，之後只加內容不改
-  形狀。**這個端點只回答「准不准套用 tokens」，不回答「tokens 的規則長
-  怎樣」**，後者仍是 `getThemeCssRules` 的事，這次沒有動它、也還沒有任何
-  地方會真的呼叫這個端點（SDK 是第 5、6 項，第 5 項已完成但只是運送
-  機制，真正會呼叫 `getEffectiveSettings` 的邏輯要等第 6 項）。
+  第一個真實 service 出現時才會有內容，這裡先把回應形狀定下來，之後
+  只加內容不改形狀。**這個端點只回答「准不准套用 tokens」，不回答
+  「tokens 的規則長怎樣」**，後者仍是 `getThemeCssRules` 的事，這次
+  沒有動它。實際呼叫端是 SDK Kernel（`sdk/sdk-src/sdk.js`，implementation
+  plan 第 6 項）。
 - `getSdkVersion`：implementation plan 第 5 項（S37），公開唯讀，
   `sdk/jonaminz-entry.js` loader 專用。`payload.projectId` 選填——
   v1 的 loader 呼叫時不帶，一律拿 `stable` channel；有給的話查

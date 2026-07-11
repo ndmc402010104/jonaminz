@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-11
+最後更新：2026-07-12
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -55,10 +55,14 @@ jonaminz/
   sdk/
     jonaminz-entry.js          常青 SDK loader（implementation plan 第 5 項，S37）：
                               向 getSdkVersion 問版本指標 → 動態載入對應的
-                              sdk-<hash>.js。極簡、try/catch 全包，不做 Contract
-                              discovery／window.Jonaminz.* 骨架（那是第 6 項）
-    sdk-src/sdk.js             目前發布中的 SDK release 原始碼（現在是 placeholder，
-                              只設 window.Jonaminz.status="degraded"）
+                              sdk-<hash>.js，並把 data-contract／是否來自快取／
+                              自己的 release hash 轉貼給 Kernel（第 6 項新增，
+                              S18 銜接缺口，見 §4）。極簡、try/catch 全包
+    sdk-src/sdk.js             SDK Kernel 真實邏輯（implementation plan 第 6 項）：
+                              contract discovery、推送合約、查 Effective
+                              Settings、settle S21 官方 snippet 的 ready
+                              Promise。v1 不掛任何 window.Jonaminz.* service
+                              命名空間（沒有已發布的 service 可掛，見 §4）
     generate-sdk-release.mjs   build-time 腳本：讀 sdk-src/sdk.js、算 sha256 前 12 碼、
                               產生 immutable 的 sdk-<hash>.js（不自動改 sdk-versions.json，
                               要不要發版是人的決定）
@@ -131,8 +135,12 @@ jonaminz/
   `getEffectiveSettings` 算 S31 公式，目前只算 CSS 這個維度，細節見 §4。
 - **SDK Loader（implementation plan 第 5 項）已上線**：`sdk/jonaminz-entry.js`
   常青 loader＋`getSdkVersion` 版本指標，運送機制（pointer→immutable 檔案
-  →執行）、kill-switch、回滾都已在正式環境實際操作驗證過，放的是極簡
-  placeholder release，真正的 SDK 邏輯待第 6 項，細節見 §4。
+  →執行）、kill-switch、回滾都已在正式環境實際操作驗證過，細節見 §4。
+- **SDK Kernel（implementation plan 第 6 項）已上線**：`sdk/sdk-src/sdk.js`
+  取代第 5 項的 placeholder，真的做 contract discovery、推送合約、查
+  Effective Settings、settle S21 官方 snippet 的 ready Promise。對
+  jonaminz-movies 真實已上線頁面注入完整官方 snippet 測過 ready 路徑跟
+  三條降級路徑，全部正確，細節見 §4。
 
 ## 4. 尚未完成的功能
 
@@ -266,9 +274,47 @@ jonaminz/
     見新文件 `docs/sdk-release-checklist.md`（純流程文件，S39 原文允許
     不做自動化系統）。`integration-settings.json` 新增選填的 `channel`
     欄位（getSdkVersion 用來決定金絲雀，v1 沒有專案會設，形狀先定）。
-  - 尚未開始：第 6 項（SDK Kernel）→ 第 9 項（Google OAuth）。
-    `window.Jonaminz.*` 真實骨架、Promise/ready/degraded 完整語意、
-    contract discovery 一行都還沒寫。
+  - **第 6 項（SDK Kernel）：完成並已部署上線（2026-07-12）。**
+    `sdk/sdk-src/sdk.js` 整份改寫，取代第 5 項的 placeholder：
+    (1) 判斷 `window.Jonaminz.__snippetVersion` 標記決定要不要初始化
+    （S22：沒標記＝命名空間被占用或沒走官方 snippet，靜默退場，不覆寫）；
+    (2) contract discovery（S18-20）：`data-contract`（loader 轉貼來的
+    值）或預設 `/jonaminz.contract.json`，`new URL(path, location.origin)`
+    解析後核對 origin 是否吻合，跨源直接視為 discovery 失敗（S19，拒絕
+    絕對 URL 覆寫同源限制）；(3) F5/S8 最小必填客戶端粗篩
+    （contractVersion／app.projectId／app.title）；(4) 呼叫
+    `submitContract` 推送，**推送失敗用 `.catch()` 吞掉、不中斷後續流程**
+    （S13/S16：推送 ≠ 採信，即使這次推送失敗，只要之前 approved 過，
+    整合仍應正常運作）；(5) 呼叫 `getEffectiveSettings` 決定
+    `ready`/`degraded`（S23/S31：`approved:true`→ready，否則
+    degraded，reason 用 Worker 回的實際 code 如 `PROJECT_NOT_REGISTERED`，
+    比泛用的 `SETTINGS_UNAVAILABLE` 更有意義）；(6) `report()` 依
+    `__bootstrap` 是否還在決定呼叫 `.settle()` 或就地更新（S21：
+    Kernel 姍姍來遲、bootstrap 已被 15 秒逾時 settle 過的情況）。
+    **範圍刻意收窄（照規格推論，不是漏做）**：v1 沒有任何已正式發布的
+    service，`window.Jonaminz.*` 這次不掛任何 service 命名空間（S32
+    只保障已發布 service 永久存在）；`JonaminzError` 形狀（S27）只在
+    `SDK_INIT_FAILED` 這唯一 reject 情況用到，沒有生沒人呼叫的
+    constructor；`diagnostics.rollback` 恆 `false`（沒有 caller 需要，
+    判斷需要額外追蹤上一個已知穩定版本）。
+    **銜接第 5 項的設計缺口**：S18 規定 `data-contract` 寫在載入 loader
+    的 `<script>` 標籤上，但 Kernel 是 loader 動態插入的「另一個」
+    `<script>` 標籤，自己的 `document.currentScript` 讀不到原始標籤的
+    屬性——小幅修改已上線的 `sdk/jonaminz-entry.js`：同步階段先讀出
+    `data-contract`，動態插入 Kernel `<script>` 時轉貼
+    `dataset.contract`／`dataset.release`（Kernel 自己的 hash，讀不到
+    自己檔名）／`dataset.stale`（這次指標是不是從 localStorage 快取來的，
+    只有 loader 知道）。
+    **驗證**：對 jonaminz-movies 真實已上線頁面（有真實 Contract、已
+    registered、已 approved）注入完整 S21 官方 snippet，loader 網址指
+    本機、`getSdkVersion` 用 Playwright route 攔截 mock 成指向新 Kernel、
+    `submitContract`／`getEffectiveSettings` 打真實 Worker：
+    `await window.Jonaminz.ready` 正確 resolve `status:"ready"`，
+    `diagnostics.release` 吻合新 hash（證明轉貼機制真的通了）、
+    `settingsRevision` 是真實數字。另外驗證三條降級路徑（合約 404、
+    projectId 未登記、合約缺必填欄位）皆正確 `degraded` 且 reason 正確、
+    零 JS 錯誤（S24 底線）。
+  - 尚未開始：第 7 項（tokens CSS 收編）→ 第 9 項（Google OAuth）。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -313,23 +359,23 @@ jonaminz/
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
 必須另外 `wrangler deploy`，git push 不會部署 Worker。兩者是獨立動作。
 
-## 6. 版本與分支狀態（2026-07-11 掃描）
+## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.6.0-202607112352`（`version.js`）。規則：每次 push 前要 bump。
-  **2026-07-11 implementation plan 第 3、4、5 項皆完成並已上線**：第 3 項
+- 業務版本：`v0.7.0-202607120134`（`version.js`）。規則：每次 push 前要 bump。
+  **2026-07-11～12 implementation plan 第 3-6 項皆完成並已上線**：第 3 項
   （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
   reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、
   `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定、`pages/admin/contracts/`
   已 push 上線。第 4 項（`getEffectiveSettings`）Worker 已
   `wrangler deploy`、`integration-settings.json` 的 `css`/`revision`
-  欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）
-  Worker 已 `wrangler deploy`（`getSdkVersion`）、`sdk/` 資料夾（loader、
-  placeholder release、kill-switch 空檔案）已在本機驗證但**尚未 git
-  push**（本次收尾會一併 push，push 之後 `https://jonaminz.com/sdk/
-  jonaminz-entry.js` 才會是真的常青網址，之前只在 localhost 測過）。
-  kill-switch／回滾已在正式環境的 `sdk-versions.json` 上實際操作並復原
-  過，目前 `stable`/`next` 都指回 placeholder release（hash
-  `58350efc5a86`），Worker 線上版本與 repo 完全同步。
+  欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）與
+  第 6 項（SDK Kernel）都已 `wrangler deploy`（`getSdkVersion` 指標
+  現在指向真實 Kernel，hash `0c9953079f7a`，不是 placeholder 了）；
+  `sdk/` 資料夾本次收尾會一併 git push（push 之後
+  `https://jonaminz.com/sdk/jonaminz-entry.js` 才會是真的常青網址上線，
+  之前都在 localhost／mock 指標測試）。第 5 項的 kill-switch／回滾已在
+  正式環境的 `sdk-versions.json` 上實際操作並復原過。Worker 線上版本與
+  repo（push 完後）完全同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、
