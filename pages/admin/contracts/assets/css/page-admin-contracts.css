@@ -206,3 +206,53 @@ headless browser 驗證時發現 toolbar/section 完全沒有框線/底色，就
     grid-template-columns: 1fr;
   }
 }
+
+/* 2026-07-13：已裁決按專案分組＋摺疊歷史，見 app.js groupDecidedByProject()／
+   projectGroupHtml()。.jonaminz-contracts-project-head h3 沒有另外設
+   font-family，直接吃 03-base.css 給全站 h1/h2/h3 的 --font-display
+   （亞麻米方向的 serif 標題），不用在這裡重複宣告一次。 */
+.jonaminz-contracts-project-group {
+  margin-bottom: var(--space-5);
+}
+
+.jonaminz-contracts-project-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.jonaminz-contracts-project-head h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.jonaminz-contracts-unconfirmed {
+  font-size: var(--text-xs);
+  color: var(--color-primary-2);
+}
+
+.jonaminz-contracts-history {
+  margin-top: var(--space-3);
+}
+
+.jonaminz-contracts-history summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: var(--space-2) 0;
+}
+
+.jonaminz-contracts-history summary:hover {
+  color: var(--color-primary);
+}
+
+.jonaminz-contracts-history[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+.jonaminz-contracts-history .jonaminz-contracts-row {
+  opacity: 0.85;
+}

@@ -86,7 +86,7 @@ pages.jonathan.entry.styles）。跟 pages/minz/page-minz.css 是兩份獨立
 
 .jonaminz-profile-link-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .jonaminz-profile-link-title {

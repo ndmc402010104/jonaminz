@@ -103,6 +103,37 @@ Cloudflare，才能讓 Worker 掛自訂網域、以及讓 Cookie 的 `Domain=.jo
 
 ---
 
+## 9. 視覺方向（配色/字體）改用 Theme 系統存放，而不是寫死進 reservoir tokens
+
+**現況（2026-07-13）**：使用者從四個提案方向（見
+`pages/admin/design/` 的展示頁 app.js，A 墨黑金屬／B 瓷白墨藍／C 深綠石／
+D 亞麻米）選定 D「亞麻米 Flax & Ink」，當天直接改寫進
+`assets/css/reservoir/02-tokens.css`（靜態、git 版本控制、需要
+`push`＋等 GitHub Pages 重建才能換）。
+
+**使用者提出的想法**：jonaminz 已經有一套動態 Theme 系統
+（`theme_css_rules` 存在 Supabase，`/pages/admin/theme/` 後台編輯，
+`theme-runtime.js` 全站即時套用，疊在 reservoir tokens 之上，見
+`FACTS.md`／`CURRENT_STATE.md` 對應條目）——四個方向應該存成 Theme
+系統裡的具名預設集，透過後台「選擇＋套用」即可切換，不用改程式碼、
+不用重新部署。
+
+**還沒討論到的細節（未拍板）**：
+- Theme 系統目前的資料模型是「一組 CSS 規則」還是需要擴充成「多組具名
+  預設集，選一組套用」？現有 `/pages/admin/theme/` UI 有沒有支援
+  多預設集切換，還是只有單一份正在生效的規則？
+- 靜態 reservoir tokens 這份「預設值」要不要保留當 fallback（Theme
+  系統／Worker 斷線時的降級基準），還是四個方向全部搬進 Theme 系統、
+  reservoir tokens 只留最中性的骨架？
+- `--font-display` 這類字體宣告，Theme 系統過去只處理過顏色類 CSS
+  custom properties，字體字串（含逗號、引號、fallback 清單）能不能
+  乾淨地存進同一套機制，沒有驗證過。
+
+**未拍板**，使用者原話「未來可以啦」——不是立即要做的事，下一次要動
+視覺方向時記得先讀這條，不要直接又改 reservoir tokens 硬寫一次。
+
+---
+
 ## 8. Chat／AI participant framework 的技術選型
 
 **現況**：完全沒有實作，也沒有找到任何文件討論過要用什麼技術（前端

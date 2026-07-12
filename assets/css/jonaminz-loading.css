@@ -20,6 +20,11 @@ entry-core.js 判定 all-ready 之前一律蓋住，取代舊版純 visibility:h
   （assets/css/reservoir/02-tokens.css），跟首頁深色相片版型同色系，
   避免亮→暗閃爍；admin/login 系頁面是淺色版，布幕→揭幕會有一次短暫的
   深→淺切換，可接受（比死白畫面好，且時間很短）。
+- 這個檔案在 02-tokens.css 之前就先載入了（bootstrap 階段），
+  var(--color-primary, #1f3a5f) 的字面 fallback 值不是裝飾、是真的會
+  在 tokens CSS 抵達前那一小段時間生效——2026-07-13 套用亞麻米方向時
+  這個 fallback 忘了同步更新是最容易漏掉的地方，改 --color-primary
+  時記得回頭檢查這裡。
 */
 
 html.jonaminz-loading {
@@ -84,15 +89,15 @@ html.jonaminz-loading::after {
   overflow: hidden;
   background: linear-gradient(
     to right,
-    #6366f1 0%,
-    #6366f1 calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
+    #1f3a5f 0%,
+    #1f3a5f calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
     rgba(247, 240, 229, .18) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
     rgba(247, 240, 229, .18) 100%
   );
   background: linear-gradient(
     to right,
-    var(--color-primary, #6366f1) 0%,
-    var(--color-primary, #6366f1) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
+    var(--color-primary, #1f3a5f) 0%,
+    var(--color-primary, #1f3a5f) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
     color-mix(in srgb, var(--color-text-dark, #f7f0e5) 18%, transparent) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
     color-mix(in srgb, var(--color-text-dark, #f7f0e5) 18%, transparent) 100%
   );

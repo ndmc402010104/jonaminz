@@ -2,20 +2,28 @@
 檔案位置：jonaminz/assets/css/reservoir/02-tokens.css
 用途：CSS 疊加第 2 層 - Tokens。全站唯一的顏色/字體/間距/圓角/陰影變數來源。
 之後的每一層都應該引用這裡的變數，不要在其他層重新寫死數值。
+
+2026-07-13：套用「亞麻米 Flax & Ink」視覺方向（使用者從四個提案方向裡選定，
+見 pages/admin/design/ 的「專案視覺方向」頁）。從通用 SaaS 靛紫配色改成
+暖色調亞麻底＋沉墨藍/赭紅，標題加 serif 字體帶手感——這是 jonaminz 平台
+自己的識別，外部專案（例如 jonaminz-movies 的酒紅 Editorial）各自宣告
+自己的調性，不用跟這裡統一，見 docs/contract-schema 的 visualIdentity 欄位。
+--color-bg-dark／--color-text-dark 刻意不動：那是首頁簽名式導覽版型專用
+的深色背景，跟這裡的「一般頁面預設淺色」是兩件事，見 page-home.css。
 */
 
 :root {
   /* color */
-  --color-bg: #ffffff;
+  --color-bg: #efeae0;
   --color-bg-dark: #101310;
-  --color-text: #14171a;
+  --color-text: #262220;
   --color-text-dark: #f7f0e5;
-  --color-text-muted: rgba(20, 23, 26, 0.62);
-  --color-primary: #6366f1;
-  --color-primary-2: #8b5cf6;
+  --color-text-muted: rgba(38, 34, 32, 0.62);
+  --color-primary: #1f3a5f;
+  --color-primary-2: #a85c3f;
   --color-accent: #d6efd9;
-  --color-border: rgba(127, 127, 127, 0.25);
-  --color-surface: rgba(255, 255, 255, 0.9);
+  --color-border: #ddd4c4;
+  --color-surface: #fbfaf5;
 
   /* spacing */
   --space-1: 4px;
@@ -32,13 +40,14 @@
   --radius-lg: 20px;
   --radius-pill: 999px;
 
-  /* shadow */
-  --shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.12);
-  --shadow-md: 0 20px 45px rgba(15, 15, 35, 0.12);
-  --shadow-lg: 0 30px 100px rgba(0, 0, 0, 0.32);
+  /* shadow：暖色調、比原本的黑色陰影更柔和瀰散 */
+  --shadow-sm: 0 8px 20px rgba(38, 34, 32, 0.12);
+  --shadow-md: 0 20px 45px rgba(38, 34, 32, 0.14);
+  --shadow-lg: 0 30px 80px rgba(38, 34, 32, 0.18);
 
   /* typography */
   --font-sans: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --font-display: Rockwell, "Sitka Text", Georgia, "Noto Serif TC", serif;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;

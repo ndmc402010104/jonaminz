@@ -20,6 +20,122 @@
 
 ---
 
+## 2026-07-13 — Platform Service 化的視覺方向（Contract 自報 + 全站套用「亞麻米」+ Contracts 後台分組）
+
+- **任務**：roadmap ①-⑦全部完成後，使用者對現有配色（通用 SaaS 靛紫）
+  提出質疑，覺得 Jonathan 頁跟後台看起來「不是很高級」。討論後確認
+  三件事：①外部專案（例如 jonaminz-movies）應該能在自己的 Contract 裡
+  自報一套視覺調性，jonaminz 後台把它們攤出來展示；②jonaminz 平台自己
+  也選一個方向當預設；③Contracts 後台的「已裁決」清單一直平鋪累積歷史
+  的問題，順便改成按專案分組、只攤開目前生效版本、其餘摺疊。
+- **變更（依實作順序）**：
+  1. **Contract schema 新增 `app.visualIdentity` 自報欄位**
+     （`docs/contract-schema/jonaminz.contract.schema.json`）：跟
+     `description`/`icon` 同一類自我描述欄位，不在
+     `forbiddenFieldsGuard` 清單裡（不是定位/授權類欄位）。子欄位
+     `name`／`tagline`／`palette`（5 個固定鍵名的 `#rrggbb` 色碼，新增
+     `$defs/hexColor`）／`typography.display`（純展示用的 font-family
+     字串）。**非 breaking**：省略即合法，舊合約不受影響（node 腳本
+     驗證過：合法值通過、非法 hex 被 pattern 擋下、完全沒有這個欄位的
+     舊合約仍然 valid）。改完重跑
+     `generate-contract-validator.mjs` 重新產生 ajv standalone
+     validator，esbuild 打包+`node --check` 確認乾淨。
+  2. **`pages/admin/design/`（新頁面，「專案視覺方向」展示）**：先做一版
+     demo（寫死資料）給使用者看過確認方向後，改讀真實
+     `listPendingContracts`——**關鍵設計**：不是用某一筆 row 的
+     `status` 猜「這是不是現在生效的版本」，是讀每筆 row 都附的
+     `previousApproved`（來自 `contract_active_snapshots`，Worker
+     權威計算出的「這個 project+environment 現在真的生效中」的合約，
+     見 `pages/admin/design/assets/js/app.js` `extractActiveProjects()`
+     的註解）。每張卡片動態套用該專案宣告的顏色/字體（CSS custom
+     properties inline），算相對亮度決定色塊文字用白字還是深字
+     （`contrastTextColor()`，WCAG 簡化版），沒宣告 `visualIdentity`
+     的專案顯示中性樣式＋提示文字（不是隱藏或報錯）。jonaminz 自己不是
+     Contract 登記者，`JONAMINZ_CORE_ENTRY` 是唯一寫死在檔案裡的一筆。
+  3. **jonaminz-movies 更新 `jonaminz.contract.json`** 宣告
+     `visualIdentity`（「酒紅 Editorial」，數值抄自它自己
+     `styles.css` 的 CSS 變數）並 `submitContract` 送出。**過程踩到一個
+     真的 bug**：第一次用 `curl -d "...$CONTRACT..."`（bash 字串內插）
+     送出，中文字被弄壞成亂碼存進 DB（snapshot #4）——跟這次對話更早
+     以前 OAuth 那次教訓是同一類問題，但這次是實際發生在正式資料裡，
+     不是理論風險。改用 `curl --data-binary @file`（完全不經過 shell
+     字串內插）重新提交乾淨版本（snapshot #5），使用者在
+     `/pages/admin/contracts/` 核准 #5，現在是 active 版本。**snapshot
+     #4 的亂碼資料留在歷史裡不刪**（S13：永不覆寫歷史），之後在
+     Contracts 後台的 diff 畫面看到 `app.description` 或
+     `visualIdentity.name` 出現 `�` 符號，那是這筆已知的舊資料，不是
+     新 bug。
+  4. **jonaminz 全站套用「亞麻米 Flax & Ink」**（使用者從四個提案方向裡
+     選定，方向本身是另一輪對話產出，過程另有一份 Artifact 展示過
+     A/B/C/D 四個選項，不重複記錄在這裡）：
+     - `assets/css/reservoir/02-tokens.css`：`--color-bg`/`--color-text`/
+       `--color-primary`/`--color-primary-2`/`--color-border`/
+       `--color-surface`/`--shadow-*` 全部換成暖色調值，新增
+       `--font-display`（Rockwell/Sitka Text/Georgia/Noto Serif TC）。
+       `--color-bg-dark`/`--color-text-dark` 刻意不動——首頁簽名式導覽
+       版型是獨立的深色識別，跟這次「一般頁面預設淺色」是兩件事。
+     - `assets/css/reservoir/03-base.css`：h1/h2/h3 套上
+       `--font-display`，套在 base 層讓全站標題自動一致。
+     - `assets/css/page-home.css`：`.hero h1` 明確蓋回
+       `var(--font-sans)`，避免首頁已經調好的深色標題被全站規則波及
+       （唯一一處刻意排除在外的地方）。
+     - **抓到三類真的會讓新配色顯示不完整的問題，都修了**：
+       ①五個頁面 CSS（`page-admin.css`／`page-jonathan.css`／
+       `page-minz.css`／`page-login.css`）裡有多處把舊靛紫色寫死成
+       `rgba(99,102,241,...)`／`rgba(139,92,246,...)` 而不是引用
+       token，改成 `color-mix(in srgb, var(--color-primary) N%,
+       transparent)`。②`jonaminz-loading.css`（bootstrap 階段最早載入
+       的布幕 CSS，在 `02-tokens.css` 抵達前就先套用）裡
+       `var(--color-primary, #6366f1)` 的**字面 fallback 值**沒有同步
+       更新——這不是裝飾，是真的會在 tokens CSS 抵達前那一小段時間生效，
+       改成 `#1f3a5f`。③**最大的一個**：使用者回報「視覺失敗看不到」，
+       查證後發現 Supabase `theme_css_rules` 表裡存了一份
+       2026-07-12 的靛紫配色快照（`--color-bg`/`--color-primary`/
+       `--color-primary-2`/`--color-text` 四筆），Theme 系統
+       （`theme-runtime.js`）疊在 reservoir tokens 之上、完全蓋掉這次
+       改的新值——`--font-display` 沒被蓋是因為 Theme 表裡本來就沒有
+       這個屬性，純屬巧合讓字體先生效、顏色沒生效，一度誤以為是自己
+       CSS 寫錯。問過使用者後，直接刪除 Supabase 裡這 4 筆舊資料
+       （不是改值，是移除這份過期的「影子副本」，讓這幾個屬性重新
+       fall back 回 reservoir tokens），Worker `saveThemeCssRules`
+       action 需要真實登入 session，沒有使用者密語沒辦法自己呼叫，這次
+       改用 Supabase Management API 直連（密碼檔案讀取，不寫死 token）
+       執行，執行前後都查過實際資料確認。
+  5. **`pages/admin/contracts/` 重寫**：已裁決清單改成按
+     `(projectId, environment)` 分組（`groupDecidedByProject()`），每組
+     只攤開「現在真的生效中」的那筆（同樣讀 `previousApproved`，不是猜
+     最新一筆），其餘歷史摺進原生 `<details>`，預設收合——使用者原話
+     「保留歷史但一直累積感覺不好，應該做成歷史、現在是最後一個」。
+     **過程中人工覆核程式碼時抓到一個真的 bug（沒有實際跑過才發現不了
+     的那種，這次先手動抓到再驗證修好）**：`<details>` 的展開狀態會在
+     每次 `render()`（例如展開某一筆的 diff）時被整個重新生成回預設
+     收合狀態——`<details>` 的原生 `toggle` 事件不會冒泡（跟
+     `scroll`/`load` 同類），改用 capture 階段的事件代理
+     （`root.addEventListener("toggle", handler, true)`）＋
+     `expandedHistoryGroups` 狀態物件追蹤每組的開合狀態，`render()` 時
+     依狀態決定要不要帶 `open` 屬性。
+- **驗證**：Playwright 對全站 7 個頁面（admin/admin-theme/
+  admin-contracts/admin-design/login/jonathan/minz，另加首頁）逐一截圖
+  ＋ console 零錯誤確認；直接 `getComputedStyle` 讀 `--color-bg`／
+  `--color-primary` 等 token 的實際計算值，確認 Theme 快照刪除前後的
+  差異（刪除前仍是舊值 `#ffffff`/`#6366f1`，刪除後正確變成新值
+  `#efeae0`/`#1f3a5f`）；針對 Contracts 頁的 `<details>` bug 修復另外
+  寫專項測試（展開歷史→展開內部某筆 diff→確認整頁重繪後歷史區塊仍是
+  open、diff 內容真的可見不是被摺疊藏起來），確認修復生效。
+- **狀態變化**：`docs/contract-schema/jonaminz.contract.schema.json`
+  新增非 breaking 欄位；jonaminz-movies 正式環境 Contract 現在帶
+  `visualIdentity`；jonaminz 全站預設視覺從靛紫改成暖色調亞麻米方向；
+  `pages/admin/contracts/` 從平鋪列表改成分組摺疊。
+- **遺留**：使用者提出一個更好的長期架構——視覺方向未來應該存進既有
+  Theme 系統（Supabase 可即時切換，不用改程式碼重新部署），而不是像
+  這次一樣寫死進 reservoir tokens 靜態檔案；已記錄在
+  `AI_CONTEXT/EXPERIMENTS.md` #9，使用者明確表示「未來可以」，這次
+  不用做，下次要再動視覺方向前先讀那條，不要又寫死一次。snapshot #4
+  的亂碼歷史資料留著沒清，不影響現況。
+- **版本**：`v0.19.0-202607130729`。
+
+---
+
 ## 2026-07-13 — 待辦總表順序⑦：前端品質重建計畫階段③，後台首頁 Dashboard 化
 
 - **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做⑦（roadmap

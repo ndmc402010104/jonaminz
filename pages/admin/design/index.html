@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/admin/design/index.html
+用途：後台「專案視覺方向」展示頁（demo 階段，2026-07-13）——使用者想確認
+「每個專案自己宣告一套視覺調性，jonaminz 後台把它們攤出來顯示」這個概念
+展示起來好不好看，看了滿意再決定要不要做成正式架構（Contract 新增
+visualIdentity 自報欄位，Worker 讀已核准 Contract 的真實資料）。
+
+這一版是 demo：assets/js/app.js 裡的專案資料是寫死的範例（jonaminz 自己
+的「亞麻米」方向、jonaminz-movies 目前實際在用的酒紅方向，數值抄自
+jonaminz-movies/styles.css 的 CSS 變數），不是讀 Worker 的真實 Contract
+資料。確認概念後才會接上 listPendingContracts（篩 status==="approved"）
+讀真的 app.visualIdentity 欄位。
+
+複製自根目錄 index.html 的 bootstrap，只改 pageId / title / 內容。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="專案視覺方向"
+  data-jonaminz-page-id="admin-design"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>專案視覺方向 - Jonaminz</title>
+
+  <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
+  <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
+  <script src="/assets/js/entry-core.js"></script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page jonaminz-design-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-design-container">
+      <section data-app-root>
+        <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>

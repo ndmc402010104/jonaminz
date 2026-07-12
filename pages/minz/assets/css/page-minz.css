@@ -29,7 +29,7 @@ Jonathan/Minz 顏色區分慣例（見 pages/admin/contracts/ 的登入身分徽
   aspect-ratio: 2 / 3;
   border-radius: var(--radius-lg);
   border: 2px dashed var(--color-border);
-  background: rgba(139, 92, 246, 0.06);
+  background: color-mix(in srgb, var(--color-primary-2) 6%, transparent);
 }
 
 .jonaminz-profile-info {

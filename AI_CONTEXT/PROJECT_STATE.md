@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-13（**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節，不要重新問使用者要做什麼；第 9 項階段 A/B（登入＋整站保護＋identity capability）皆已上線；前端品質重建計畫三階段（效能重建、Jonathan/Minz 門戶頁、後台 Dashboard 化）皆完成；文件真實性盤點完成，AI_CONTEXT 擴充成 13 份文件；**下一步是順序⑧手機 App 包裝（Capacitor），排在 roadmap 最後、使用者已確認方向**，細節見 roadmap 該段；順序⑤麵包屑維持延後不做）
+最後更新：2026-07-13（**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節；第 9 項階段 A/B、前端品質重建計畫三階段皆已上線；文件真實性盤點完成。**⑦之後追加的視覺方向工作已全部完成並驗證**：Contract schema 新增 `app.visualIdentity` 自報欄位；jonaminz-movies 正式環境 Contract 帶 `visualIdentity`（酒紅 Editorial，snapshot #5 active）；`pages/admin/design/`（新頁面）讀真實已核准 Contract 展示各專案視覺方向；jonaminz 全站套用「亞麻米 Flax & Ink」（改 reservoir tokens，含修好一個關鍵 bug——Supabase Theme 系統裡有舊配色快照疊在 tokens 之上蓋掉新值，已刪除該快照 4 筆舊資料）；`pages/admin/contracts/` 改成按專案分組、摺疊歷史（含修好一個 `<details>` 展開狀態被 render() 重置的真實 bug）。全部經 Playwright 全站回歸驗證通過，細節見 `CHANGELOG.md` 同日「Platform Service 化的視覺方向」條目。**尚待 commit/push**（jonaminz 與 jonaminz-movies 兩邊）。使用者提出的「視覺方向應該存進 Theme 系統」長期方向已記錄在 `EXPERIMENTS.md` #9，未拍板不是現在做。**下一步是順序⑧手機 App 包裝**；順序⑤麵包屑維持延後不做）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -148,8 +148,39 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **Platform Service 化的視覺方向（2026-07-13，roadmap ⑦之後追加，非
+  編號項目）：完成並已驗證，尚待 push。** 完整細節見
+  `AI_CONTEXT/CHANGELOG.md` 同日「Platform Service 化的視覺方向」條目，
+  這裡只列結論：
+  - Contract schema 新增 `app.visualIdentity` 自報欄位（非 breaking，
+    跟 `description`/`icon` 同一類自我描述欄位），ajv validator 已重新
+    產生。
+  - `pages/admin/design/`（新頁面）讀真實 `listPendingContracts` 的
+    `previousApproved`（Worker 權威計算出的「現在真的生效中」的合約，
+    不是猜某筆 row 的 `status`）展示各專案宣告的視覺方向，含 jonaminz
+    自己（唯一寫死的一筆，因為平台本身不對自己送 Contract）。
+  - jonaminz-movies 的 `jonaminz.contract.json` 加上 `visualIdentity`
+    （酒紅 Editorial），過程中用 `curl -d` shell 字串內插把中文字送壞過
+    一次（snapshot #4，亂碼留在歷史不刪），改用 `curl --data-binary`
+    重新提交乾淨版本，snapshot #5 現在是 active。
+  - jonaminz 全站套用「亞麻米 Flax & Ink」（reservoir tokens 全面改暖
+    色調＋新增 `--font-display` serif）。**修好三個真的會讓新配色顯示
+    不完整的問題**：頁面 CSS 裡寫死的舊靛紫 rgba、`jonaminz-loading.css`
+    的 bootstrap fallback 值忘了同步、以及最關鍵的一個——**Supabase
+    `theme_css_rules` 表裡有一份 2026-07-12 的舊配色快照疊在 tokens
+    之上把新值整個蓋掉**（已刪除該快照裡 4 筆衝突的舊資料）。
+  - `pages/admin/contracts/` 改成按 `(projectId, environment)` 分組、
+    只攤開目前 active 版本、其餘歷史摺進原生 `<details>`，過程中人工
+    覆核抓到並修好一個真實 bug（`<details>` 展開狀態原本會被每次
+    `render()` 重置）。
+  - **驗證**：Playwright 對全站 8 個頁面截圖＋console 零錯誤確認；直接
+    讀 `getComputedStyle` 確認 token 實際生效值；針對 `<details>` bug
+    修復另外寫專項互動測試確認修好。
+  - **遺留**：使用者提出視覺方向未來應該存進 Theme 系統（Supabase，可
+    即時切換不用重新部署）而不是寫死進 reservoir tokens，已記錄
+    `EXPERIMENTS.md` #9，未拍板。
 - **前端品質重建計畫階段③：後台首頁 Dashboard 化（2026-07-13，
-  `docs/roadmap-202607.md` 順序⑦）：完成並已驗證，尚待 push。**
+  `docs/roadmap-202607.md` 順序⑦）：完成、已驗證並已 push（14051c0）。**
   `pages/admin/` 從路線佔位卡片升級成 dashboard：登入身分徽章（沿用
   `.jonaminz-identity-badge` 視覺，jonathan/minz 各自配色）、pending
   Contract 數量（跟 `pages/admin/contracts/` 同一套

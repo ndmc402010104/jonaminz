@@ -2,6 +2,10 @@
 檔案位置：jonaminz/assets/css/reservoir/03-base.css
 用途：CSS 疊加第 3 層 - Base。把 Token 套到 body / 標題 / 段落 / 連結等最基本元素。
 頁面若想要不同觀感（例如 home 頁的深色背景），去 Page Layer 疊加，不要回頭改這裡。
+
+2026-07-13：h1/h2/h3 加上 --font-display（見 02-tokens.css「亞麻米」方向
+說明）——內文維持 sans-serif，標題用 serif 帶出手感，是這次視覺方向的
+核心差異點，套在 base 層讓全站標題自動一致，不用每頁各自加。
 */
 
 html {
@@ -18,8 +22,10 @@ body {
 h1,
 h2,
 h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 p {

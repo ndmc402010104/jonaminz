@@ -1,0 +1,134 @@
+/*
+檔案位置：jonaminz/pages/admin/design/assets/css/page-admin-design.css
+用途：CSS 疊加第 7 層 - Page Layer，只給「專案視覺方向」頁用。疊加在
+reservoir 六層之上。每張卡片用 JS 算出的 --vi-* CSS 變數（見 app.js
+projectCardHtml()）決定自己的底色/主色/字體，卡片本體之外的頁面容器
+（標題、說明文字）維持中性 tokens，不被個別專案的顏色干擾。
+*/
+
+.jonaminz-design-page {
+  padding: var(--space-7) 0;
+}
+
+.jonaminz-design-container {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.jonaminz-design-title {
+  margin: var(--space-2) 0 var(--space-3);
+  font-size: var(--text-2xl);
+}
+
+.jonaminz-design-intro {
+  color: var(--color-text-muted);
+  max-width: 64ch;
+  margin: 0 0 var(--space-7);
+}
+
+.jonaminz-design-error {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-4) 0 0;
+}
+
+.jonaminz-design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--space-5);
+}
+
+.jonaminz-design-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: var(--color-bg);
+}
+
+.jonaminz-design-card-head {
+  padding: var(--space-5) var(--space-5) 0;
+}
+
+.jonaminz-design-project-id {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.jonaminz-design-name {
+  margin: 4px 0 0;
+  font-size: var(--text-lg);
+}
+
+.jonaminz-design-tagline {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 這一塊是每張卡片實際套用該專案宣告色彩/字體的「預覽區」──不是純資料 */
+.jonaminz-design-preview {
+  margin: var(--space-4) var(--space-5) 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--vi-bg);
+  color: var(--vi-ink);
+}
+
+.jonaminz-design-headline {
+  font-family: var(--vi-font);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  margin: 0 0 var(--space-2);
+}
+
+.jonaminz-design-body {
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  margin: 0 0 var(--space-4);
+  opacity: 0.82;
+}
+
+.jonaminz-design-btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  background: var(--vi-accent);
+  color: var(--vi-bg);
+  cursor: default;
+}
+
+.jonaminz-design-none {
+  margin: var(--space-3) var(--space-5) var(--space-5);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.jonaminz-design-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 0;
+  margin: var(--space-4) var(--space-5) var(--space-5);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.jonaminz-design-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.jonaminz-design-swatch-hex {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}

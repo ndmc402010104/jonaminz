@@ -38,6 +38,44 @@
         "icon": {
           "description": "S9, S15：icon 允許自我宣告；若為 URL 需符合 S15 的 URL 欄位規則（見 $defs/contractUrl）。",
           "$ref": "#/$defs/contractUrl"
+        },
+        "visualIdentity": {
+          "description": "S9：跟 description/icon 同一類自我描述欄位——專案自己宣告『我的視覺調性是什麼』給 jonaminz 後台的專案視覺方向頁展示用，純展示，不影響任何授權/啟用/排序判斷（不在 forbiddenFieldsGuard 清單裡，因為它不是定位類欄位）。2026-07-13 新增，非 breaking change：既有沒有這個欄位的合約仍然合法（省略即可，展示頁會用預設樣式）。",
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "name": {
+              "description": "方向名稱，例如「酒紅 Editorial」。",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "tagline": {
+              "description": "一句話形容這個調性，例如「雜誌感、電影感」。",
+              "type": "string",
+              "maxLength": 80
+            },
+            "palette": {
+              "description": "顏色宣告，鍵名固定（background/surface/accent/accent2/ink），值須為 #rrggbb 六碼色碼。",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "background": { "$ref": "#/$defs/hexColor" },
+                "surface": { "$ref": "#/$defs/hexColor" },
+                "accent": { "$ref": "#/$defs/hexColor" },
+                "accent2": { "$ref": "#/$defs/hexColor" },
+                "ink": { "$ref": "#/$defs/hexColor" }
+              }
+            },
+            "typography": {
+              "description": "字體宣告，純展示用的 CSS font-family 字串（含 fallback），不做進一步驗證（信任專案自己描述自己）。",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "display": { "type": "string", "maxLength": 200 }
+              }
+            }
+          }
         }
       }
     },
@@ -113,6 +151,11 @@
       "description": "S1, S3：projectId/entryId/objectType 共用文法。",
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{1,62}$"
+    },
+    "hexColor": {
+      "description": "app.visualIdentity.palette 用，六碼 #rrggbb（不接受三碼縮寫或色彩名稱，展示頁直接把值塞進 CSS，格式要單純可預期）。",
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
     },
     "capabilityId": {
       "description": "S30：<service>.<capability>@<major> 文法。service/capability 限小寫字母數字連字號（kebab-case），不允許 camelCase——保留服務名單（S30 附錄，如 sharedCache）本身就是『reserved roadmap，非 frozen API，發布前可改名』，統一成 kebab-case 是這份 schema 定案前最後一次免費改名機會，發布後才會被 S11『已發布欄位永不改語意與型別』鎖住。major 為正整數。",

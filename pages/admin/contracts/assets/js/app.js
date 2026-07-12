@@ -21,6 +21,7 @@ Worker 端也要求 session（見 worker.js 的 requireSession），操作人
   var identity = null;
   var rows = [];
   var expandedIds = {};
+  var expandedHistoryGroups = {};
 
   /* ---------- helpers ---------- */
 
@@ -172,6 +173,84 @@ Worker 端也要求 session（見 worker.js 的 requireSession），操作人
     );
   }
 
+  // 2026-07-13：已裁決清單改成按 (projectId, environment) 分組，每組只把
+  // 「現在真的生效中」的那筆（靠 previousApproved.snapshotId 判斷，不是
+  // 猜最新一筆）攤在外面，其餘歷史摺進原生 <details>，預設收合——使用者
+  // 原話：「保留歷史但一直累積感覺不好，應該做成歷史、現在是最後一個」。
+  // previousApproved 是 Worker 在每一列都附的同一份資料（來自
+  // contract_active_snapshots，不是猜出來的），同一組內每筆的
+  // previousApproved 內容必然相同，取第一筆的就好。
+  function groupDecidedByProject(decided) {
+    var groups = {};
+    var order = [];
+
+    decided.forEach(function (row) {
+      var key = row.projectId + "::" + row.environment;
+      if (!groups[key]) {
+        groups[key] = { projectId: row.projectId, environment: row.environment, previousApproved: row.previousApproved, rows: [] };
+        order.push(key);
+      }
+      groups[key].rows.push(row);
+    });
+
+    return order.map(function (key) { return groups[key]; });
+  }
+
+  function projectGroupHtml(group) {
+    var groupKey = group.projectId + "::" + group.environment;
+    var activeSnapshotId = group.previousApproved ? group.previousApproved.snapshotId : null;
+    var activeRow = null;
+    var historyRows = [];
+
+    group.rows.forEach(function (row) {
+      if (activeSnapshotId !== null && row.id === activeSnapshotId && !activeRow) {
+        activeRow = row;
+      } else {
+        historyRows.push(row);
+      }
+    });
+
+    // active 指標存在，但那筆 snapshot 不在最近 50 筆窗口內──退而求其次
+    // 顯示這組裡最新的一筆當代表，並註記這不是嚴格確認的 active（罕見
+    // edge case，2 人用量下最近 50 筆幾乎不會遇到，防禦性處理而已）。
+    var activeUnconfirmed = false;
+    if (!activeRow && group.rows.length) {
+      activeRow = group.rows[0];
+      historyRows = group.rows.slice(1);
+      activeUnconfirmed = true;
+    }
+
+    return (
+      '<div class="jonaminz-contracts-project-group">' +
+        '<div class="jonaminz-contracts-project-head">' +
+          '<h3>' + escapeHtml(group.projectId) + '<span class="jonaminz-contracts-env">' + escapeHtml(group.environment) + '</span></h3>' +
+          (activeUnconfirmed ? '<span class="jonaminz-contracts-unconfirmed">目前生效版本不在最近 50 筆內，顯示最新一筆代表</span>' : '') +
+        '</div>' +
+        (activeRow ? rowHtml(activeRow) : '<p class="jonaminz-page-subtitle">目前沒有生效中的版本。</p>') +
+        (historyRows.length
+          ? '<details class="jonaminz-contracts-history" data-history-group="' + escapeHtml(groupKey) + '"' +
+              (expandedHistoryGroups[groupKey] ? ' open' : '') + '>' +
+              '<summary>歷史（' + historyRows.length + ' 筆，可改判）</summary>' +
+              historyRows.map(rowHtml).join('') +
+            '</details>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function decidedSectionHtml(decided) {
+    var groups = groupDecidedByProject(decided);
+
+    return (
+      '<section class="jonaminz-theme-section">' +
+        '<div class="jonaminz-section-head"><h2 class="jonaminz-section-title">已裁決（按專案分組，可改判）</h2></div>' +
+        (groups.length
+          ? groups.map(projectGroupHtml).join('')
+          : '<p class="jonaminz-page-subtitle">還沒有任何 Contract 被核准或否決過。</p>') +
+      '</section>'
+    );
+  }
+
   function toolbarHtml() {
     var label = IDENTITY_LABEL[identity] || identity || "?";
     return (
@@ -197,7 +276,7 @@ Worker 端也要求 session（見 worker.js 的 requireSession），操作人
     root.innerHTML = (
       toolbarHtml() +
       sectionHtml("待審核（" + pending.length + "）", pending, "目前沒有待審核的 Contract。") +
-      sectionHtml("已裁決（可改判）", decided, "還沒有任何 Contract 被核准或否決過。")
+      decidedSectionHtml(decided)
     );
   }
 
@@ -256,6 +335,18 @@ Worker 端也要求 session（見 worker.js 的 requireSession），操作人
     var root = document.querySelector("[data-app-root]");
     if (!root || root.getAttribute("data-contracts-bound") === "true") return;
     root.setAttribute("data-contracts-bound", "true");
+
+    // <details> 的原生 toggle 事件不會冒泡（跟 scroll/load 同類），但
+    // capture 階段不受 bubbles 影響一樣會經過祖先節點，掛在 capture
+    // 才能用同一個 listener 代理到所有歷史摺疊區塊，不用逐一綁定。
+    // 沒有這層追蹤的話，每次 render()（例如展開某筆 diff）都會把
+    // <details> 重新生成回預設收合狀態，使用者剛展開的歷史又會合起來。
+    root.addEventListener("toggle", function (event) {
+      var details = event.target.closest && event.target.closest("[data-history-group]");
+      if (!details) return;
+      var key = details.getAttribute("data-history-group");
+      expandedHistoryGroups[key] = details.open;
+    }, true);
 
     root.addEventListener("click", function (event) {
       var refreshBtn = event.target.closest("[data-refresh]");

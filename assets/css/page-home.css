@@ -112,6 +112,10 @@ body {
 }
 
 .hero h1 {
+  /* 首頁是獨立的簽名式深色設計，不跟隨 2026-07-13 起 03-base.css 給全站
+     h1/h2/h3 套用的 --font-display（見該檔案說明）——這裡明確蓋回
+     sans-serif，保留首頁原本已經調好的字體/字距，不被全站標題規則波及。 */
+  font-family: var(--font-sans);
   margin: 0;
   font-size: clamp(48px, 9vw, 96px);
   line-height: 0.9;

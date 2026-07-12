@@ -58,6 +58,18 @@
         "loadingTasks": ["app-ready"]
       }
     },
+    "admin-design": {
+      "pageId": "admin-design",
+      "title": "專案視覺方向",
+      "path": "/pages/admin/design/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/design/assets/css/page-admin-design.css"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/design/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
     "login": {
       "pageId": "login",
       "title": "登入",
