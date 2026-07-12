@@ -20,6 +20,54 @@
 
 ---
 
+## 2026-07-12 — 待辦總表順序①：Google OAuth 本機導頁修復
+
+- **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做①。使用者
+  發現本機 `localhost:5500` 走 Google 登入永遠被導去正式站，本機測不了
+  這條路。
+- **變更**：
+  - `worker.js` 新增 `ALLOWED_OAUTH_RETURN_ORIGINS`（白名單：
+    `https://www.jonaminz.com`／`http://localhost:5500`）＋
+    `resolveOauthReturnOrigin(candidate)` helper（不在白名單一律回
+    fallback 第一個值，不信任呼叫端字串）。
+  - `handleGoogleStart(env, url)`（新增 `url` 參數）讀
+    `?origin=`、驗證白名單後存進 `oauth_states` 新增的 `return_origin`
+    欄位。
+  - `handleGoogleCallback` 查 `oauth_states` 時多 select
+    `return_origin`，用它（再過一次 `resolveOauthReturnOrigin` 防禦
+    升級前的舊資料列沒有這欄）建構最後的 302 導回網址，取代原本寫死
+    的 `https://www.jonaminz.com/`。
+  - `pages/login/assets/js/app.js` 的 `googleStartUrl()` 把
+    `window.location.origin` 帶進 `/auth/google/start?origin=...`。
+  - `backend/supabase/auth_schema.sql`：`oauth_states` 新增
+    `return_origin text` 欄位（CREATE TABLE 定義＋一行
+    `ALTER TABLE ADD COLUMN IF NOT EXISTS` 給既有環境套用）。
+- **驗證**：
+  1. `esbuild --bundle` + `node --check` 確認 `worker.js` 語法乾淨、
+     無 eval；`node --check` 確認登入頁 `app.js`。
+  2. 直連 jonaminz-db（Management API，密碼從根目錄密碼檔執行時讀取，
+     不寫死在 script 裡——第一次寫死被 auto mode classifier 擋下，
+     判定是憑證外洩風險，改成執行時讀檔）套用 `ALTER TABLE`，套用前後
+     都查 `information_schema` 確認連對專案（有 sessions/oauth_states/
+     contract_snapshots 三張表）、欄位真的加上。
+  3. `wrangler deploy` 後 curl 三種情境打 `/auth/google/start`：帶
+     `origin=http://localhost:5500`、帶偽造的
+     `origin=https://evil.example.com`、完全不帶——三種都正確 302 去
+     Google 同意畫面。再直連查 `oauth_states` 最新幾筆資料，確認
+     `return_origin` 分別存成 `http://localhost:5500`、fallback 值
+     `https://www.jonaminz.com`（惡意值被擋下，不是攻擊者塞的字串）、
+     同樣 fallback——白名單邏輯跟資料流都直接用真實資料驗證過。
+- **狀態變化**：`docs/roadmap-202607.md` 順序①完成。
+- **遺留**：Google 同意畫面那段是瀏覽器導航，沒辦法自動化測完整條路
+  （code exchange 需要真的走過 Google 同意畫面才有合法的
+  `code`），**使用者需要自己在 `localhost:5500` 實際點一次 Google 登入
+  確認真的能正常導回本機並取得身分**。Google Cloud Console 那邊的
+  OAuth Client 設定不用改（redirect URI 一直都是 Worker 自己的網域，
+  這次改的是 Worker 完成登入後自己 302 去哪裡，跟 Google 端設定無關）。
+- **版本**：`v0.13.0-202607121703`。
+
+---
+
 ## 2026-07-12 — 待辦總表彙整：平台能力拉高層級 + 前端計畫剩餘階段排序
 
 - **任務**：SKHPSV2 水庫層盤點完（三輪對話，逐檔讀完全部 19 個檔案）

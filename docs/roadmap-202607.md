@@ -7,7 +7,11 @@
 
 ---
 
-## 順序①：Google OAuth 本機導頁修復
+## 順序①：Google OAuth 本機導頁修復 ✅ 完成（2026-07-12，已部署）
+
+見 `AI_CONTEXT/CHANGELOG.md` 同日「待辦總表順序①」條目。核心邏輯（白
+名單驗證、資料流）已直連 DB 驗證過；Google 同意畫面那段需要使用者自己
+在 `localhost:5500` 實際點一次確認能正常導回本機。
 
 **現況**：`worker.js` 的 `handleGoogleCallback` 最後導回的網址寫死
 `https://www.jonaminz.com/`，不管從哪裡發起登入都會被導去正式站，本機

@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔Google OAuth 本機導頁修復〕已完成並部署，順序②開始）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -145,6 +145,32 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **Google OAuth 本機導頁修復（2026-07-12，`docs/roadmap-202607.md` 順序①）：
+  完成並已部署。** 根因：`handleGoogleCallback` 最後導回的網址原本寫死
+  `https://www.jonaminz.com/`，不管從哪裡發起登入都會被導去正式站，
+  `localhost:5500` 測不了 Google OAuth 這條路（內部密語登入是純 POST，
+  不受影響）。修法：登入頁 `googleStartUrl()` 把
+  `window.location.origin` 帶進 `/auth/google/start?origin=...`；
+  `handleGoogleStart` 用新增的 `ALLOWED_OAUTH_RETURN_ORIGINS` 白名單
+  （`https://www.jonaminz.com`／`http://localhost:5500`）驗證後存進
+  `oauth_states` 表新增的 `return_origin` 欄位；`handleGoogleCallback`
+  改用查出來的 `return_origin` 導回，不再寫死。**刻意不信任呼叫端傳來
+  的 origin 字串直接拿去導頁**——只信白名單，不在白名單內一律 fallback
+  回正式站，避免變成開放式重導向（任何人把登入 session token 導到自己
+  網域的漏洞，跟登入頁 `?next=` 參數當初的防護同一個精神）。
+  DB schema：`backend/supabase/auth_schema.sql` 新增
+  `return_origin text` 欄位（`ALTER TABLE ADD COLUMN IF NOT EXISTS`，
+  已直連套用到 jonaminz-db，套用前後都查過 `information_schema` 確認
+  連對專案、欄位真的加上）。**驗證**：`wrangler deploy` 後直接查
+  `oauth_states` 最新幾筆資料——`origin=localhost:5500` 真的存成
+  `http://localhost:5500`；`origin=https://evil.example.com`（模擬
+  攻擊）被擋下、`return_origin` 變成 fallback 值不是攻擊者塞的值；
+  沒帶 origin 也正確 fallback。Google 同意畫面那段需要真人瀏覽器互動，
+  沒有自動化跑完整條路，**還需要你自己在本機實際測一次登入到底能不能
+  正常導回 localhost**（Google Cloud Console 的 redirect URI 只登記了
+  Worker 自己的網域 `jonaminz-backend.../auth/google/callback`，這個
+  不用改，改的是 callback 完成後 Worker 自己 302 去哪裡，跟 Google 端
+  設定無關）。
 - **前端品質重建計畫階段①（效能重建＋全站布幕）：完成並已上線
   （2026-07-12，`docs/frontend-quality-plan-202607.md`）。** 診斷出的
   最大元凶：舊版 5 個頁面的 bootstrap script 都用 `String(Date.now())`

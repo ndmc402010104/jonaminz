@@ -18,11 +18,21 @@ create index if not exists sessions_expires_at_idx on sessions (expires_at);
 
 -- Google OAuth authorization code flow 的 CSRF 防護用，一次性、短 TTL：
 -- /auth/google/start 產生一筆、/auth/google/callback 核對後立刻刪除。
+-- return_origin：發起登入的來源（正式站或 localhost 開發伺服器），讓
+-- callback 導回原本那個來源而不是永遠導回正式站——本機測 Google OAuth
+-- 用得到（2026-07-12 加，見 worker.js 的 ALLOWED_OAUTH_RETURN_ORIGINS
+-- 白名單，值只可能是白名單裡的其中一個，不是使用者能任意帶的字串）。
 create table if not exists oauth_states (
   state text primary key,
+  return_origin text,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null
 );
+
+-- 2026-07-12：既有正式環境的表已經建過，沒有這欄，補一次 ALTER。新建
+-- 資料庫走上面的 CREATE TABLE 就已經含這欄，這行只是為了讓舊環境同步，
+-- 重跑本檔不會出錯（IF NOT EXISTS）。
+alter table oauth_states add column if not exists return_origin text;
 
 -- 開 RLS 但不加任何 public policy：只有拿 service role key 的 Cloudflare
 -- Worker 能讀寫這兩張表，瀏覽器端完全碰不到（跟既有表同一個原則）。
