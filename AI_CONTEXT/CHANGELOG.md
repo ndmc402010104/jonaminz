@@ -20,6 +20,24 @@
 
 ---
 
+## 2026-07-12 — 前端品質重建計畫定案（純規劃，無程式碼變更）
+
+- **任務**：使用者反映首頁很慢、loading gate 只有死白畫面，要求規劃
+  「把 jonaminz 做好一點」。診斷＋規劃產出 `docs/frontend-quality-plan-202607.md`，
+  三階段：①效能重建＋全站 skhpsv2 式布幕（快取修復/並行載入/theme 不長擋/
+  hero 圖壓縮）、②Jonathan 個人門戶頁＋Minz 佔位頁（SKHPS 連結從後台搬過去）、
+  ③後台首頁 Dashboard 化。三個方向皆經使用者 AskUserQuestion 拍板。
+- **變更**：僅新增計畫文件與本紀錄。診斷結論（快取全滅根因
+  `Date.now()` buster、13 段串行瀑布、theme 首訪擋 8 秒、581KB hero 圖）
+  已寫進計畫文件，實作前不用重新驗證。
+- **狀態變化**：無功能變化。下一棒直接照計畫文件逐階段執行，每階段
+  可當任務單使用。
+- **遺留**：三階段全部未實作。階段②需要使用者提供 Jonathan 簡介文字/照片
+  （可先佔位）。
+- **版本**：無程式碼變更（純文件），`version.js` 不動。
+
+---
+
 ## 2026-07-12 — Implementation plan 第 9 項階段 B：identity.currentUser@1 capability
 
 - **任務**：接續第 9 項階段 A（jonaminz 主站登入），做階段 B——把登入身分
