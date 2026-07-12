@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push，階段②③尚未開始）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁 nav 重複登入按鈕、後台系頁面 header 品牌無連結、首頁封面照片手機版裁掉新娘三個問題已修復並 push；階段②③尚未開始）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -199,6 +199,35 @@ jonaminz/
   01→06→page CSS）在並行載入前後不變，cascade 沒有被打亂。
   **這次沒做**：Jonathan/Minz 個人門戶頁（階段②）、後台首頁 Dashboard
   化（階段③），見 `docs/frontend-quality-plan-202607.md` 對應段落。
+- **首頁/後台三個視覺缺陷修復（2026-07-12，階段①收尾後追加）**：使用者
+  實際看過網站後發現三個問題，當場修掉。
+  1. 首頁右上角同時有動態插入的「登入」連結（`header.js`
+     `mount()`，網址 `/pages/login/`）與寫死在 `index.html` 的
+     「Login」按鈕（網址 `/pages/admin/`，未登入會再被 `requireLogin()`
+     轉一手才到登入頁）——兩個功能重疊、視覺重複。使用者裁決只留動態
+     那個（登入後自動變「OO你好＋登出」），`index.html` 刪掉靜態
+     Login `<a>`，`page-home.css` 同步刪掉變成孤兒規則的
+     `.nav-links a.login`。
+  2. 後台/Theme/Contracts/登入頁共用 header 的品牌字（「Jonaminz」）
+     原本是 `<span>`，點了沒反應，這些巢狀頁面沒有其他回首頁的路
+     （只能靠瀏覽器上一頁）。`assets/js/header.js` 的 `render()`
+     改成建立 `<a href="/">`（既有全域 `a{color:inherit;
+     text-decoration:none}` reset 已經處理好樣式，不用另外加 CSS）。
+  3. 首頁封面照片（橫向構圖，新娘在左新郎在右）在手機窄螢幕下完全
+     沒辦法 RWD——`background-size:cover` 在極窄長的 viewport 上只
+     露出原圖寬度的一小段（例如 375px 寬時只看得到約 25% 的圖片
+     寬度），原本 `≤540px` 的 `background-position: 61% center`
+     偏右，導致新娘整個人被裁出畫面外，只剩新郎的手臂一小角。改成
+     `background-position: 22% center`，讓新娘（含吹泡泡的動作）完整
+     入鏡，正好對應畫面左下角的「PIECE 01 Minz」標籤；代價是新郎在
+     最窄的手機寬度完全不會入鏡（物理限制：這個寬高比不可能同時裝下
+     兩個人，兩害相權取其輕，選擇讓至少一人完整清楚，而不是兩人都
+     裁一半）。`≤820px`／桌機維持原本 `center 49%` 不變，只有
+     `≤540px` 這個斷點改了。**這次沒做**：真的替換封面照片（使用者
+     提過的另一個選項，這次先用調整裁切點解決，還沒有新照片）。
+  本機 Playwright 驗證：首頁桌機／375px／768px 三種寬度截圖確認裁切
+  結果與登入按鈕只剩一個；mock 登入後點擊後台 header 品牌字實際導航
+  到 `/`，確認連結真的生效（不是只有 `href` 屬性對但沒綁事件）。
 - 首頁（簽名式導覽版型）＋ loading gate（css/shell/main 三段）。
 - CSS 八層疊加架構全部運作中（reservoir 六層 + Page Layer + Theme 動態層）。
 - Theme 系統端到端可用：後台 `/pages/admin/theme/` 編輯 → Worker →
@@ -679,13 +708,13 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.11.0-202607121559`（`version.js`，前端品質重建計畫
-  階段①這批變更的 bump）。規則：每次 push 前要 bump，且要先查真的
-  系統時間再填 `buildTime`/`updatedAt`（不能用猜的，見 `RULES.md`
-  §二-1）。**這個版本字串 2026-07-12 起兼任全站資源的 cache-buster**
-  （見 §3 前端品質重建條目），bump 這個檔案現在同時是「讓使用者肉眼
-  確認上線」跟「強制瀏覽器拿新資源」兩件事的唯一機制，比以前更重要，
-  不能漏。
+- 業務版本：`v0.11.1-202607121620`（`version.js`；`v0.11.0` 是階段①，
+  `v0.11.1` 是隨後的首頁/後台三個視覺缺陷修復）。規則：每次 push 前要
+  bump，且要先查真的系統時間再填 `buildTime`/`updatedAt`（不能用猜的，
+  見 `RULES.md` §二-1）。**這個版本字串 2026-07-12 起兼任全站資源的
+  cache-buster**（見 §3 前端品質重建條目），bump 這個檔案現在同時是
+  「讓使用者肉眼確認上線」跟「強制瀏覽器拿新資源」兩件事的唯一機制，
+  比以前更重要，不能漏。
   **2026-07-11～12 implementation plan 第 3-7 項、第 9 項階段 A、第 9
   項階段 B、後台整站登入保護（第 9 項之後追加）皆完成並已上線**：第 3
   項（核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的

@@ -87,11 +87,6 @@ body {
   -webkit-backdrop-filter: blur(16px);
 }
 
-.nav-links a.login {
-  background: rgba(247, 240, 229, 0.88);
-  color: #111411;
-}
-
 /* 身分登入狀態（implementation plan 第 9 項），assets/js/app.js 動態插入
    [data-nav-identity] 容器。只加規則、不動上面既有的 .nav-links 規則。 */
 .nav-identity {
@@ -258,7 +253,7 @@ body {
 
 @media (max-width: 540px) {
   .page { padding: 12px; }
-  .photo { inset: 12px; border-radius: 26px; background-position: 61% center; }
+  .photo { inset: 12px; border-radius: 26px; background-position: 22% center; }
   .nav {
     left: 22px;
     right: 22px;

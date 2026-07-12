@@ -20,6 +20,45 @@
 
 ---
 
+## 2026-07-12 — 首頁/後台三個視覺缺陷修復（重複登入按鈕、header 品牌無連結、封面照片手機版裁掉新娘）
+
+- **任務**：使用者實際看過階段①上線後的網站，指出三個具體問題：
+  「右上角又登入又 Login 不詭異嗎」、後台系頁面 header 沒有固定內容
+  可以回首頁、封面照片在手機上沒辦法 RWD。逐一截圖確認現況後修復。
+- **變更**：
+  1. `index.html` 刪掉寫死的靜態 `<a class="login" href="/pages/admin/">
+     Login</a>`，只留 `header.js`／`assets/js/app.js` 動態插入的「登入」
+     連結（`/pages/login/`，登入後自動變「OO你好＋登出」）——AskUserQuestion
+     確認過使用者選這個方向，不是反過來留靜態那個。`page-home.css`
+     同步刪掉變成孤兒規則的 `.nav-links a.login`。
+  2. `assets/js/header.js` 的 `render()`：品牌字從 `<span>` 改成
+     `<a href="/">`，點了會回首頁。既有全域 `a{color:inherit;
+     text-decoration:none}` reset（`01-reset.css`）已經處理好樣式，
+     沒有另外加 CSS。這個共用 header 被 admin/admin-theme/
+     admin-contracts/login 四頁使用，一次修好全部生效。
+  3. `assets/css/page-home.css`：`≤540px` 斷點的 `.photo`
+     `background-position` 從 `61% center` 改成 `22% center`。用
+     Playwright 在 375px 寬實測：橫向構圖的封面照（新娘左、新郎右）
+     在極窄 viewport 下 `background-size:cover` 只會露出原圖寬度
+     約 25%，原本的裁切點偏右，把新娘整個人切出畫面外只剩新郎手臂
+     一角；改成偏左後新娘（含吹泡泡動作）完整入鏡，正好對應畫面
+     左下角「PIECE 01 Minz」標籤。**物理限制講清楚**：這個寬高比
+     不可能同時裝下兩個人，兩害相權取其輕，新郎在最窄手機寬度會
+     完全不入鏡——這是取捨後的結果，不是遺漏。`≤820px`／桌機維持
+     原本 `center 49%` 不動，兩人都看得到。
+- **驗證**：本機 Playwright 對首頁桌機／375px／768px 三種寬度截圖
+  比對裁切結果；確認首頁 `.nav-links`／`.nav-identity` 底下只剩一個
+  登入相關連結；mock 登入態下實際點擊後台頁的 header 品牌字，確認
+  真的導航到 `/`（不只是 `href` 屬性對，是整個點擊行為都驗證過）；
+  全程零 JS 錯誤。
+- **狀態變化**：三個問題皆修復並已上線。
+- **遺留**：封面照片本身沒有換掉（使用者提過的另一個選項是直接換
+  一張新照片，這次先用調整裁切點解決；如果之後真的要換照片，記得
+  同時重新調整這個裁切點，不能假設新照片的主體位置跟現在一樣）。
+- **版本**：`v0.11.1-202607121620`。
+
+---
+
 ## 2026-07-12 — 前端品質重建計畫階段①：效能重建＋全站布幕
 
 - **任務**：接續前一筆的規劃文件（`docs/frontend-quality-plan-202607.md`），

@@ -209,8 +209,11 @@ requireLogin() 自己的註解。
 
     el.textContent = "";
 
-    var title = document.createElement("span");
+    // 品牌字回首頁（原本是 <span>，點了沒反應——後台/Theme/Contracts/
+    // 登入頁沒有其他回首頁的路，只能靠瀏覽器上一頁）。
+    var title = document.createElement("a");
     title.className = "jonaminz-header-title";
+    title.href = "/";
     title.textContent = siteConfig.title || "Jonaminz";
     el.appendChild(title);
 
