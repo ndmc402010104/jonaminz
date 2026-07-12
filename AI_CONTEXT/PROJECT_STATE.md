@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A 完成並驗證＋後台整站登入保護完成，待部署）
+最後更新：2026-07-12（第 9 項階段 A 完成並驗證＋後台整站登入保護完成並已部署，待使用者正式環境驗證）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -498,7 +498,13 @@ jonaminz/
     `next` 正常流程與開放式重導向防護）；`JONAMINZ_ADMIN_TOKEN` 這個
     Cloudflare secret 部署後不再被使用，可自行
     `npx wrangler secret delete JONAMINZ_ADMIN_TOKEN` 刪除（未自動做）。
-  - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
+    **已於 2026-07-12 `wrangler deploy` 上線**（Version ID
+    `bedbbb7b-50ed-453c-b3ad-6837ae1b9fe5`），curl smoke test 確認
+    `saveThemeCssRules`／`approveContract` 不帶 token 都正確回
+    `UNAUTHORIZED`、改帶舊的 `adminToken` 欄位測試也一樣被拒絕
+    （確認舊機制真的失效）、其餘既有 action 不受影響。**仍待使用者
+    親自到正式環境用真實帳號登入驗證**（curl 只能測「擋沒登入的」，
+    測不到「真的登入後操作是否正常」）。
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
     [`ndmc402010104/jonaminz-movies`](https://github.com/ndmc402010104/jonaminz-movies)

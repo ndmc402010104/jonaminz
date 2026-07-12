@@ -20,6 +20,30 @@
 
 ---
 
+## 2026-07-12 — 後台登入保護部署：wrangler deploy + 正式環境 smoke test
+
+- **任務**：接續上一筆（後台登入保護程式碼完成但未部署），取得使用者
+  透過 AskUserQuestion 的明確授權後部署。
+- **變更**：`cd backend/cloudflare-worker && npx wrangler deploy`，上傳
+  成功（Version ID `bedbbb7b-50ed-453c-b3ad-6837ae1b9fe5`）。正式環境
+  curl smoke test：`saveThemeCssRules`／`approveContract`（不帶 token）
+  皆正確回 `UNAUTHORIZED`；`approveContract` 改帶舊的 `adminToken` 欄位
+  測試（模擬有人還在用舊前端）也正確回 `UNAUTHORIZED`，**確認舊機制
+  真的失效，不是欄位改名但邏輯還在**；`getCurrentIdentity`／
+  `getSdkVersion`／`getThemeCssRules` 這些不受影響的既有 action 正常
+  運作，確認這次部署沒有動到其他功能。
+- **狀態變化**：後台整站登入保護正式上線。`saveThemeCssRules` 技術債
+  正式解決，`JONAMINZ_ADMIN_TOKEN` 機制正式淘汰（Worker 端已完全不
+  讀取這個 secret）。
+- **遺留**：需要使用者親自到正式環境驗證三個後台頁的登入關卡（用真實
+  帳號登入，不是 curl 模擬）、Contract 核准/否決（操作人是否正確帶入
+  登入身分）、Theme 存檔是否正常；確認無誤後可自行
+  `npx wrangler secret delete JONAMINZ_ADMIN_TOKEN` 清掉已淘汰的
+  secret（不會自動做）。
+- **版本**：無程式碼變更（純部署操作＋文件更新），`version.js` 不動。
+
+---
+
 ## 2026-07-12 — 後台整站加登入保護，統一掉 JONAMINZ_ADMIN_TOKEN
 
 - **任務**：第 9 項階段 A（jonaminz 主站登入）落地並在正式環境驗證後，
