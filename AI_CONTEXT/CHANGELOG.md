@@ -20,6 +20,44 @@
 
 ---
 
+## 2026-07-12 — 待辦總表順序④：Runtime 診斷系統拉高層級（重新設計）
+
+- **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做④。SKHPS 的
+  `runtime.js` 把子系統名稱寫死在 API 裡，這次不是直接搬，要先重新
+  設計成可插拔才能給不同專案登記自己的模組用。
+- **變更**：
+  - 新增 `assets/js/runtime.js`：`window.JonaminzRuntime`（`log()`／
+    `registerModule(name, meta)`／`setModuleStatus(name, status,
+    detail)`／`getState()`／`getModuleState(name)`／
+    `subscribe(handler)`）。核心不認得任何特定子系統名字，任何呼叫端
+    自己登記自己的模組。log 環狀緩衝只留最近 200 筆。刻意沒搬 SKHPS
+    的 footer 五盞燈號診斷面板 UI，只做資料層／事件。
+  - `entry-core.js` 跟 version.js 同批載入 runtime.js（同樣不帶版本
+    buster），登記 `loading-gate` 模組，把 gate 生命週期關鍵時間點
+    （init 開始／version 載完／config 解析完／css ready／shell
+    ready／task done or fail／all-ready／8 秒逾時保底／init 失敗）
+    發成 log、更新模組狀態（ok/warn/error）。所有呼叫點都透過
+    `runtimeLog()`/`runtimeSetStatus()` 兩個 helper，內部檢查
+    `window.JonaminzRuntime` 存在才動作——runtime.js 是 best-effort
+    診斷，不能反過來影響真正的 loading gate 邏輯。`checkAllReady()`
+    加 `!allReady` 防止逾時保底放行後，事後補到的 task 把 `warn`
+    狀態蓋回 `ok`。
+- **驗證**：本機 Playwright 兩條路徑。①正常路徑：7 筆 log 依序出現、
+  最終狀態 `ok`、console 零錯誤、布幕正常掀幕。②逾時路徑：讓
+  `header.js` 卡 9 秒，~8.45 秒放行（落在 7.5~12 秒合理窗），狀態正確
+  標成 `warn` 不被事後補到的 task 蓋掉，console 零錯誤。過程中
+  `page.route()` 第一次沒配到帶版本 buster 的實際請求網址（glob
+  pattern 沒帶 `*` 吃掉 `?v=...`），修正後才測到真實行為。
+- **狀態變化**：`docs/roadmap-202607.md` 順序④完成。
+- **遺留**：skhpsv2 自己遷移過去用這個版本，待另開新 prompt 交辦
+  （skhpsv2 目前是 Codex 在處理）。目前只有 `loading-gate` 一個模組
+  登記，其他模組（theme／shell／layout-metrics）先不加，等真的需要
+  更細診斷粒度再說，不預先猜。沒有任何畫面消費這些 log/狀態——跟量測
+  層（順序③）同樣做法，機制先上線。
+- **版本**：`v0.16.0-202607122216`。
+
+---
+
 ## 2026-07-12 — 待辦總表順序③：RWD/viewport 量測層拉高層級
 
 - **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做③。把

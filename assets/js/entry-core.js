@@ -75,6 +75,15 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
 （RWD/viewport 量測層，搬自 SKHPSV2 同名檔案、重寫成 jonaminz 版本，見
 該檔案自己的檔頭說明）。純廣播不改畫面，跟 header/footer/registry-loader
 同一批平行載入，不影響現有的載入順序或依賴關係。
+
+2026-07-12 待辦總表順序④：`assets/js/runtime.js`（可插拔診斷核心，見該
+檔案檔頭說明）跟 version.js 同批載入、同樣不帶版本 buster（核心啟動檔，
+理由跟 version.js 一致）。這裡登記自己（entry-core.js）為 `loading-gate`
+模組，把 gate 生命週期的關鍵時間點（開始/version 載入/config 解析完/css
+ready/shell ready/all-ready/逾時保底/init 失敗）發成 log、更新模組狀態。
+`runtimeLog()`/`runtimeSetStatus()` 兩個 helper 都先檢查
+`window.JonaminzRuntime` 存不存在才呼叫——runtime.js 是 best-effort 診斷，
+它自己載入失敗或還沒載完，不能反過來卡住或弄壞真正的 loading gate 邏輯。
 */
 (function () {
   "use strict";
@@ -178,6 +187,20 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
   }
   // ---- Runway Chase 讀條引擎結束 ----
 
+  // best-effort 診斷輸出：runtime.js 還沒載完/載入失敗都只是靜默跳過，
+  // 不能反過來影響真正的 loading gate 邏輯（見上方檔頭說明）。
+  function runtimeLog(level, module, message, data) {
+    if (window.JonaminzRuntime) {
+      window.JonaminzRuntime.log({ level: level, module: module, message: message, data: data });
+    }
+  }
+
+  function runtimeSetStatus(module, status, detail) {
+    if (window.JonaminzRuntime) {
+      window.JonaminzRuntime.setModuleStatus(module, status, detail);
+    }
+  }
+
   function withVersion(url) {
     if (!resourceVersion) return url;
     var sep = url.indexOf("?") === -1 ? "?" : "&";
@@ -237,7 +260,14 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
   function checkAllReady() {
     var tasks = Object.keys(pendingTasks);
     var done = tasks.length > 0 && tasks.every(function (task) { return pendingTasks[task] === true; });
-    if (done) releaseAllReady();
+    // !allReady 避免逾時保底已經放行過 gate 之後，剩餘的 task 陸續回報
+    // 完成時把 timeout 那邊寫的 "warn" 狀態覆蓋成 "ok"——那次放行本來
+    // 就不是正常結束，狀態要保留逾時的紀錄，不能被事後補到的 task 蓋掉。
+    if (done && !allReady) {
+      runtimeSetStatus("loading-gate", "ok", "全部 task 完成，gate 正常放行");
+      runtimeLog("info", "loading-gate", "all-ready");
+      releaseAllReady();
+    }
   }
 
   function registerTasks(taskNames) {
@@ -248,12 +278,14 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
     done: function (task) {
       pendingTasks[task] = true;
       docEl.setAttribute("data-jonaminz-" + task + "-ready", "true");
+      runtimeLog("info", "loading-gate", "task done: " + task);
       checkAllReady();
     },
     fail: function (task, error) {
       pendingTasks[task] = true;
       docEl.setAttribute("data-jonaminz-" + task + "-ready", "false");
       console.error("[jonaminz] loading task failed:", task, error);
+      runtimeLog("error", "loading-gate", "task failed: " + task, { error: String(error) });
       checkAllReady();
     }
   };
@@ -281,11 +313,24 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
     progressState.startedAt = Date.now();
     progressState.lastTickAt = progressState.startedAt;
 
+    // runtime.js 跟 version.js 同批載入、不帶版本 buster（核心啟動檔）。
+    // 載入完成才登記 loading-gate 模組——登記前發生的事件就不記錄了，
+    // 這是 best-effort 診斷合理的取捨，不值得為了搶那零點幾秒再插一層。
+    loadScript("/assets/js/runtime.js").then(function () {
+      window.JonaminzRuntime.registerModule("loading-gate", { label: "Loading Gate" });
+      runtimeSetStatus("loading-gate", "pending", "init 開始");
+      runtimeLog("info", "loading-gate", "entry-core init 開始");
+    }).catch(function (error) {
+      console.error("[jonaminz] runtime.js load failed", error);
+    });
+
     // 逾時保底：8 秒內沒有走到 all-ready 就強制放行，避免真的卡住的
     // 資源（例如 loadScript/loadStyle 的 onload/onerror 都沒觸發）讓
     // 布幕永遠不消失。舊版完全沒有這層保護，這次搬讀條演算法順便補上。
     gateTimeoutId = window.setTimeout(function () {
       console.warn("[jonaminz] entry-core init timed out after " + GATE_TIMEOUT_MS + "ms, releasing gate anyway");
+      runtimeSetStatus("loading-gate", "warn", GATE_TIMEOUT_MS + "ms 逾時，強制放行 gate");
+      runtimeLog("warn", "loading-gate", "逾時保底觸發，強制放行");
       markCssReady();
       markShellReady();
       releaseAllReady();
@@ -299,6 +344,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         // 保留給 registry-loader.js 讀（它自己的 cache buster 邏輯沒有改），
         // 從「每次都是新的 Date.now()」變成「跟著版本號走，同版本會命中快取」。
         window.JONAMINZ_ENTRY_VERSION = resourceVersion || String(Date.now());
+        runtimeLog("info", "loading-gate", "version.js 載入完成", { version: resourceVersion });
         setProgressTarget(15);
 
         var reservoirStyles = [
@@ -318,6 +364,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
 
         return configPromise.then(function (siteConfig) {
           setProgressTarget(30);
+          runtimeLog("info", "loading-gate", "config.json 解析完成", { pageId: pageId });
 
           window.JONAMINZ_SITE_CONFIG = siteConfig;
 
@@ -345,6 +392,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
             loadScript("/assets/js/layout-metrics.js")
           ]).then(function () {
             markShellReady();
+            runtimeLog("info", "loading-gate", "shell ready（header/footer/registry-loader/layout-metrics）");
             setProgressTarget(85);
           });
 
@@ -355,6 +403,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
             })
             .then(function () {
               markCssReady();
+              runtimeLog("info", "loading-gate", "css ready（reservoir/page/theme）");
               setProgressTarget(65);
             });
 
@@ -371,6 +420,8 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
       })
       .catch(function (error) {
         console.error("[jonaminz] entry-core init failed", error);
+        runtimeSetStatus("loading-gate", "error", String((error && error.message) || error));
+        runtimeLog("error", "loading-gate", "init 失敗，強制放行", { error: String((error && error.message) || error) });
         markCssReady();
         markShellReady();
         releaseAllReady();

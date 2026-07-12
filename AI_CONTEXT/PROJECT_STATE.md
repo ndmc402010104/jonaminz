@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔OAuth 本機導頁〕②〔讀條演算法〕③〔RWD/viewport 量測層〕皆已完成並部署，順序④開始）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔OAuth 本機導頁〕②〔讀條演算法〕③〔RWD/viewport 量測層〕④〔Runtime 診斷系統〕皆已完成並驗證，**④尚未 commit/push**；順序⑤〔麵包屑〕維持延後不做，下一個可執行項目是順序⑥〔Jonathan/Minz 門戶頁，需要使用者提供簡介文字/照片，沒有可先佔位〕）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -148,6 +148,50 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **Runtime 診斷系統拉高層級（2026-07-12，`docs/roadmap-202607.md`
+  順序④）：完成並已驗證，尚待 push。** 新檔 `assets/js/runtime.js`：
+  `window.JonaminzRuntime`（`log()`／`registerModule(name, meta)`／
+  `setModuleStatus(name, status, detail)`／`getState()`／
+  `getModuleState(name)`／`subscribe(handler)`）。**跟 SKHPS 版本的關鍵
+  差異、也是這次重新設計的重點**：SKHPS 把子系統名稱
+  （config/backend/css/externalApps/loadingGate）寫死在 API 裡
+  （`setConfig()`／`setBackend()`／`setCssRuntime()`…），沒辦法讓不同
+  專案登記自己的模組；jonaminz 版本改成完全可插拔，任何呼叫端用同一組
+  `registerModule`/`setModuleStatus` 登記自己的模組名稱，核心本身不
+  認得任何特定專案的子系統名字。log 用環狀緩衝只留最近 200 筆，避免
+  長駐分頁記憶體無限成長。**刻意沒做**：SKHPS 版本另外有一整套 footer
+  五盞燈號＋可展開診斷面板的 UI（將近 2000 行）——這次只把資料層／
+  事件蓋好，UI 要不要做、做成什麼樣子留給真的有需求時再設計，避免
+  猜一個沒人用過的介面。
+  - `entry-core.js` 登記 `loading-gate` 模組（跟 version.js 同批載入、
+    同樣不帶版本 buster，理由跟 version.js 一致：核心啟動檔），把
+    gate 生命週期關鍵時間點（init 開始／version.js 載完／config 解析
+    完／css ready／shell ready／每個 task done or fail／all-ready／
+    8 秒逾時保底／init 失敗）發成 log、更新模組狀態
+    （`ok`/`warn`/`error`）。`runtimeLog()`/`runtimeSetStatus()` 兩個
+    helper 都先檢查 `window.JonaminzRuntime` 存不存在才呼叫——
+    runtime.js 是 best-effort 診斷，它自己載入失敗或還沒載完，不能
+    反過來卡住或弄壞真正的 loading gate 邏輯。`checkAllReady()` 用
+    `!allReady` 防止逾時保底已經放行過 gate 之後，事後補到的 task
+    完成事件把 timeout 寫的 `warn` 狀態覆蓋回 `ok`——那次放行本來就
+    不是正常結束，狀態要保留逾時紀錄。
+  - **驗證**：本機 Playwright 兩條路徑——①正常路徑：全部 7 筆 log
+    依序出現（init 開始→version 載完→config 解析完→shell ready→css
+    ready→task done→all-ready），最終 `loading-gate` 模組狀態
+    `ok`，console 零錯誤，布幕正常掀幕。②逾時路徑：故意讓
+    `header.js` 卡 9 秒（超過 8 秒 `GATE_TIMEOUT_MS`），確認在
+    ~8.45 秒放行（在 7.5~12 秒的合理逾時窗內）、模組狀態正確標成
+    `warn`（不是被之後補到的 task 蓋掉），console 零錯誤。過程中第一次
+    用 `page.route()` 攔截時漏算 cache-buster query string（glob
+    pattern `**/assets/js/header.js` 沒配到帶 `?v=...` 的實際請求
+    URL），改成 `**/assets/js/header.js*` 才真的攔到——跟上次驗證讀條
+    演算法時踩過的 `waitUntil` 坑同一類「Playwright 測試方法本身要
+    先驗證有攔對」的教訓。
+  - **這次沒做**：skhpsv2 自己遷移過去用這個版本（待另開新 prompt
+    交辦，skhpsv2 目前是 Codex 在處理）；除了 `loading-gate` 之外，
+    目前沒有其他模組登記（例如 theme／shell／layout-metrics 各自的
+    狀態）——先驗證這一個模組的機制正確，之後真的需要更細的診斷粒度
+    再加，不預先猜。
 - **RWD/viewport 量測層拉高層級（2026-07-12，`docs/roadmap-202607.md`
   順序③）：完成並已上線。** 新增 `assets/js/layout-metrics.js`（搬自
   SKHPSV2 同名檔案，重寫成 jonaminz 版本：命名空間改

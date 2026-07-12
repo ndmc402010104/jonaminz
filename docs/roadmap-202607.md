@@ -68,15 +68,24 @@ OAuth」——手機用戶反正也比較常用密語登入，這樣可以順帶
 
 ---
 
-## 順序④：平台能力拉高層級——Runtime 診斷系統（重新設計）
+## 順序④：平台能力拉高層級——Runtime 診斷系統（重新設計）✅ 完成（2026-07-12，已驗證）
 
-**這個不是直接搬**——SKHPS 的 `runtime.js` 把五個子系統名稱
-（config/backend/css/externalApps/loadingGate）寫死在 API 裡
-（`setConfig()`／`setBackend()`／`setCssRuntime()`…），要先重新設計成
-可插拔（`registerModule(name, {deriveStatus})`）才能給不同專案登記自己
-的模組用，不是改名字就好。底層的 log/task done/fail 核心是通用的，可以
-沿用邏輯但要重寫外層 API。排在②③之後是因為它的天職是「觀測其他系統」，
-先有東西可觀測比較合理。
+見 `AI_CONTEXT/CHANGELOG.md` 同日「待辦總表順序④」條目。新檔
+`assets/js/runtime.js`：`window.JonaminzRuntime`（`log()`／
+`registerModule()`／`setModuleStatus()`／`getState()`／`getModuleState()`／
+`subscribe()`），跟 SKHPS 版本不同的地方就是不寫死任何子系統名稱——任何
+呼叫端自己登記自己的模組名字。只做資料層＋事件，**沒有 UI**（SKHPS 那套
+footer 五盞燈號診斷面板這次刻意不搬，等真的需要畫面時再設計）。
+
+`entry-core.js` 登記 `loading-gate` 模組，把 gate 生命週期關鍵時間點
+（init 開始／version.js 載完／config 解析完／css ready／shell ready／
+task done/fail／all-ready／8 秒逾時保底／init 失敗）發成 log、更新模組
+狀態（`ok`/`warn`/`error`）。Playwright 驗證兩條路徑都對：正常路徑全部
+log 依序出現、最終狀態 `ok`；逾時路徑（故意讓 header.js 卡 9 秒）在
+~8.45 秒放行、狀態正確標成 `warn` 且不被之後補到的 task 蓋掉。全程
+console 零錯誤。
+
+skhpsv2 自己遷移過去用這個版本，是之後的事，需要另開新 prompt 交辦。
 
 ---
 
