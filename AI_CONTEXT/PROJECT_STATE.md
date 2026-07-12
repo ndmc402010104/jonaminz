@@ -254,6 +254,16 @@ jonaminz/
   - **這次沒做**：真的替換封面照片本身（使用者提過的另一個選項，
     這次用「縮小＋固定比例」解決，沒有新照片可換）；favicon 缺失
     （順手發現但不在範圍內）。
+  - **後續兩個小修正（同日）**：①使用者看過覺得桌機下照片相對整個
+    畫面太小，`.hero-photo` 從 `width:min(560px,88vw)` 放大成
+    `width:min(1100px,78vw)`，大螢幕下更有存在感，固定 aspect-ratio
+    機制不受影響。②**真的漏洞**：拿掉「共用入口」按鈕後，登入態下
+    首頁完全沒有路徑回後台了（原本共用入口是唯一的路）。
+    `header.js` 的 `buildIdentityBox()` 新增 `options.showAdminLink`
+    （預設不開，只有首頁的 `mountIdentity()` 呼叫時傳 `true`，避免
+    在已經身處後台的頁面也顯示多餘的「回後台」），登入後顯示
+    「OO你好／後台／登出」三個元素，「後台」連去 `/pages/admin/`。
+    mock 登入態驗證過連結 `href` 跟顯示順序都正確。
 - 首頁（簽名式導覽版型）＋ loading gate（css/shell/main 三段）。
 - CSS 八層疊加架構全部運作中（reservoir 六層 + Page Layer + Theme 動態層）。
 - Theme 系統端到端可用：後台 `/pages/admin/theme/` 編輯 → Worker →

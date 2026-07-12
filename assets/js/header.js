@@ -108,6 +108,18 @@ requireLogin() 自己的註解。
       greeting.textContent = IDENTITY_LABEL[identity] + "你好";
       box.appendChild(greeting);
 
+      // 首頁拿掉「共用入口」按鈕後，登入態下沒有路徑回後台了——只有
+      // 呼叫端明確要求（options.showAdminLink）才加這個連結，避免在
+      // 已經身處後台的頁面（admin/theme/contracts）也顯示一個多餘的
+      // 「回後台」。
+      if (options.showAdminLink) {
+        var adminLink = document.createElement("a");
+        adminLink.className = classOrDefault(options.adminLinkClassName, "");
+        adminLink.href = "/pages/admin/";
+        adminLink.textContent = "後台";
+        box.appendChild(adminLink);
+      }
+
       var logoutBtn = document.createElement("button");
       logoutBtn.type = "button";
       logoutBtn.className = classOrDefault(options.logoutClassName, "btn");

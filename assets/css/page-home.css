@@ -96,7 +96,7 @@ body {
 }
 
 .hero-photo {
-  width: min(560px, 88vw);
+  width: min(1100px, 78vw);
   aspect-ratio: 16 / 9;
   border-radius: 28px;
   overflow: hidden;
