@@ -68,11 +68,15 @@
 3. **核准後台** —— ✅ 完成並已部署上線（2026-07-11）。pending 清單、
    跟 active 版本的逐 key diff、核准/否決（S14），透過
    `approve_contract_snapshot`／`reject_contract_snapshot` 兩個 Postgres
-   function 原子完成狀態切換＋active 指標＋audit log，`/pages/admin/contracts/`
-   後台以 Worker secret `JONAMINZ_ADMIN_TOKEN` 保護。核准/否決可互相改判
+   function 原子完成狀態切換＋active 指標＋audit log。核准/否決可互相改判
    （不是終態，S13「永不覆寫歷史」指 audit log 不可竄改，不是 status
    不能再變）；否決時如果那筆正好是目前生效版本，撤回 active 指標。
-   細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11 條目、`backend/README.md`。
+   **2026-07-12 更新**：`/pages/admin/contracts/` 原本用 Worker secret
+   `JONAMINZ_ADMIN_TOKEN` 保護，已改成跟整個後台一起要求登入（見下方
+   「後台整站登入保護」段落）——`JONAMINZ_ADMIN_TOKEN` 這個機制已淘汰，
+   `p_actor` 也從前端自報改成用登入身分。
+   細節見 `AI_CONTEXT/CHANGELOG.md` 2026-07-11、2026-07-12 條目、
+   `backend/README.md`。
 4. **flattened Effective Settings 端點** —— ✅ 完成並已部署上線
    （2026-07-11）。`getEffectiveSettings` action（S38，公開唯讀）算
    S31 公式：沒有 active approved snapshot → `approved:false`、
@@ -166,10 +170,44 @@
 意圖，但 2026-07-11 明確裁決不急，排在上面第 3–9 項（核心架構）都做完之後**，
 當作用真實外部專案驗證整套機制的階段，不要提前排進當前優先序。
 
+## 後台整站登入保護（第 9 項之後的追加工作，2026-07-12）
+
+第 9 項階段 A 落地後，使用者明確要求兩件事（AskUserQuestion 選定）：
+整個後台（`/pages/admin/`、`/pages/admin/theme/`、`/pages/admin/contracts/`）
+都要登入才能進來，不只是單一 write action；順便統一掉 `JONAMINZ_ADMIN_TOKEN`
+這個獨立的固定密語機制，改用同一套 session 登入。
+
+- **Backend**：新增共用 `requireSession(env, payload)`（複用
+  `getCurrentIdentity` 的 Supabase 查詢），`saveThemeCssRules`／
+  `approveContract`／`rejectContract` 三個寫入動作都改成要求
+  `payload.token` 是有效 session，`checkAdminToken` 已刪除。
+  `p_actor`（Contract 核准/否決的操作人）直接用登入身分決定，不再吃
+  前端傳的 `payload.actor`——原本是按鈕手動切換 Jonathan/Minz 自報身分，
+  沒有真的驗證是誰在按，這裡堵掉「可以假裝是另一個人」的漏洞。
+- **前端共用登入關卡**：`assets/js/header.js` 的 `window.JonaminzIdentity`
+  新增 `requireLogin()`（沒登入導去 `/pages/login/?next=<原路徑>`，任何
+  失敗都導頁，是「失敗關閉」——跟原本 `mount()` 的「失敗開放」刻意不同，
+  這是給真正的權限關卡用的）與匯出 `readToken()`。後台三頁跟 Theme
+  存檔都在呼叫寫入 action 時帶上這顆 token。
+- **登入頁支援 `?next=`**：`pages/login/assets/js/app.js` 內部密語登入
+  成功後導回原本要去的頁面，而不是固定回首頁；只接受同源相對路徑，
+  拒絕 `://`／`//` 開頭的值，避免開放式重導向。Google OAuth 這條路
+  這次沒有把 next 一起帶回（`worker.js` 的 `handleGoogleCallback`
+  固定導回首頁），是已知、刻意先不修的小缺口。
+- **Contracts 後台頁簡化**：拿掉 Admin token 輸入框跟操作人切換按鈕，
+  改成唯讀顯示登入身分（「登入身分：Jonathan」）。
+- **這次明確不做**：前台 IA 調整（SKHPS 連結搬去前台、Jonathan 頁籤
+  內容頁）——使用者討論時提過這個想法，但選了「這次先不動」，跟這次
+  的登入保護範圍分開處理。
+
+**遺留**：`JONAMINZ_ADMIN_TOKEN` 這個 Cloudflare secret 部署後變成沒人用，
+使用者可以自己用 `npx wrangler secret delete JONAMINZ_ADMIN_TOKEN` 刪掉
+（沒有自動做）。
+
 ## 既有系統技術債（實作期間一併處理）
 
-- `saveThemeCssRules` 目前無任何驗證（`backend/README.md` 自承）——
-  OAuth 落地後補「有登入才能寫」。這是既有 bug 修復，與規格無關。
+- ~~`saveThemeCssRules` 目前無任何驗證~~ —— ✅ 已解決（2026-07-12，見上
+  「後台整站登入保護」段落）：現在要求登入 session 才能存檔。
 - v0 機制（registry.json 拉模式＋`jonaminz-app.json`＋獨立 theme script）
   作廢條件依 `AI_CONTEXT/RULES.md` §4：SDK 實作完成＋遷移完成＋使用者
   明確宣布 deprecated，三條件全成立才拆。

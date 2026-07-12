@@ -24,6 +24,12 @@ backend-client.js 平常只有需要它的頁面才會在 config.json 的 afterS
 各頁 config.json 的 afterScripts 設定——backend-client.js 本身是 idempotent
 （重複載入只是重複賦值 window.JonaminzBackend），後台頁之後自己的
 afterScripts 再載一次也不會壞。
+
+後續（後台整站加登入保護）：window.JonaminzIdentity 另外暴露
+requireLogin()——沒登入就導去 /pages/login/?next=<目前路徑>，是後台
+三頁（pages/admin/、admin/theme/、admin/contracts/）跟 Theme 存檔/
+Contract 核准/否決這三個寫入動作共用的權限關卡。跟 mount() 的差異見
+requireLogin() 自己的註解。
 */
 (function () {
   "use strict";
@@ -148,9 +154,49 @@ afterScripts 再載一次也不會壞。
       });
   }
 
+  function redirectToLogin() {
+    var next = window.location.pathname + window.location.search;
+    window.location.href = "/pages/login/?next=" + encodeURIComponent(next);
+  }
+
+  // 給真正需要「沒登入就不准看」的頁面用（後台三頁），跟 mount() 刻意不
+  // 對稱：mount() 網路失敗時「失敗開放」（顯示登入連結，頁面照常運作，
+  // 適合只是「順便打個招呼」的場合），requireLogin() 是「失敗關閉」
+  // （任何失敗都導去登入頁）——對一個真正的權限關卡來說，寧可 Worker/
+  // Supabase 短暫故障時後台進不去，也不要意外讓沒登入的人看到內容。
+  // 回傳的 Promise 在「沒登入」的情況下設計成永遠不 resolve/reject：
+  // 呼叫端這時候已經在導頁離開了，不需要、也不應該讓後續程式碼繼續跑。
+  function requireLogin() {
+    var token = readToken();
+    if (!token) {
+      redirectToLogin();
+      return new Promise(function () {});
+    }
+
+    return ensureBackendClient()
+      .then(function () {
+        return window.JonaminzBackend.getCurrentIdentity({ token: token });
+      })
+      .then(function (response) {
+        var identity = response && response.identity;
+        if (!identity) {
+          redirectToLogin();
+          return new Promise(function () {});
+        }
+        return identity;
+      })
+      .catch(function (error) {
+        console.error("[jonaminz] JonaminzIdentity.requireLogin failed", error);
+        redirectToLogin();
+        return new Promise(function () {});
+      });
+  }
+
   window.JonaminzIdentity = {
     captureTokenFromHash: captureTokenFromHash,
-    mount: mount
+    mount: mount,
+    requireLogin: requireLogin,
+    readToken: readToken
   };
 
   captureTokenFromHash();

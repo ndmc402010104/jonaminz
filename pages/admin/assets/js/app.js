@@ -4,6 +4,10 @@
 後台這條路走得通，區塊內容之後再擴充，先給一個連到 skhps.jonaminz.com 的連結。
 只能回報自己的 loading task，不可以自己決定 css/shell ready。
 
+整站後台加登入保護：init() 先過 window.JonaminzIdentity.requireLogin()
+這關（見 assets/js/header.js），沒登入會被導去 /pages/login/?next=...，
+不會執行到下面的 render()。
+
 外部專案回報清單（registerExternalApp）是背景資訊，不影響 loading gate：
 讀取失敗只顯示錯誤文字，不會擋住頁面本身的 all-ready。
 */
@@ -81,14 +85,16 @@
   }
 
   function init() {
-    try {
-      render();
-      window.JonaminzLoading.done(READY_TASK);
-      renderRegistrations();
-    } catch (error) {
-      console.error("[jonaminz] admin app.js init failed", error);
-      window.JonaminzLoading.fail(READY_TASK, error);
-    }
+    window.JonaminzIdentity.requireLogin().then(function () {
+      try {
+        render();
+        window.JonaminzLoading.done(READY_TASK);
+        renderRegistrations();
+      } catch (error) {
+        console.error("[jonaminz] admin app.js init failed", error);
+        window.JonaminzLoading.fail(READY_TASK, error);
+      }
+    });
   }
 
   if (document.readyState === "loading") {

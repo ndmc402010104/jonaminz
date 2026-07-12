@@ -22,6 +22,11 @@ group_name = 該 group 的 id，方便之後決定要不要正式收進 registry
 
 只能回報自己的 loading task，不可以自己決定 css/shell ready。CSS Rules 讀寫是背景
 操作，不影響 loading gate。
+
+整站後台加登入保護：init() 先過 window.JonaminzIdentity.requireLogin()
+這關，沒登入會被導去登入頁。saveThemeCssRules 這個 action 本身在
+Worker 端也要求 session（見 worker.js requireSession），所以存檔時
+payload 要帶 window.JonaminzIdentity.readToken()。
 */
 (function () {
   "use strict";
@@ -537,7 +542,7 @@ group_name = 該 group 的 id，方便之後決定要不要正式收進 registry
 
     setStatus("儲存中...");
 
-    window.JonaminzBackend.call("saveThemeCssRules", { upsert: upsert, deleteIds: deletedIds })
+    window.JonaminzBackend.call("saveThemeCssRules", { upsert: upsert, deleteIds: deletedIds, token: window.JonaminzIdentity.readToken() })
       .then(function () {
         deletedIds = [];
         setStatus("已儲存，套用新外觀中...");
@@ -553,15 +558,17 @@ group_name = 該 group 的 id，方便之後決定要不要正式收進 registry
   }
 
   function init() {
-    try {
-      renderShowcase();
-      bindEvents();
-      window.JonaminzLoading.done(READY_TASK);
-      loadRules();
-    } catch (error) {
-      console.error("[jonaminz] theme app.js init failed", error);
-      window.JonaminzLoading.fail(READY_TASK, error);
-    }
+    window.JonaminzIdentity.requireLogin().then(function () {
+      try {
+        renderShowcase();
+        bindEvents();
+        window.JonaminzLoading.done(READY_TASK);
+        loadRules();
+      } catch (error) {
+        console.error("[jonaminz] theme app.js init failed", error);
+        window.JonaminzLoading.fail(READY_TASK, error);
+      }
+    });
   }
 
   if (document.readyState === "loading") {

@@ -3,11 +3,12 @@
 用途：Contract 核准後台（implementation plan 第 3 項）。對應規格 S13/S14：
 推送 ≠ 採信，pending 清單要能看 diff 才能核准／否決。
 
-approve/reject 是目前整站唯一有保護的寫入動作（見 backend/cloudflare-worker/
-worker.js 的 checkAdminToken）——整站還沒有登入系統，這裡先用一組只有
-Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁關掉就清掉，
-不長期留存），不是正式驗證，等 Google OAuth（implementation plan 第 9 項）
-落地後要換掉。
+整頁在 init() 就先過 window.JonaminzIdentity.requireLogin()（見
+assets/js/header.js），沒登入會被導去 /pages/login/?next=...，不會
+執行到下面的 render()/loadRows()。approve/reject 這兩個 action 在
+Worker 端也要求 session（見 worker.js 的 requireSession），操作人
+（p_actor）是 Worker 端直接用登入身分決定，不是前端自報——原本這裡是
+一組 JONAMINZ_ADMIN_TOKEN 密語＋前端手動切換操作人按鈕，已經淘汰。
 
 只能回報自己的 loading task，不可以自己決定 css/shell ready。
 */
@@ -15,9 +16,9 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
   "use strict";
 
   var READY_TASK = "app-ready";
-  var TOKEN_KEY = "jonaminz.adminToken";
-  var ACTOR_KEY = "jonaminz.actorName";
+  var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
 
+  var identity = null;
   var rows = [];
   var expandedIds = {};
 
@@ -151,7 +152,7 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
           '</div>' +
           '<div class="jonaminz-contracts-meta">' +
             (row.decidedAt
-              ? '<span>裁決於 ' + escapeHtml(formatTime(row.decidedAt)) + (row.decidedBy ? "（" + escapeHtml(row.decidedBy) + "）" : "") + '</span>'
+              ? '<span>裁決於 ' + escapeHtml(formatTime(row.decidedAt)) + (row.decidedBy ? "（" + escapeHtml(IDENTITY_LABEL[row.decidedBy] || row.decidedBy) + "）" : "") + '</span>'
               : '<span>送出於 ' + escapeHtml(formatTime(row.submittedAt)) + '</span>') +
             (row.note ? '<span>備註：' + escapeHtml(row.note) + '</span>' : "") +
           '</div>' +
@@ -171,24 +172,10 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
     );
   }
 
-  // 只有 Jonathan/Minz 兩個人用，改判斷判定人不用打字，按鈕切換直接存
-  // sessionStorage（見 bindEvents 的 data-actor-option 處理）。
-  var ACTOR_OPTIONS = ["Jonathan", "Minz"];
-
   function toolbarHtml() {
-    var savedToken = sessionStorage.getItem(TOKEN_KEY) || "";
-    var savedActor = sessionStorage.getItem(ACTOR_KEY) || ACTOR_OPTIONS[0];
-
     return (
       '<div class="jonaminz-theme-toolbar jonaminz-contracts-toolbar">' +
-        '<div class="jonaminz-contracts-actor-group">操作人 ' +
-          ACTOR_OPTIONS.map(function (name) {
-            return '<button type="button" class="btn btn-ghost jonaminz-contracts-actor-btn' +
-              (name === savedActor ? ' is-active' : '') + '" data-actor-option="' + escapeHtml(name) + '">' +
-              escapeHtml(name) + '</button>';
-          }).join("") +
-        '</div>' +
-        '<label>Admin token <input type="password" data-admin-token value="' + escapeHtml(savedToken) + '" placeholder="核准/否決前要先填"></label>' +
+        '<span class="jonaminz-contracts-identity">登入身分：' + escapeHtml(IDENTITY_LABEL[identity] || identity || "") + '</span>' +
         '<button class="btn btn-ghost" type="button" data-refresh>重新整理</button>' +
         '<p class="jonaminz-page-subtitle" data-status></p>' +
       '</div>'
@@ -235,22 +222,10 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
       });
   }
 
-  function currentToken() {
-    var input = document.querySelector("[data-admin-token]");
-    var value = input ? input.value.trim() : "";
-    if (value) sessionStorage.setItem(TOKEN_KEY, value);
-    return value;
-  }
-
-  function currentActor() {
-    var value = sessionStorage.getItem(ACTOR_KEY) || ACTOR_OPTIONS[0];
-    return value || null;
-  }
-
   function decide(action, snapshotId, note) {
-    var token = currentToken();
+    var token = window.JonaminzIdentity.readToken();
     if (!token) {
-      setStatus("請先填 admin token。");
+      setStatus("尚未登入或登入已逾期，請重新整理頁面。");
       return;
     }
 
@@ -258,8 +233,7 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
 
     window.JonaminzBackend[action === "approveContract" ? "approveContract" : "rejectContract"]({
       snapshotId: snapshotId,
-      adminToken: token,
-      actor: currentActor(),
+      token: token,
       note: note || null
     })
       .then(function () {
@@ -278,27 +252,10 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
     if (!root || root.getAttribute("data-contracts-bound") === "true") return;
     root.setAttribute("data-contracts-bound", "true");
 
-    // token 輸入框每打一個字就存 sessionStorage，不要等到按核准/否決才存——
-    // 不然中途按「重新整理」之類會觸發 render() 用舊值重畫整個工具列，
-    // 把剛打的字蓋掉，逼人重打一次（2026-07-11 使用者實際踩到回報）。
-    root.addEventListener("input", function (event) {
-      var tokenInput = event.target.closest("[data-admin-token]");
-      if (tokenInput) {
-        sessionStorage.setItem(TOKEN_KEY, tokenInput.value.trim());
-      }
-    });
-
     root.addEventListener("click", function (event) {
       var refreshBtn = event.target.closest("[data-refresh]");
       if (refreshBtn) {
         loadRows();
-        return;
-      }
-
-      var actorBtn = event.target.closest("[data-actor-option]");
-      if (actorBtn) {
-        sessionStorage.setItem(ACTOR_KEY, actorBtn.getAttribute("data-actor-option"));
-        render();
         return;
       }
 
@@ -326,15 +283,18 @@ Jonathan/Minz 知道的 token 當臨時關卡，存在 sessionStorage（分頁�
   }
 
   function init() {
-    try {
-      render();
-      bindEvents();
-      window.JonaminzLoading.done(READY_TASK);
-      loadRows();
-    } catch (error) {
-      console.error("[jonaminz] admin-contracts app.js init failed", error);
-      window.JonaminzLoading.fail(READY_TASK, error);
-    }
+    window.JonaminzIdentity.requireLogin().then(function (currentIdentity) {
+      try {
+        identity = currentIdentity;
+        render();
+        bindEvents();
+        window.JonaminzLoading.done(READY_TASK);
+        loadRows();
+      } catch (error) {
+        console.error("[jonaminz] admin-contracts app.js init failed", error);
+        window.JonaminzLoading.fail(READY_TASK, error);
+      }
+    });
   }
 
   if (document.readyState === "loading") {

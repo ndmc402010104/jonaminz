@@ -9,6 +9,13 @@ session token 存進 localStorage 的 key（jonaminz.sessionToken）跟
 pages/identity-relay/index.html、assets/js/header.js 用的是同一把 key，
 三邊都要一致，登入/登出/身分轉發才能認到同一顆 token。
 
+支援 ?next=<路徑>（後台頁被 requireLogin() 導過來時會帶這個），內部密語
+登入成功後導去 next 而不是固定回首頁。next 只接受同源相對路徑（開頭是
+單一個 /，不含 :// 也不是 //開頭）——不驗證就直接拿使用者可控的字串當
+redirect 目標是開放式重導向漏洞，這裡故意收斂成白名單式檢查而不是黑名單。
+Google OAuth 那條路這次沒有把 next 一起帶過去（worker.js 的
+handleGoogleCallback 固定導回首頁），是已知、刻意先不修的小缺口。
+
 只能回報自己的 loading task，不可以自己決定 css/shell ready。
 */
 (function () {
@@ -47,12 +54,25 @@ pages/identity-relay/index.html、assets/js/header.js 用的是同一把 key，
     return baseUrl.replace(/\/+$/, "") + "/auth/google/start";
   }
 
+  function getNextUrl() {
+    try {
+      var next = new URLSearchParams(window.location.search).get("next");
+      if (!next) return "/";
+      if (next.indexOf("://") !== -1) return "/";
+      if (next.slice(0, 2) === "//") return "/";
+      if (next.charAt(0) !== "/") return "/";
+      return next;
+    } catch (error) {
+      return "/";
+    }
+  }
+
   function renderLoggedIn(root, identity) {
     root.innerHTML =
       '<p class="jonaminz-eyebrow">Jonaminz Login</p>' +
       '<h1 class="jonaminz-admin-title">已經登入了</h1>' +
       '<p class="jonaminz-admin-subtitle">' + escapeHtml(IDENTITY_LABEL[identity] || identity) + '你好，不用重複登入。</p>' +
-      '<a class="btn" href="/">回首頁</a>';
+      '<a class="btn" href="' + escapeHtml(getNextUrl()) + '">回首頁</a>';
   }
 
   function renderForm(root) {
@@ -93,7 +113,7 @@ pages/identity-relay/index.html、assets/js/header.js 用的是同一把 key，
             throw new Error("登入失敗");
           }
           writeToken(response.token);
-          window.location.href = "/";
+          window.location.href = getNextUrl();
         })
         .catch(function (error) {
           errorEl.textContent = "登入失敗：" + (error && error.message ? error.message : String(error));

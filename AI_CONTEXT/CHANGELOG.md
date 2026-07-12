@@ -20,6 +20,84 @@
 
 ---
 
+## 2026-07-12 — 後台整站加登入保護，統一掉 JONAMINZ_ADMIN_TOKEN
+
+- **任務**：第 9 項階段 A（jonaminz 主站登入）落地並在正式環境驗證後，
+  使用者透過 AskUserQuestion 明確選定：整個後台（`/pages/admin/`、
+  `/pages/admin/theme/`、`/pages/admin/contracts/`）都要登入才能進來，
+  不只是單一 write action；順便統一掉現有的 `JONAMINZ_ADMIN_TOKEN`
+  獨立密語機制，改用同一套 session 登入。過程中先用 Plan agent 設計
+  方案、寫成 plan 檔請使用者核准後才動工。
+- **變更**：
+  - `worker.js`：新增共用 `requireSession(env, payload)`（複用
+    `getCurrentIdentity` 既有的 Supabase 查詢邏輯，`getCurrentIdentity`
+    改成直接包一層）。`saveThemeCssRules`／`approveContract`／
+    `rejectContract` 三個寫入動作都改成要求 `payload.token` 是有效
+    session，不符合回 `UNAUTHORIZED`（200，跟既有 style 一致）。
+    `checkAdminToken` 已整個刪除。**`p_actor`（Contract 核准/否決的
+    操作人）直接用登入身分決定，不再吃 `payload.actor`**——原本是
+    前端按鈕手動切換 Jonathan/Minz 自報身分，沒有真的驗證是誰在按，
+    這裡堵掉「可以假裝是另一個人」的漏洞。esbuild 打包＋`node --check`
+    ＋eval/new Function grep 驗證語法乾淨。
+  - `assets/js/header.js`：`window.JonaminzIdentity` 新增
+    `requireLogin()`（沒登入導去 `/pages/login/?next=<原路徑>`，任何
+    失敗——包含網路錯誤——都導頁，是「失敗關閉」）與匯出
+    `readToken()`。刻意跟既有 `mount()` 的「失敗開放」（網路錯誤時
+    顯示登入連結、頁面照常運作，適合單純打招呼的場合）不同：
+    `requireLogin()` 是給真正的權限關卡用的，2 人用的後台寧可短暫
+    故障時進不去，也不要意外讓沒登入的人看到內容。
+  - 三個後台頁（`pages/admin/`、`admin/theme/`、`admin/contracts/`）
+    的 `init()` 都改成先過 `requireLogin()` 這關，現有 render/loadRows
+    邏輯整個包進 `.then()`。`admin/theme/` 的 `saveRules()` 呼叫
+    `saveThemeCssRules` 時 payload 加上 token。
+  - `pages/login/assets/js/app.js` 新增 `getNextUrl()`：解析並驗證
+    `?next=` 查詢參數（只接受同源相對路徑，拒絕含 `://` 或 `//` 開頭
+    的值，避免開放式重導向），內部密語登入成功後導去 `next` 而不是
+    固定回首頁；已登入時的「回首頁」連結也用同一個函式。Google OAuth
+    這條路這次沒有把 `next` 一起帶回（`worker.js` 的
+    `handleGoogleCallback` 固定導回首頁），是已知、刻意先不修的小
+    缺口（要處理要把 next 塞進 OAuth 的 `state` 參數，工程量不小，
+    跟這次範圍無關）。
+  - `pages/admin/contracts/assets/js/app.js`：拿掉 Admin token 輸入框
+    跟操作人切換按鈕（連同對應的 `sessionStorage` 常數與事件監聽），
+    改成唯讀顯示登入身分（「登入身分：Jonathan」）。`decide()` 改送
+    `token` 而非 `adminToken`/`actor`。已裁決列表顯示 `decidedBy` 時
+    統一轉換大小寫（`IDENTITY_LABEL[row.decidedBy] || row.decidedBy`）
+    ——舊資料是使用者手打的 `"Jonathan"/"Minz"`，新資料是登入身分的
+    `"jonathan"/"minz"`，顯示層統一，DB 值本身不用回填。CSS 同步拿掉
+    對應的 actor 按鈕樣式。
+  - 文件同步：`docs/platform-integration-v1-implementation-plan.md`
+    新增「後台整站登入保護」段落，`saveThemeCssRules` 技術債標記解決；
+    `backend/README.md` 補完整套登入 action／路由的說明（原本完全沒
+    記錄，第 9 項階段 A 時漏補）、拿掉 `JONAMINZ_ADMIN_TOKEN` 設定步驟、
+    改寫 approve/reject 的 API 說明；`AI_CONTEXT/PROJECT_STATE.md` 多處
+    更新（§2 資料夾說明、§4 已完成功能、§5 Worker secrets/API 表、
+    §6 版本狀態），2026-07-11 第 3 項的歷史敘述保留原樣、加一句後續
+    更新指引到這裡，不覆寫歷史。
+- **本機驗證**（Playwright + `page.route()` mock `/api/action`，
+  `node dev-server.js`）：(1) 未登入訪問三個後台頁都正確導去
+  `/pages/login/?next=<urlencoded 原路徑>`；(2) mock 已登入後三頁都
+  正常載入、不被導頁；(3) Contracts 頁核准動作攔截到的 payload 確認
+  帶 `token`、不帶 `adminToken`/`actor`，畫面確認 admin token 輸入框
+  與操作人按鈕都已移除、工具列正確顯示登入身分；(4) Theme 頁存檔
+  payload 確認帶 `token`；(5) `next` 參數正常流程（登入後導回原本要
+  去的後台頁）與開放式重導向防護（`?next=https://evil.example.com`／
+  `?next=//evil.example.com` 都被擋下、導回首頁）皆通過。全部截圖
+  確認視覺正常（工具列簡化後排版正常、身分正確顯示）。
+- **狀態變化**：實作＋本機驗證完成，**尚未部署**（`wrangler deploy`
+  待授權）。完成部署後 implementation plan 原本標記的
+  `saveThemeCssRules` 技術債正式解決，`JONAMINZ_ADMIN_TOKEN` 機制正式
+  淘汰。
+- **遺留**：部署後需要使用者到正式環境親自驗證三個後台頁的登入關卡、
+  Contract 核准/否決（操作人是否正確帶入登入身分）、Theme 存檔是否
+  正常；確認無誤後可自行 `npx wrangler secret delete JONAMINZ_ADMIN_TOKEN`
+  清掉已淘汰的 secret（不會自動做）。前台 IA 調整（SKHPS 連結搬去
+  前台、Jonathan 頁籤內容頁）這次明確不做，是討論中提過但使用者選擇
+  「先不動」的獨立想法，之後如果要做需要另外開一輪。
+- **版本**：`v0.9.1-202607121400`（`version.js`）。
+
+---
+
 ## 2026-07-12 — 第 9 項階段 A 正式環境端到端驗證通過，implementation-plan.md 原始範圍完成
 
 - **任務**：接續上一筆部署，使用者親自在正式環境測試登入功能。

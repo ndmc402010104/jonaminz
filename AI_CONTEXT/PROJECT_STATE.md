@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A 進行中）
+最後更新：2026-07-12（第 9 項階段 A 完成並驗證＋後台整站登入保護完成，待部署）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -53,15 +53,18 @@ jonaminz/
     js/app.js                 首頁業務入口
   pages/
     README.md                 新增頁面的標準流程（重要：新頁面照這份做）
-    admin/                    後台首頁（佔位 + Theme 頁連結 + Contract 核准連結）
-    admin/theme/              Theme 編輯頁：讀寫 Supabase CSS 規則，存檔全站立即換外觀
+    admin/                    後台首頁（佔位 + Theme 頁連結 + Contract 核准連結）。
+                              **整頁要求登入**（見下方「後台整站登入保護」）
+    admin/theme/              Theme 編輯頁：讀寫 Supabase CSS 規則，存檔全站立即換外觀。
+                              **整頁要求登入，存檔動作也要求登入 session**
     admin/contracts/          Contract 核准後台（implementation plan 第 3 項）：pending
-                              清單、diff 檢視、核准／否決／改判，唯一有身分驗證保護的
-                              寫入動作（Worker secret JONAMINZ_ADMIN_TOKEN 臨時關卡）
+                              清單、diff 檢視、核准／否決／改判。**整頁要求登入，
+                              操作人由登入身分決定，不再是自報的按鈕（原本的
+                              JONAMINZ_ADMIN_TOKEN 臨時關卡已淘汰，見 §4）**
     login/                    登入頁（implementation plan 第 9 項階段 A）：內部密語
-                              表單＋Google 登入連結，兩條路都能選。**程式碼已寫完、
-                              本機 Playwright 驗證過完整流程，尚未部署／尚未套用 DB
-                              schema，見 §4 第 9 項**
+                              表單＋Google 登入連結，兩條路都能選，已上線並經正式
+                              環境驗證。支援 `?next=` 登入後導回原本要去的頁面
+                              （後台整站登入保護追加的功能，見 §4）
     identity-relay/           跨子網域身分轉發頁（implementation plan 第 9 項階段
                               A，給 skhpsv2 之類的其他 *.jonaminz.com 專案未來用）：
                               極簡、不走 entry-core.js bootstrap，讀自己
@@ -148,8 +151,10 @@ jonaminz/
 - 本機預覽 `dev-server.js`。
 - 多頁架構：新頁面只改 `config.json` + 建資料夾（見 `pages/README.md`）。
 - **Platform Integration 核准後台（implementation plan 第 3 項）端到端可用**：
-  `/pages/admin/contracts/` 後台輸入 Worker secret `JONAMINZ_ADMIN_TOKEN`
-  後可核准／否決／改判 pending Contract，Postgres function 原子處理狀態
+  `/pages/admin/contracts/` 後台登入後可核准／否決／改判 pending
+  Contract（2026-07-12 起改成要求登入 session，原本的 Worker secret
+  `JONAMINZ_ADMIN_TOKEN` 已淘汰，見下方「後台整站登入保護」），
+  Postgres function 原子處理狀態
   切換＋active 指標＋audit log，2026-07-11 已用 jonaminz-movies 真實那筆
   pending（snapshot #3）跑過完整流程（submit→reject→approve→撤回→再核准）
   並直連 DB 驗證三張表資料正確，細節見 §4。
@@ -250,6 +255,10 @@ jonaminz/
     實際跑過 submit→reject→approve→撤回核准→再核准 全流程，直連 DB
     確認 `contract_snapshots.status`／`contract_active_snapshots`／
     `contract_audit_log`（5 筆，一筆未覆寫）三張表狀態全部正確。
+    **後續更新（2026-07-12）**：上面這套 `JONAMINZ_ADMIN_TOKEN`／操作人
+    按鈕機制已淘汰，改成整站登入保護的一部分，見下方「後台整站登入
+    保護」條目——這段歷史敘述保留原樣，反映的是 2026-07-11 當時的
+    設計，不是現在的實作。
   - **第 4 項（Flattened Effective Settings 端點）：完成並已部署上線
     （2026-07-11）。** `worker.js` 新增 `getEffectiveSettings`（公開唯讀，
     environment 不從 payload 讀、一律用 Worker 自己的
@@ -465,6 +474,30 @@ jonaminz/
     達成並驗證完畢；之後才會做討論中額外擴大的階段 B（identity
     capability）與階段 C（skhpsv2 接入），排程見 implementation-plan.md
     SKHPSv2 段落（不急，等核心架構做完再排）。
+  - **後台整站登入保護（2026-07-12，第 9 項之後的追加工作）**：使用者
+    透過 AskUserQuestion 明確選定兩件事——整個後台（`/pages/admin/`、
+    `/pages/admin/theme/`、`/pages/admin/contracts/`）都要登入才能進來，
+    不只是單一 write action；順便統一掉 `JONAMINZ_ADMIN_TOKEN` 這個
+    獨立的固定密語機制，改用同一套 session 登入。`worker.js` 新增共用
+    `requireSession(env, payload)`，`saveThemeCssRules`／`approveContract`／
+    `rejectContract` 三個寫入動作都改成要求有效 session，
+    `checkAdminToken` 已刪除；`p_actor`（Contract 核准/否決的操作人）
+    直接用登入身分決定，不再吃前端傳的 `payload.actor`（原本是按鈕
+    自報身分，沒有真的驗證，這裡堵掉可以假裝是另一個人的漏洞）。
+    `assets/js/header.js` 的 `window.JonaminzIdentity` 新增
+    `requireLogin()`（沒登入導去 `/pages/login/?next=<原路徑>`，任何
+    失敗都導頁——刻意跟 `mount()` 的「失敗開放」不同，這是給真正的
+    權限關卡用的「失敗關閉」）與匯出 `readToken()`。登入頁支援
+    `?next=`（只接受同源相對路徑，拒絕 `://`／`//` 開頭的值，避免開放式
+    重導向），內部密語登入成功後導回原本要去的頁面；Google OAuth 這條
+    路這次沒有把 next 一起帶回（已知、刻意先不修的小缺口）。Contracts
+    後台頁拿掉 Admin token 輸入框跟操作人切換按鈕，改成唯讀顯示登入
+    身分。**這次明確不做**：前台 IA 調整（SKHPS 連結搬去前台、Jonathan
+    頁籤內容頁）——使用者選了「這次先不動」。本機 Playwright 完整驗證
+    過（未登入導頁、已登入正常載入、Contract/Theme payload 格式、
+    `next` 正常流程與開放式重導向防護）；`JONAMINZ_ADMIN_TOKEN` 這個
+    Cloudflare secret 部署後不再被使用，可自行
+    `npx wrangler secret delete JONAMINZ_ADMIN_TOKEN` 刪除（未自動做）。
   - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
@@ -488,13 +521,11 @@ jonaminz/
     權限一致，並回寫進 `backend/supabase/contract_schema.sql` 避免下次
     重建再踩到。
 - **Auth**：主站登入（內部密語＋Google OAuth）已上線並驗證通過，見上
-  第 9 項。**但這個登入系統目前只有「能不能登入」的功能，沒有接到
-  任何既有寫入動作上**——`saveThemeCssRules` 仍然無身分驗證，任何知道
-  Worker 網址的人都還是能改全站外觀，這是已知安全缺口，這次新增的
-  是獨立的登入系統本體，沒有把它接上 `saveThemeCssRules` 之類既有
-  action 當守門機制；要不要把既有寫入動作接上身分驗證是未來的事，
-  不在第 9 項範圍內。
-- 後台 `/pages/admin/` 只是佔位頁。
+  第 9 項。**2026-07-12 起已接到既有寫入動作上**（見上「後台整站登入
+  保護」條目）：`saveThemeCssRules`／`approveContract`／`rejectContract`
+  都要求有效登入 session，整個 `/pages/admin/*` 後台也要求登入才能
+  進入。這個已知安全缺口已解決。
+- 後台 `/pages/admin/` 首頁本身內容仍是佔位頁（連結卡片），但已加登入保護。
 - Reservoir 願景中的 Slot Engine、Home Portal slots、Global Search、AI Gateway、
   Storage Layer：全部只在願景/規格層面，未實作。
 - Roadmap Phase 1-5 見使用者記憶與 `docs/platform-integration-consensus.md`；
@@ -507,8 +538,8 @@ jonaminz/
 | 前端託管 | GitHub Pages，repo `ndmc402010104/jonaminz`，branch `main`，網域 `www.jonaminz.com`（CNAME） |
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
 | 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。七張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`、`sessions`、`oauth_states`（後兩張 2026-07-12 新增，第 9 項階段 A），皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
-| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`JONAMINZ_ADMIN_TOKEN`（approve/reject 臨時關卡）；第 9 項階段 A 新增（**尚未設定，登入功能要這些才會真的動**）：`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`（內部密語登入）、`JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`（Google OAuth，Client ID/Secret 需使用者自行去 Google Cloud Console 申請）。全部存在 Cloudflare，不在 repo，Claude 不經手實際值 |
-| Worker API | `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**無驗證**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**唯一有 `adminToken` 保護的寫入動作**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標）/ `loginWithInternalToken`／`getCurrentIdentity`／`logout`（第 9 項階段 A，2026-07-12 上線）。另有兩個非 `/api/action` 的 GET 路由：`/auth/google/start`／`/auth/google/callback`（Google OAuth，同上線日期） |
+| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`；`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`（內部密語登入，已設定）、`JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`（Google OAuth，已設定）。**`JONAMINZ_ADMIN_TOKEN` 已淘汰**（2026-07-12 起 Worker 不再讀取，可用 `wrangler secret delete` 自行清掉，未自動做）。全部存在 Cloudflare，不在 repo，Claude 不經手實際值 |
+| Worker API | `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**要求登入 session**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**要求登入 session，操作人＝登入身分**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標）/ `loginWithInternalToken`／`getCurrentIdentity`／`logout`（第 9 項階段 A）。另有兩個非 `/api/action` 的 GET 路由：`/auth/google/start`／`/auth/google/callback`（Google OAuth）。三個要求登入的 action 共用 `requireSession(env, payload)` helper，`payload.token` 須是有效 session |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
@@ -516,17 +547,14 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.9.0-202607120900`（`version.js`，第 9 項階段 A 前端
-  bump）。規則：每次 push 前要 bump。**注意**：這次 bump 只反映前端
-  程式碼變更（新頁面/header.js/首頁 nav），worker.js 這批新 action/路由
-  還沒部署——`getSdkVersion` 等既有端點回的 Kernel hash 不受這次 bump
-  影響，Worker 沒有自己的 version.js 版號，靠 `wrangler deploy` 本身
-  當作部署時間點。
-  **2026-07-11～12 implementation plan 第 3-7 項皆完成並已上線**：第 3 項
+- 業務版本：`v0.9.1-202607121400`（`version.js`，後台整站登入保護
+  這批前端變更的 bump）。規則：每次 push 前要 bump。
+  **2026-07-11～12 implementation plan 第 3-7 項、第 9 項階段 A、以及
+  後台整站登入保護（第 9 項之後追加）皆完成並已上線**：第 3 項
   （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
   reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、
-  `JONAMINZ_ADMIN_TOKEN` secret 使用者已自行設定、`pages/admin/contracts/`
-  已 push 上線。第 4 項（`getEffectiveSettings`）Worker 已
+  `pages/admin/contracts/` 已 push 上線；**2026-07-12 起改成要求登入
+  session，`JONAMINZ_ADMIN_TOKEN` 已淘汰**。第 4 項（`getEffectiveSettings`）Worker 已
   `wrangler deploy`、`integration-settings.json` 的 `css`/`revision`
   欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）、
   第 6 項（SDK Kernel）、第 7 項（tokens CSS 收編）都已 `wrangler deploy`

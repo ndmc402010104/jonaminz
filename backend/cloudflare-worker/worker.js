@@ -5,8 +5,8 @@
 - listExternalAppRegistrations：後台讀取回報清單。
 - getThemeCssRules：讀取 Theme（CSS 疊加第 8 層）目前的規則，任何頁面 / 外部專案都能讀
   （公開、唯讀，selector=":root" 的規則是跨專案共用的 token 介面）。
-- saveThemeCssRules：後台 Theme 頁存檔用，整批覆蓋規則。目前沒有身分驗證保護，
-  是已知的暫時限制（見 backend/README.md）。
+- saveThemeCssRules：後台 Theme 頁存檔用，整批覆蓋規則。要求 payload.token
+  是一筆有效的 session（見 requireSession），沒登入一律拒絕。
 - submitContract：Platform Integration（圖書館模型）的合約推送入口。對應規格
   docs/platform-integration-spec-v1.md（Frozen, S13-S16）。收下的合約一律存成
   immutable snapshot、status 一律 'pending'——推送 ≠ 採信，不會自動 approve。
@@ -14,9 +14,12 @@
   listExternalAppRegistrations 同一個原則）。回傳最近 N 筆 snapshot，並附上
   每個 (project_id, environment) 目前 active 的版本供前端做 diff（S14）。
 - approveContract / rejectContract：implementation plan 第 3 項的核准/否決。
-  **這兩個是目前唯一有身分驗證保護的寫入動作**：整站還沒有登入系統
-  （Google OAuth 是第 9 項），這兩個先用 Worker secret
-  JONAMINZ_ADMIN_TOKEN 當臨時關卡，呼叫時 payload.adminToken 要吻合。
+  要求 payload.token 是一筆有效的 session（見 requireSession，跟
+  saveThemeCssRules 同一套機制，取代了原本第 3 項寫的 Worker secret
+  JONAMINZ_ADMIN_TOKEN 臨時關卡——那把密語已經淘汰，Worker 不再讀它）。
+  **操作人（p_actor）直接用登入身分**，不再吃 payload.actor：原本前端
+  是按鈕手動切換 Jonathan/Minz 自報身分，沒有真的驗證是誰在按，現在
+  改成用登入者是誰決定，堵掉「可以假裝是另一個人」的漏洞。
   實際的狀態切換透過 Supabase RPC 呼叫 Postgres function
   approve_contract_snapshot / reject_contract_snapshot（見
   backend/supabase/contract_schema.sql），確保「改狀態＋切換 active 指標＋
@@ -289,6 +292,10 @@ async function getThemeCssRules(env) {
 }
 
 async function saveThemeCssRules(env, payload) {
+  if (!(await requireSession(env, payload))) {
+    return { ok: false, code: "UNAUTHORIZED", error: "Login required" };
+  }
+
   const upsertRows = Array.isArray(payload.upsert) ? payload.upsert : [];
   const deleteIds = Array.isArray(payload.deleteIds)
     ? payload.deleteIds.map(function (id) { return Number(id); }).filter(function (id) { return Number.isFinite(id); })
@@ -590,23 +597,14 @@ async function listPendingContracts(env) {
   return { ok: true, rows: rows };
 }
 
-function checkAdminToken(env, payload) {
-  const provided = String((payload && payload.adminToken) || "");
-  const expected = env.JONAMINZ_ADMIN_TOKEN;
-
-  // 沒設定 secret 時一律拒絕，不要因為忘記設定就變成沒有保護。
-  if (!expected || !provided || provided !== expected) {
-    return false;
-  }
-  return true;
-}
-
-// implementation plan 第 3 項：approve/reject 是目前唯一有保護的寫入動作。
-// 整站還沒有登入系統，這裡先用 Worker secret 當臨時關卡（見檔頭註解），
-// 等 Google OAuth（第 9 項）落地後要換成正式驗證。
+// implementation plan 第 3 項：approve/reject 是目前唯一有保護的寫入動作
+// 之一（跟 saveThemeCssRules 一起，都是靠 requireSession）。p_actor 直接
+// 用登入身分，不再吃 payload.actor——原本前端是按鈕手動切換 Jonathan/Minz
+// 自報身分，沒有真的驗證是誰在按，這裡堵掉「可以假裝是另一個人」的漏洞。
 async function approveContract(env, payload) {
-  if (!checkAdminToken(env, payload)) {
-    return { ok: false, code: "UNAUTHORIZED", error: "Invalid or missing adminToken" };
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "UNAUTHORIZED", error: "Login required" };
   }
 
   const snapshotId = Number(payload.snapshotId);
@@ -620,7 +618,7 @@ async function approveContract(env, payload) {
     headers: supabaseHeaders(env),
     body: JSON.stringify({
       p_snapshot_id: snapshotId,
-      p_actor: String(payload.actor || "").trim() || null,
+      p_actor: identity,
       p_note: String(payload.note || "").trim() || null
     })
   });
@@ -633,8 +631,9 @@ async function approveContract(env, payload) {
 }
 
 async function rejectContract(env, payload) {
-  if (!checkAdminToken(env, payload)) {
-    return { ok: false, code: "UNAUTHORIZED", error: "Invalid or missing adminToken" };
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "UNAUTHORIZED", error: "Login required" };
   }
 
   const snapshotId = Number(payload.snapshotId);
@@ -648,7 +647,7 @@ async function rejectContract(env, payload) {
     headers: supabaseHeaders(env),
     body: JSON.stringify({
       p_snapshot_id: snapshotId,
-      p_actor: String(payload.actor || "").trim() || null,
+      p_actor: identity,
       p_note: String(payload.note || "").trim() || null
     })
   });
@@ -840,10 +839,14 @@ async function loginWithInternalToken(env, payload) {
   return { ok: true, identity: identity, token: session.token, expiresAt: session.expiresAt };
 }
 
-async function getCurrentIdentity(env, payload) {
+// 共用的 session 驗證：查 sessions 表，回登入身分或 null（過期/查無資料/沒帶
+// token 都算 null，不拋錯）。saveThemeCssRules/approveContract/rejectContract
+// 這些寫入動作跟 getCurrentIdentity 這個唯讀查詢都靠這支同一份邏輯，避免
+// 兩邊各自維護一份查詢條件、之後改一邊忘了改另一邊。
+async function requireSession(env, payload) {
   const token = String((payload && payload.token) || "").trim();
   if (!token) {
-    return { ok: true, identity: null };
+    return null;
   }
 
   const url =
@@ -860,10 +863,14 @@ async function getCurrentIdentity(env, payload) {
   // 過期的 session 當作沒登入，不主動刪（下次登入自然會蓋掉/新增，
   // 過期資料留著不影響任何行為，不值得為了清理另外排 cron）。
   if (!row || new Date(row.expires_at).getTime() < Date.now()) {
-    return { ok: true, identity: null };
+    return null;
   }
 
-  return { ok: true, identity: row.identity };
+  return row.identity;
+}
+
+async function getCurrentIdentity(env, payload) {
+  return { ok: true, identity: await requireSession(env, payload) };
 }
 
 async function logout(env, payload) {
