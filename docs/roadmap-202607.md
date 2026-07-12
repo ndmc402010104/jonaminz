@@ -43,7 +43,13 @@ jonaminz（重寫、去 SKHPS 命名，不是直接複製檔案），取代 `ent
 
 ---
 
-## 順序③：平台能力拉高層級——RWD/viewport 量測層
+## 順序③：平台能力拉高層級——RWD/viewport 量測層 ✅ 完成（2026-07-12，已上線）
+
+見 `AI_CONTEXT/CHANGELOG.md` 同日「待辦總表順序③」條目。已套進
+jonaminz 自己（`assets/js/layout-metrics.js`，entry-core.js shell 鏈
+載入）。目前沒有頁面訂閱，機制先上線；下方「手機自動導去內部密語
+登入」的設計考量仍待實作，之後接手機登入判斷邏輯時要用到這裡的
+`rwdGroup`/`rwdMode`。
 
 把 `layout-metrics.js` 的量測邏輯（layoutWidth/Height、orientation、RWD
 mode/group、header/footer 邊界、可用內容區）搬進 jonaminz，補上

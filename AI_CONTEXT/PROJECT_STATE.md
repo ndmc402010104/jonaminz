@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔Google OAuth 本機導頁修復〕、順序②〔讀條演算法拉高層級〕皆已完成並部署，順序③開始）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔OAuth 本機導頁〕②〔讀條演算法〕③〔RWD/viewport 量測層〕皆已完成並部署，順序④開始）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -47,6 +47,9 @@ jonaminz/
                               [data-jonaminz-header] 元素，所以 assets/js/app.js 自己
                               呼叫 mount() 插進 nav-links 的 [data-nav-identity]
     js/registry-loader.js     讀 registry.json、抓外部專案 manifest 顯示卡片（目前拉模式）
+    js/layout-metrics.js      RWD/viewport 量測層（待辦總表順序③，2026-07-12，搬自
+                              SKHPSV2 同名檔案重寫）：只量測、寫 data-jonaminz-* 屬性、
+                              發事件，不改畫面；目前沒有頁面訂閱，機制先上線
     js/backend-client.js      呼叫 Cloudflare Worker 的統一入口
     js/theme-runtime.js       CSS 第 8 層：從 Worker 讀 theme_css_rules 動態組 CSS 注入；
                               獨立可攜，外部專案可單獨引用；有 localStorage 快取 + 8s 逾時降級
@@ -145,6 +148,47 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **RWD/viewport 量測層拉高層級（2026-07-12，`docs/roadmap-202607.md`
+  順序③）：完成並已上線。** 新增 `assets/js/layout-metrics.js`（搬自
+  SKHPSV2 同名檔案，重寫成 jonaminz 版本：命名空間改
+  `window.JonaminzLayoutMetrics`、HTML 屬性字首改
+  `data-jonaminz-*`、header/footer 選擇器改認
+  `[data-jonaminz-header]`／`[data-jonaminz-footer]`、config 來源改讀
+  `window.JONAMINZ_SITE_CONFIG.layout.rwd`）。補上 `config.json` 裡
+  `layout.rwd.groups` 早就宣告、但一直沒有 JS 真的去讀、算出「現在是
+  哪個 RWD group」的洞。
+  - 量測：`layoutWidth`/`layoutHeight`、`visualViewport`（含鍵盤高度
+    感知 `keyboardGap`）、`orientation`、RWD mode（預設斷點
+    480/720/960/1200，對到 phone-compact/phone/tablet/desktop/wide
+    五種，跟 config.json 的五個 mode 命名對得上）、RWD group
+    （small/large，讀 config.json 的 groups 宣告）、header/footer
+    邊界＋可用內容區高度。只量測、寫 `data-jonaminz-*` 屬性、發
+    CustomEvent（`jonaminz-layout-metrics-updated`）＋
+    `subscribe()` API，不主動改畫面（跟原版同一個水庫法則）。
+    `resize`/`orientationchange`/`visualViewport` 事件＋
+    `ResizeObserver`（監看 body/header/footer）＋`MutationObserver`
+    （監看 class/style 變化，因為 header/footer 是非同步載入，量測完
+    當下可能還沒真的渲染出高度）都會觸發重算。
+  - `entry-core.js` 的 shell 平行載入群組（跟 header/footer/
+    registry-loader 同一批）新增 `layout-metrics.js`，純廣播不改
+    畫面，不影響現有載入順序或依賴關係。
+  - **驗證**：Playwright 確認桌機 1280px 判定 `wide`/`large`、手機
+    375px 判定 `phone-compact`/`small`，且 `configSource` 真的顯示
+    `JONAMINZ_SITE_CONFIG.layout.rwd`（不是預設值，證明真的讀到
+    config.json）；resize 觸發後屬性即時更新（`large`→`small`）；
+    首頁（沒有共用 header/footer 元素的簽名式版型）正確回報
+    `header.exists`/`footer.exists` 為 `false`，不是誤判成 bug；
+    全站 5 頁 regression 零錯誤，`window.JonaminzLayoutMetrics` 都
+    正確掛上。
+  - **這次沒做（刻意，YAGNI）**：目前 jonaminz 沒有任何頁面/CSS 真的
+    訂閱這個訊號——這次只是把機制蓋好、開始廣播，跟 identity
+    capability 當初「機制先上線、沒有專案被授權」同樣的做法。等
+    Jonathan/Minz 門戶頁做出來、頁面深度真的增加，或麵包屑
+    （順序⑤）需要 header 高度時才會有真正的消費者。使用者提過的
+    「手機自動導去內部密語登入」（見 `docs/roadmap-202607.md` 順序③
+    段落的設計考量）也還沒做，需要用到這裡的 `rwdGroup`/`rwdMode`
+    判斷，但屬於登入頁的邏輯，不是這個量測層本身的事，之後再接。
+    skhpsv2 自己遷移過去用 jonaminz 提供的版本，待另開新 prompt。
 - **讀條演算法拉高層級（2026-07-12，`docs/roadmap-202607.md` 順序②）：
   完成並已上線。** 把 SKHPSV2 `loading-gate.js` 的「Runway Chase」平滑
   讀條演算法搬進 jonaminz（重寫，不是複製檔案），取代 `entry-core.js`

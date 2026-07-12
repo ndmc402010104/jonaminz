@@ -20,6 +20,47 @@
 
 ---
 
+## 2026-07-12 — 待辦總表順序③：RWD/viewport 量測層拉高層級
+
+- **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做③。把
+  SKHPSV2 `layout-metrics.js` 的量測邏輯搬進 jonaminz（重寫、去 SKHPS
+  命名，不是複製檔案），補上 `config.json` 裡 `layout.rwd.groups`
+  早就宣告、但一直沒有 JS 真的在用的洞。
+- **變更**：
+  - 新增 `assets/js/layout-metrics.js`：命名空間
+    `window.JonaminzLayoutMetrics`、HTML 屬性字首 `data-jonaminz-*`、
+    header/footer 選擇器 `[data-jonaminz-header]`／
+    `[data-jonaminz-footer]`、config 來源讀
+    `window.JONAMINZ_SITE_CONFIG.layout.rwd`。量測
+    `layoutWidth`/`layoutHeight`／`visualViewport`（含鍵盤高度感知）
+    ／`orientation`／RWD mode（預設斷點 480/720/960/1200，對到
+    config.json 已經有的五個 mode 命名）／RWD group（small/large，讀
+    config.json 的 groups）／header-footer 邊界＋可用內容區高度。只
+    量測、寫屬性、發 `jonaminz-layout-metrics-updated` CustomEvent＋
+    `subscribe()` API，不改畫面。`resize`／`orientationchange`／
+    `visualViewport`／`ResizeObserver`（body/header/footer）／
+    `MutationObserver`（header/footer 非同步載入，量測當下可能還沒
+    有真實高度）都會觸發重算。
+  - `entry-core.js` 的 shell 平行載入群組新增這個檔案，跟 header/
+    footer/registry-loader 同一批，純廣播不改畫面，不影響現有載入
+    順序。
+- **驗證**：Playwright 確認桌機 1280px 判定 `wide`/`large`、手機 375px
+  判定 `phone-compact`/`small`，`configSource` 顯示
+  `JONAMINZ_SITE_CONFIG.layout.rwd`（證明真的讀到 config.json 不是
+  預設值）；resize 觸發後屬性即時更新；首頁（簽名式版型，沒有共用
+  header/footer 元素）正確回報 `exists:false`，不是誤判；全站 5 頁
+  regression 零錯誤。
+- **狀態變化**：`docs/roadmap-202607.md` 順序③完成。
+- **遺留**：目前沒有任何頁面/CSS 真的訂閱這個訊號——機制先上線，跟
+  identity capability 當初「沒有專案被授權」同樣做法，等 Jonathan/
+  Minz 門戶頁做出來或麵包屑（順序⑤）需要時才有真正的消費者。使用者
+  提過的「手機自動導去內部密語登入」設計（見 roadmap 順序③段落）也
+  還沒接，屬於登入頁邏輯，不是這個量測層本身的事。skhpsv2 自己遷移
+  過去用 jonaminz 提供的版本，待另開新 prompt。
+- **版本**：`v0.15.0-202607121741`。
+
+---
+
 ## 2026-07-12 — 待辦總表順序②：讀條演算法拉高層級
 
 - **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做②。把

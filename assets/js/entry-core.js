@@ -70,6 +70,11 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
   知道「這不是正常結束」。jonaminz 沒有對應的診斷 UI，單純停頓沒有燈號
   說明反而只會讓人覺得卡住，所以逾時/失敗這裡一樣走衝刺到 100 再掀幕，
   不做 WARN hold 那段停頓。
+
+2026-07-12 待辦總表順序③：shell 載入清單新增 `assets/js/layout-metrics.js`
+（RWD/viewport 量測層，搬自 SKHPSV2 同名檔案、重寫成 jonaminz 版本，見
+該檔案自己的檔頭說明）。純廣播不改畫面，跟 header/footer/registry-loader
+同一批平行載入，不影響現有的載入順序或依賴關係。
 */
 (function () {
   "use strict";
@@ -333,7 +338,11 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
           var shellPromise = Promise.all([
             loadScript("/assets/js/header.js"),
             loadScript("/assets/js/footer.js"),
-            loadScript("/assets/js/registry-loader.js")
+            loadScript("/assets/js/registry-loader.js"),
+            // 待辦總表順序③（docs/roadmap-202607.md）：RWD/viewport 量測層，
+            // 純廣播不改畫面，跟 header/footer 同一批平行載入即可，不用
+            // 特別提早或延後。
+            loadScript("/assets/js/layout-metrics.js")
           ]).then(function () {
             markShellReady();
             setProgressTarget(85);
