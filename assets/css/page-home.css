@@ -1,16 +1,23 @@
 /*
 檔案位置：jonaminz/assets/css/page-home.css
 用途：CSS 疊加第 7 層 - Page Layer，只給首頁（home）用。
-這是首頁自己的視覺設計（深色全螢幕相片 + 簽名式導覽），刻意疊加在 reservoir
-六層之上，蓋掉 base 層的淺色背景，但不去改 base/components 本體。
-其他頁面不會載到這份檔案（見 config.json -> pages.home.entry.styles）。
+深色簽名式導覽版型，刻意疊加在 reservoir 六層之上，蓋掉 base 層的淺色
+背景，但不去改 base/components 本體。其他頁面不會載到這份檔案（見
+config.json -> pages.home.entry.styles）。
+
+2026-07-12 改版：原本是全螢幕相片當背景疊文字，橫向構圖的照片在窄螢幕
+下無論怎麼調 background-position 都會裁掉其中一人（可視寬度只剩原圖的
+一小段）。改成固定 aspect-ratio 的小相片框（.hero-photo 用 <img> +
+object-fit:cover），裁切比例是相對值、不隨容器寬度改變，從根本解決
+RWD 問題。同時整頁從絕對定位疊層改成正常 flex 直向排列，比之前的
+100dvh + overflow:hidden 疊層寫法簡單、也更不容易在極端視窗尺寸下裁到
+內容。
 */
 
 html,
 body {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
 }
 
 body {
@@ -20,41 +27,14 @@ body {
 }
 
 .page {
-  height: 100dvh;
-  padding: 16px;
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-
-.photo {
-  position: absolute;
-  inset: 16px;
-  border-radius: 34px;
-  overflow: hidden;
-  background-image: url("/assets/img/home-hero.jpg");
-  background-size: cover;
-  background-position: center 49%;
-  box-shadow: var(--shadow-lg);
-  z-index: -3;
-}
-
-.photo::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.18) 58%, rgba(0, 0, 0, 0.48) 100%),
-    linear-gradient(0deg, rgba(8, 10, 8, 0.72) 0%, rgba(8, 10, 8, 0.10) 34%, rgba(8, 10, 8, 0.18) 100%),
-    linear-gradient(90deg, rgba(8, 10, 8, 0.35), rgba(8, 10, 8, 0.03) 35%, rgba(8, 10, 8, 0.34));
+  min-height: 100dvh;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .nav {
-  position: absolute;
-  top: 30px;
-  left: 32px;
-  right: 32px;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,30 +45,17 @@ body {
   font-weight: 950;
   letter-spacing: -0.06em;
   font-size: 23px;
-  text-shadow: 0 8px 30px rgba(0, 0, 0, 0.38);
 }
 
 .nav-links {
   display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.nav-links a {
-  padding: 9px 13px;
-  border-radius: var(--radius-pill);
-  background: rgba(12, 14, 12, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 13px;
-  color: rgba(247, 240, 229, 0.78);
-  font-weight: 820;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 /* 身分登入狀態（implementation plan 第 9 項），assets/js/app.js 動態插入
-   [data-nav-identity] 容器。只加規則、不動上面既有的 .nav-links 規則。 */
+   [data-nav-identity] 容器：未登入顯示「登入」連結，已登入顯示「OO你好
+   ＋登出」。首頁 nav 現在只有這一組互動元素。 */
 .nav-identity {
   display: flex;
   align-items: center;
@@ -117,16 +84,60 @@ body {
   text-decoration: none;
 }
 
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 22px;
+  padding: 16px 0;
+}
+
+.hero-photo {
+  width: min(560px, 88vw);
+  aspect-ratio: 16 / 9;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.hero-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 46%;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(48px, 9vw, 96px);
+  line-height: 0.9;
+  letter-spacing: -0.07em;
+  color: rgba(247, 240, 229, 0.94);
+}
+
+.hero p {
+  margin: 0;
+  max-width: 420px;
+  color: rgba(247, 240, 229, 0.68);
+  font-size: clamp(14px, 1.6vw, 17px);
+  line-height: 1.5;
+}
+
+.line {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(247, 240, 229, 0.10), rgba(247, 240, 229, 0.45), rgba(247, 240, 229, 0.10));
+}
+
 .signature {
-  position: absolute;
-  left: clamp(28px, 5vw, 74px);
-  right: clamp(28px, 5vw, 74px);
-  bottom: clamp(24px, 5vh, 54px);
-  z-index: 4;
-  display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(320px, 1.2fr) minmax(180px, 0.7fr);
-  gap: 18px;
+  display: flex;
   align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 4px;
 }
 
 .name-link {
@@ -145,128 +156,23 @@ body {
   justify-items: end;
 }
 
-.name-link small {
-  display: inline-flex;
-  width: fit-content;
-  padding: 6px 9px;
-  border-radius: var(--radius-pill);
-  background: rgba(12, 14, 12, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #cfe9d8;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  font-weight: 920;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
 .name-link strong {
-  font-size: clamp(34px, 4.8vw, 70px);
-  line-height: 0.86;
-  letter-spacing: -0.09em;
-  text-shadow: 0 16px 50px rgba(0, 0, 0, 0.35);
-}
-
-.center {
-  text-align: center;
-  align-self: center;
-}
-
-.center h1 {
-  margin: 0;
-  font-size: clamp(64px, 11vw, 156px);
-  line-height: 0.74;
-  letter-spacing: -0.135em;
-  color: rgba(247, 240, 229, 0.92);
-  text-shadow: 0 18px 54px rgba(0, 0, 0, 0.40);
-}
-
-.center p {
-  margin: 12px auto 18px;
-  max-width: 520px;
-  color: rgba(247, 240, 229, 0.72);
-  line-height: 1.55;
-  font-size: clamp(14px, 1.35vw, 17px);
-}
-
-.home-key {
-  display: inline-flex;
-  padding: 12px 16px;
-  border-radius: var(--radius-pill);
-  background: rgba(247, 240, 229, 0.90);
-  color: #111411;
-  font-weight: 950;
-}
-
-.line {
-  position: absolute;
-  z-index: 3;
-  left: clamp(28px, 5vw, 74px);
-  right: clamp(28px, 5vw, 74px);
-  bottom: clamp(122px, 16vh, 168px);
-  height: 1px;
-  background: linear-gradient(90deg, rgba(247, 240, 229, 0.10), rgba(247, 240, 229, 0.55), rgba(247, 240, 229, 0.10));
-}
-
-.line::before,
-.line::after {
-  content: "";
-  position: absolute;
-  top: -4px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  box-shadow: 0 0 18px rgba(214, 239, 217, .85);
-}
-
-.line::before { left: 13%; }
-.line::after { right: 13%; }
-
-@media (max-width: 820px) {
-  .signature {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    left: 20px;
-    right: 20px;
-  }
-
-  .center {
-    grid-column: 1 / -1;
-    grid-row: 1;
-    margin-bottom: 12px;
-  }
-
-  .center h1 {
-    font-size: clamp(54px, 16vw, 92px);
-  }
-
-  .name-link strong {
-    font-size: clamp(30px, 8vw, 42px);
-  }
-
-  .line {
-    display: none;
-  }
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 0.9;
+  letter-spacing: -0.05em;
 }
 
 @media (max-width: 540px) {
-  .page { padding: 12px; }
-  .photo { inset: 12px; border-radius: 26px; background-position: 22% center; }
-  .nav {
-    left: 22px;
-    right: 22px;
-    top: 22px;
-    align-items: flex-start;
+  .page {
+    padding: 18px 20px;
+    gap: 18px;
   }
-  .nav-links a {
-    padding: 8px 10px;
+
+  .hero {
+    gap: 16px;
   }
-  .signature {
-    bottom: 18px;
-  }
-  .center p {
+
+  .hero p {
     display: none;
   }
 }

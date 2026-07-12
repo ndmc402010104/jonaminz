@@ -14,8 +14,14 @@
   最後依 entry.afterScripts 載入頁面自己的 app.js。
 - 頁面本身不直接載 assets/js/app.js、header.js、footer.js、reservoir CSS。
 - JONAMINZ_ENTRY_VERSION 只是前端資源 cache buster，不是業務版本。
-- 這份首頁設計是簽名式導覽（signature navigation）版型，全螢幕相片 + 兩人
-  各自的 name-link + 中間共用入口，不使用舊版 .jonaminz-hero 卡片版型。
+- 這份首頁設計是簽名式導覽（signature navigation）版型：小尺寸相片框（非
+  全螢幕背景）＋標題置中＋兩人各自的 name-link。2026-07-12 改版：原本是
+  全螢幕相片當背景疊文字，橫向構圖的照片在窄螢幕下無論怎麼調
+  background-position 都會裁掉其中一人，改成固定 aspect-ratio 的小相片框
+  （<img> + object-fit:cover），裁切比例不隨螢幕寬度改變，從根本解決
+  RWD 問題，不用再為不同斷點手動調裁切點。同時拿掉右上角跟 Jonathan/Minz
+  重複的導覽按鈕（已經有下面的 name-link 可以點）跟沒有實際用途的「共用
+  入口」按鈕，首頁只留品牌字、登入、標題、相片、兩個 name-link。
 -->
 <html
   lang="zh-Hant"
@@ -38,33 +44,29 @@
 
 <body class="jonaminz-body">
   <div class="page">
-    <div class="photo"></div>
-
     <nav class="nav">
       <span class="brand">jonaminz</span>
       <div class="nav-links">
-        <a href="#jonathan">Jonathan</a>
-        <a href="#minz">Minz</a>
         <span class="nav-identity" data-nav-identity></span>
       </div>
     </nav>
+
+    <main class="hero">
+      <div class="hero-photo">
+        <img src="/assets/img/home-hero.jpg" alt="Jonathan 與 Minz">
+      </div>
+      <h1>jonaminz</h1>
+      <p>Jonathan 與 Minz 的 Digital Home。</p>
+    </main>
 
     <div class="line"></div>
 
     <div class="signature">
       <a id="minz" class="name-link" href="#minz">
-        <small>piece 01</small>
         <strong>Minz</strong>
       </a>
 
-      <div class="center">
-        <h1>jonaminz</h1>
-        <p>Jonathan 與 Minz 的 Digital Home。</p>
-        <a class="home-key" href="/pages/admin/">共用入口</a>
-      </div>
-
       <a id="jonathan" class="name-link right" href="#jonathan">
-        <small>piece 02</small>
         <strong>Jonathan</strong>
       </a>
     </div>
