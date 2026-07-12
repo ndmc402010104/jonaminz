@@ -20,6 +20,53 @@
 
 ---
 
+## 2026-07-12 — SKHPS 連結改連固定 port，不再猜同 origin 路徑
+
+- **任務**：順序⑥上線後使用者實測，`pages/jonathan/` 的 SKHPS 連結在
+  本機測試時猜的 `window.location.origin + "/skhpsv2/"` 打不通（實測
+  404）——根因是 jonaminz 的 `dev-server.js` 只服務 jonaminz 自己資料夾
+  底下的檔案，skhpsv2 本來沒有固定的本機伺服器（只能靠 VS Code Live
+  Server 之類的工具零星開，root/port 每次可能不一樣），兩者從來不是
+  「同一個 origin 底下的兩個路徑」這個假設本身就不成立。
+- **討論過的替代方案（都否決了）**：①把現有常駐在 127.0.0.1:18765 的
+  `skhps-quick-login-helper.ps1` 順便拿來服務 skhpsv2 靜態檔案——讀過
+  完整原始碼後否決，那是新光醫院 EIP 登入包裝頁專用的單一用途 helper
+  （密碼閘門儀表板＋排程工作自動啟動＋從 `quick-login.skhps.jonaminz.com`
+  自動拉更新），硬加路由等於把登入基礎設施跟開發測試用途混在一起，而且
+  下次自動更新大概率會把改動蓋掉。②在 jonaminz 這邊加 localStorage
+  手動覆寫——使用者要「方便無感」，手動設定違背這個目標，否決。
+- **變更**：
+  - **`SKHPS/skhpsv2/dev-server.js`（新增，skhpsv2 repo）**：跟
+    jonaminz 自己的 `dev-server.js` 完全同款寫法（極簡靜態伺服器，根目錄
+    固定是檔案所在資料夾），只是預設 port 改成 **5501**（跟 jonaminz
+    預設 5500 分開，避免撞號）。**這是這次唯一寫進 skhpsv2 repo 的檔案**
+    ——skhpsv2 目前是 Codex 的地盤，這次是使用者在本次對話裡明確交辦
+    才動手，純本機測試用途的新增檔案，不影響 skhpsv2 任何既有邏輯，
+    也還沒有 commit/push 進那個 repo（本地檔案先建好，要不要進 skhpsv2
+    的版本控制留給使用者決定）。同時新增
+    `SKHPS/skhpsv2/start-dev-server.bat`（雙擊啟動，跟 Live Server
+    的「一鍵」體驗對齊，使用者明確要求「像live server一樣方便」）。
+  - `pages/jonathan/assets/js/app.js`：`resolveSkhpsUrl()` 從猜
+    `window.location.origin + "/skhpsv2/"` 改成直接連固定 port
+    `http://<hostname>:5501/`（`SKHPS_DEV_SERVER_PORT` 常數），loopback
+    判斷邏輯不變（`localhost`／`127.0.0.1`，任何自己的 port）。
+- **驗證**：jonaminz 跟 skhpsv2 兩支 `dev-server.js` 同時起在各自固定
+  port（5577／5501，5577 只是這次測試臨時用的 jonaminz port，正式慣例
+  仍是 5500），curl 確認兩邊都 200；Playwright 確認 Jonathan 頁面
+  `[data-skhps-link]` 的 `href` 真的算出 `http://127.0.0.1:5501/`（不是
+  猜測的路徑），且該網址本身也真的回 200（不是連得到但內容是空的）。
+- **狀態變化**：無（順序⑥既有的驗收項目不變，這是上線後的即時修正，
+  不是新項目）。
+- **遺留**：`SKHPS/skhpsv2/dev-server.js`／`start-dev-server.bat` 兩個
+  新檔案還沒 commit 進 skhpsv2 repo，使用者要不要留、要不要進版本控制
+  待他決定。使用者接著問能不能做一個「跟 Live Server 右下角一樣」的
+  VS Code 狀態列外掛（一鍵開 jonaminz local dev）——那是真的要包裝安裝
+  的 VS Code extension，工程量比批次檔大一截，已經跟使用者確認要哪一種
+  做法，這次還沒動手。
+- **版本**：`v0.17.1-202607122353`。
+
+---
+
 ## 2026-07-12 — 文件真實性盤點與同步
 
 - **任務**：使用者交辦一次完整文件審計（不是開發任務）：早期文件可能
