@@ -20,6 +20,41 @@
 
 ---
 
+## 2026-07-12 — 待辦總表順序②：讀條演算法拉高層級
+
+- **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做②。把
+  SKHPSV2 `loading-gate.js` 的「Runway Chase」平滑讀條演算法搬進
+  jonaminz（重寫、去 SKHPS 命名，不是複製檔案），取代 `entry-core.js`
+  原本「里程碑硬寫死百分比、跳格前進」的寫法。
+- **變更**：
+  - `assets/js/entry-core.js` 新增讀條引擎：`setProgressTarget()`
+    取代 `setProgress()`（target 只前進不後退）、`tickProgress()`
+    每 16ms 用「距離÷剩餘時間預算」動態計算速度平滑追趕、
+    `finishProgress()`（all-ready 後 260ms 衝刺補滿到 100，最多再等
+    520ms 保底）、`hideCurtainNow()`（真正拿掉 loading class 的地方，
+    現在跟「邏輯上 all-ready」分開，等衝刺完才觸發）。
+  - 新增 `GATE_TIMEOUT_MS`（8 秒）逾時保底：舊版完全沒有逾時機制，
+    這次順手補上這個既有缺口（runway chase 本來就需要時間預算才有
+    意義，8 秒逾時是這個預算的另一半，不是額外功能）。
+  - **刻意簡化沒有搬的部分**：SKHPS 版本的「WARN hold」（逾時/失敗時
+    停在目前進度 1 秒，搭配 footer 診斷燈號說明狀況）——jonaminz 沒有
+    對應診斷 UI，沒有燈號單純停頓只會像卡住，逾時/失敗這裡一樣衝刺
+    到 100 掀幕。
+- **驗證**：Playwright 三項測試——①採樣讀條數值確認平滑遞增不跳格；
+  ②延遲 9 秒回應資源（比 8 秒逾時長），確認布幕在約 8.3 秒就自動
+  掀幕不等那個回應；③全站 5 頁 regression 零錯誤、都能正常到
+  progress 100。**過程中的測試方法教訓**：第一版逾時測試用
+  `page.goto()` 預設等 `load` 事件，被動態插入的 `<link>` 卡住，
+  測到的其實是 `goto()` 自己等多久不是程式碼邏輯——改用
+  `waitUntil:"commit"` 才測到真實行為，之後任何要模擬「資源卡住」
+  的 Playwright 測試都要注意這點。
+- **狀態變化**：`docs/roadmap-202607.md` 順序②完成。
+- **遺留**：skhpsv2 自己遷移過去用 jonaminz 提供的版本，待另開新
+  prompt 交辦（skhpsv2 目前是 Codex 在處理）。
+- **版本**：`v0.14.0-202607121732`。
+
+---
+
 ## 2026-07-12 — OAuth 白名單改成正規式放行整個 loopback，記錄手機 LAN 測試的未決問題
 
 - **任務**：使用者指出列舉單一 port（`localhost:5500`／`127.0.0.1:5500`）

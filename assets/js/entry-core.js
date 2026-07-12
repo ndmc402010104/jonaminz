@@ -45,8 +45,31 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
   跟 800ms 賽跑，逾時就先放行、theme 資料到了背景照套（theme-runtime.js
   本身完全沒改，只是 entry-core 不再無條件等它）。回訪（有快取）theme.load()
   本來就同步套用完立刻 resolve，不受影響。
-- **布幕進度**：setProgress() 在每個里程碑寫入 CSS 變數
-  --jonaminz-loading-progress，給 jonaminz-loading.css 的進度條讀。
+
+2026-07-12 待辦總表順序②（docs/roadmap-202607.md）：讀條演算法拉高層級。
+原本的 setProgress() 是在每個里程碑硬寫死一個百分比，數字會用「跳格」的
+方式前進，卡在慢速資源時看起來像卡住。改成從 SKHPSV2 的 loading-gate.js
+「Runway Chase」模型搬過來、重寫成 jonaminz 版本（不是複製檔案，命名跟
+架構都配合這個檔案原有的結構調整）：
+- `setProgressTarget(percent)` 取代原本的 `setProgress(percent)`——只設定
+  「下一個要追到的目標」，target 只會前進不會後退，實際顯示的
+  `current` 值由下面的 ticker 每 16ms 平滑追趕，追趕速度依「距離 ÷
+  剩餘時間預算」動態計算，越接近時間預算終點追得越快，不會讓使用者覺得
+  卡住不動。
+- 新增 `GATE_TIMEOUT_MS`（8 秒）逾時保底：舊版沒有任何逾時機制，如果
+  `loadScript`/`loadStyle` 因為網路問題真的卡住（`onload`/`onerror`
+  都不觸發），布幕會永遠不消失。這是搬讀條演算法時順便補上的既有缺口，
+  不是本次額外加的新功能——runway chase 的節奏本來就需要一個時間預算
+  才有意義，8 秒逾時是這個預算的另一半。
+- all-ready 之後不是立刻拿掉布幕，是先讓 `current` 用 260ms 衝刺補滿到
+  100（`finishProgress()`），衝刺完（或最多等 520ms 保底）才真的呼叫
+  `hideCurtainNow()` 拿掉 loading class——讓使用者看到讀條真的走完再
+  掀幕，比「讀條停在 80% 畫面突然跳出來」更有完成感。
+- **刻意簡化、沒有搬的部分**：SKHPS 版本在逾時/失敗時會有一個「WARN
+  hold」——停在目前進度 1 秒再放行，搭配 footer 的五盞診斷燈號讓使用者
+  知道「這不是正常結束」。jonaminz 沒有對應的診斷 UI，單純停頓沒有燈號
+  說明反而只會讓人覺得卡住，所以逾時/失敗這裡一樣走衝刺到 100 再掀幕，
+  不做 WARN hold 那段停頓。
 */
 (function () {
   "use strict";
@@ -57,11 +80,98 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
 
   var pendingTasks = {};
   var allReady = false;
+  var curtainHidden = false;
   var resourceVersion = null;
+  var gateTimeoutId = null;
 
-  function setProgress(percent) {
-    docEl.style.setProperty("--jonaminz-loading-progress", String(percent));
+  // ---- Runway Chase 讀條引擎（2026-07-12，搬自 SKHPSV2 loading-gate.js，
+  // 重寫成 jonaminz 版本，見上方檔頭說明）----
+  var GATE_TIMEOUT_MS = 8000;
+  var progressState = {
+    current: 0,
+    target: 0,
+    timer: null,
+    startedAt: 0,
+    lastTickAt: 0,
+    visualBudgetMs: GATE_TIMEOUT_MS,
+    finishRequested: false,
+    finishStartedAt: 0,
+    finishBudgetMs: 260
+  };
+
+  function setProgressValue(value) {
+    var next = Math.max(0, Math.min(100, value));
+    progressState.current = next;
+    docEl.style.setProperty("--jonaminz-loading-progress", String(Math.round(next * 10) / 10));
   }
+
+  function chaseTowardTarget(target, now, dt, budgetEndAt) {
+    var distance = target - progressState.current;
+    if (distance <= 0) return;
+
+    var remainingMs = Math.max(16, budgetEndAt - now);
+    var speed = distance / (remainingMs / 1000);
+    var step = speed * (dt / 1000);
+    var next = progressState.current + step;
+    if (next > target) next = target;
+    setProgressValue(next);
+  }
+
+  function tickProgress() {
+    var now = Date.now();
+    var dt = Math.max(16, now - progressState.lastTickAt);
+    progressState.lastTickAt = now;
+
+    if (progressState.finishRequested) {
+      chaseTowardTarget(100, now, dt, progressState.finishStartedAt + progressState.finishBudgetMs);
+      if (progressState.current >= 99.7) {
+        setProgressValue(100);
+        hideCurtainNow();
+        stopProgressTicker();
+      }
+      return;
+    }
+
+    chaseTowardTarget(progressState.target, now, dt, progressState.startedAt + progressState.visualBudgetMs);
+  }
+
+  function startProgressTicker() {
+    if (progressState.timer) return;
+    progressState.lastTickAt = Date.now();
+    window.requestAnimationFrame(tickProgress);
+    progressState.timer = window.setInterval(tickProgress, 16);
+  }
+
+  function stopProgressTicker() {
+    if (!progressState.timer) return;
+    window.clearInterval(progressState.timer);
+    progressState.timer = null;
+  }
+
+  // target 只會前進、不會後退——task 只能推進度往前衝，不能讓它倒退。
+  function setProgressTarget(percent) {
+    var next = Math.max(0, Math.min(100, percent));
+    if (next > progressState.target) {
+      progressState.target = next;
+    }
+    startProgressTicker();
+  }
+
+  function finishProgress() {
+    if (progressState.finishRequested) return;
+    progressState.finishRequested = true;
+    progressState.finishStartedAt = Date.now();
+    startProgressTicker();
+    // 保底：萬一分頁切到背景之類的原因讓 rAF/setInterval 被瀏覽器節流，
+    // 沒有準時追到 100，最多再等 520ms（260ms 衝刺 + 260ms 餘裕）就強制
+    // 掀幕，不讓布幕卡住不消失。
+    window.setTimeout(function () {
+      setProgressValue(100);
+      hideCurtainNow();
+      stopProgressTicker();
+    }, 520);
+  }
+  // ---- Runway Chase 讀條引擎結束 ----
 
   function withVersion(url) {
     if (!resourceVersion) return url;
@@ -99,13 +209,24 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
     docEl.setAttribute("data-jonaminz-shell-ready", "true");
   }
 
-  function releaseAllReady() {
-    if (allReady) return;
-    allReady = true;
-    setProgress(100);
+  // 真的把布幕拿掉的地方——跟「邏輯上 all-ready」分開，因為現在
+  // all-ready 後還要等讀條衝刺補滿到 100 才會呼叫這個。
+  function hideCurtainNow() {
+    if (curtainHidden) return;
+    curtainHidden = true;
     docEl.classList.remove("jonaminz-loading");
     docEl.classList.remove("jonaminz-main-loading");
     docEl.setAttribute("data-jonaminz-page-ready", "true");
+  }
+
+  function releaseAllReady() {
+    if (allReady) return;
+    allReady = true;
+    if (gateTimeoutId) {
+      window.clearTimeout(gateTimeoutId);
+      gateTimeoutId = null;
+    }
+    finishProgress();
   }
 
   function checkAllReady() {
@@ -152,7 +273,20 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
   }
 
   function init() {
-    setProgress(5);
+    progressState.startedAt = Date.now();
+    progressState.lastTickAt = progressState.startedAt;
+
+    // 逾時保底：8 秒內沒有走到 all-ready 就強制放行，避免真的卡住的
+    // 資源（例如 loadScript/loadStyle 的 onload/onerror 都沒觸發）讓
+    // 布幕永遠不消失。舊版完全沒有這層保護，這次搬讀條演算法順便補上。
+    gateTimeoutId = window.setTimeout(function () {
+      console.warn("[jonaminz] entry-core init timed out after " + GATE_TIMEOUT_MS + "ms, releasing gate anyway");
+      markCssReady();
+      markShellReady();
+      releaseAllReady();
+    }, GATE_TIMEOUT_MS);
+
+    setProgressTarget(5);
 
     loadScript("/version.js")
       .then(function () {
@@ -160,7 +294,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         // 保留給 registry-loader.js 讀（它自己的 cache buster 邏輯沒有改），
         // 從「每次都是新的 Date.now()」變成「跟著版本號走，同版本會命中快取」。
         window.JONAMINZ_ENTRY_VERSION = resourceVersion || String(Date.now());
-        setProgress(15);
+        setProgressTarget(15);
 
         var reservoirStyles = [
           "/assets/css/reservoir/01-reset.css",
@@ -178,7 +312,7 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
         var themeScriptPromise = loadScript("/assets/js/theme-runtime.js");
 
         return configPromise.then(function (siteConfig) {
-          setProgress(30);
+          setProgressTarget(30);
 
           window.JONAMINZ_SITE_CONFIG = siteConfig;
 
@@ -202,17 +336,17 @@ task，不可以自己 release all-ready，不可以自己決定 css/shell ready
             loadScript("/assets/js/registry-loader.js")
           ]).then(function () {
             markShellReady();
-            setProgress(85);
+            setProgressTarget(85);
           });
 
           var cssPromise = Promise.all([reservoirPromise, pageStylePromise, themeScriptPromise])
             .then(function () {
-              setProgress(55);
+              setProgressTarget(55);
               return loadThemeWithCap(800);
             })
             .then(function () {
               markCssReady();
-              setProgress(65);
+              setProgressTarget(65);
             });
 
           return Promise.all([cssPromise, shellPromise]);

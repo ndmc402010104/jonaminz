@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔Google OAuth 本機導頁修復〕已完成並部署，順序②開始）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔Google OAuth 本機導頁修復〕、順序②〔讀條演算法拉高層級〕皆已完成並部署，順序③開始）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -145,6 +145,40 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **讀條演算法拉高層級（2026-07-12，`docs/roadmap-202607.md` 順序②）：
+  完成並已上線。** 把 SKHPSV2 `loading-gate.js` 的「Runway Chase」平滑
+  讀條演算法搬進 jonaminz（重寫，不是複製檔案），取代 `entry-core.js`
+  原本「里程碑硬寫死百分比、跳格前進」的陽春寫法。
+  - `assets/js/entry-core.js`：`setProgress(percent)` 改成
+    `setProgressTarget(percent)`——只設定「下一個要追到的目標」，
+    target 只會前進不會後退；實際顯示的 `current` 值由新的
+    ticker（`requestAnimationFrame` + 16ms `setInterval`）每幀平滑
+    追趕，速度＝距離÷剩餘時間預算，越接近預算終點追得越快，不會有
+    「卡住不動」的觀感。all-ready 後不是立刻掀幕，是先讓 `current`
+    衝刺 260ms 補滿到 100（最多再等 520ms 保底），衝刺完才真的呼叫
+    `hideCurtainNow()` 拿掉 loading class，讓使用者看到讀條真的走完。
+  - **順便補上一個舊版就有的缺口**：新增 `GATE_TIMEOUT_MS`（8 秒）
+    逾時保底——舊版完全沒有逾時機制，如果某個資源真的卡住
+    （`onload`/`onerror` 都不觸發），布幕會永遠不消失。這不是本次
+    額外加的新功能，是 runway chase 演算法本身就需要一個時間預算才有
+    意義，8 秒逾時只是這個預算的另一半，順手補齊。
+  - **刻意簡化、沒有搬的部分**：SKHPS 版本逾時/失敗時有「WARN
+    hold」——停在目前進度 1 秒，搭配 footer 五盞診斷燈號讓使用者知道
+    「這不是正常結束」。jonaminz 沒有對應的診斷 UI，單純停頓沒有燈號
+    說明只會像卡住，這次逾時/失敗一樣衝刺到 100 掀幕，不做 WARN hold
+    停頓。
+  - **驗證**：Playwright 三項測試——①人工延遲部分資源，採樣讀條數值
+    在多個時間點確認是平滑遞增（0.1→0.9→2→3→4.1→11→48.6→85.1→100）
+    不是跳格；②延遲 9 秒才回應其中一個資源（比 8 秒逾時長），確認布幕
+    在約 8.3 秒（8 秒逾時＋短暫衝刺時間）就自動掀幕，不會傻等到 9 秒
+    那個真的回應才放行；③全站 5 頁 regression 確認零錯誤、都能正常
+    走到 progress 100。過程中第一版逾時測試方法本身有 bug
+    （`page.goto()` 預設等 `load` 事件，被動態插入的 `<link>` 卡住，
+    測到的其實是 `goto()` 自己等多久，不是 `entry-core.js` 的邏輯）
+    ——改用 `waitUntil:"commit"` 才測到真實行為，這個教訓對之後任何
+    要模擬「資源卡住」的 Playwright 測試都適用。
+  - **這次沒做**：skhpsv2 自己遷移過去用 jonaminz 提供的版本（待另開
+    新 prompt 交辦，skhpsv2 目前是 Codex 在處理）。
 - **Google OAuth 本機導頁修復（2026-07-12，`docs/roadmap-202607.md` 順序①）：
   完成並已部署。** 根因：`handleGoogleCallback` 最後導回的網址原本寫死
   `https://www.jonaminz.com/`，不管從哪裡發起登入都會被導去正式站，

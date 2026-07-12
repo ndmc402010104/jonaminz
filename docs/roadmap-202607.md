@@ -29,7 +29,11 @@ POST 沒有導頁問題）。
 
 ---
 
-## 順序②：平台能力拉高層級——讀條演算法
+## 順序②：平台能力拉高層級——讀條演算法 ✅ 完成（2026-07-12，已上線）
+
+見 `AI_CONTEXT/CHANGELOG.md` 同日「待辦總表順序②」條目。已套進
+jonaminz 自己的 `entry-core.js`，Playwright 驗證過平滑動畫、8 秒逾時
+保底、全站 regression。skhpsv2 遷移待另開新 prompt。
 
 把 SKHPSV2 `loading-gate.js` 的 "Runway Chase" 讀條平滑動畫演算法搬進
 jonaminz（重寫、去 SKHPS 命名，不是直接複製檔案），取代 `entry-core.js`
