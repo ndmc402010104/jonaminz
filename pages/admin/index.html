@@ -17,17 +17,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>後台 - Jonaminz</title>
 
-  <script>
-    (function () {
-      "use strict";
-
-      window.JONAMINZ_ENTRY_VERSION = String(Date.now());
-      window.JONAMINZ_SITE_CONFIG_URL = "/config.json";
-
-      document.write('<link rel="stylesheet" href="/assets/css/jonaminz-loading.css?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '">');
-      document.write('<script src="/assets/js/entry-core.js?v=' + encodeURIComponent(window.JONAMINZ_ENTRY_VERSION) + '"><\/script>');
-    })();
-  </script>
+  <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
+  <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
+  <script src="/assets/js/entry-core.js"></script>
 </head>
 
 <body class="jonaminz-body">

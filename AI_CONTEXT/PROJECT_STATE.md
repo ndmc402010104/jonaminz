@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push，階段②③尚未開始）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -145,6 +145,60 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **前端品質重建計畫階段①（效能重建＋全站布幕）：完成並已上線
+  （2026-07-12，`docs/frontend-quality-plan-202607.md`）。** 診斷出的
+  最大元凶：舊版 5 個頁面的 bootstrap script 都用 `String(Date.now())`
+  當全站資源的 cache buster，每次載入都是新值，瀏覽器快取命中率恆為
+  0%。修法：`assets/js/entry-core.js`／`assets/css/jonaminz-loading.css`
+  這兩個「bootstrap 前置檔」本身改成靜態 `<link>`/`<script>` 標籤、
+  完全不帶版號（吃 GitHub Pages 原生快取，最壞下次部署後 10 分鐘內
+  看到舊版，可接受）；`version.js` 本身也不帶版號；version.js 讀到之後，
+  其餘所有資源（config.json、reservoir/page CSS、theme-runtime.js、
+  header/footer/registry-loader、頁面 app.js）改用 `window.
+  JONAMINZ_APP_VERSION.version` 當 buster——同版本內重複造訪全部命中
+  快取，只有 push 前 bump 版本號（既有規則）才會讓資源網址改變。
+  `window.JONAMINZ_ENTRY_VERSION` 全域變數保留（給 `registry-loader.js`
+  讀，那個檔案沒有改），但指派成同一個版本字串而不是 `Date.now()`。
+  同時把 `entry-core.js` 的載入鏈從全序列改成並行：reservoir CSS
+  一次全送出（DOM append 順序仍同步保留，cascade 順序不受影響）、
+  config.json 抓取與 reservoir CSS／theme-runtime.js 預載三者同時開始；
+  config 解析完後 page CSS 與 header/footer/registry-loader 三支 shell
+  script 同時開始（header.js 的 render() 依賴 `window.
+  JONAMINZ_SITE_CONFIG`，必須等 config 解析完才能開始，這條依賴保留
+  未變）。Theme 首次造訪不再無上限等 Worker/Supabase（原本最長 8 秒）
+  ——`loadThemeWithCap(800)` 跟 800ms 賽跑，逾時就先放行 gate，
+  `theme-runtime.js` 自己的 promise 繼續在背景跑，資料到了照樣呼叫
+  `applyCss()` 補套上去（`theme-runtime.js` 本身完全沒改）。首頁
+  `assets/img/home-hero.jpg` 用 `sharp-cli` 壓縮（581KB→267KB，
+  quality 62、寬度上限 1800px，人物/場景細節目視確認沒有明顯劣化），
+  並加 `<link rel="preload" as="image">`。
+  **布幕重寫**：`jonaminz-loading.css` 從只有 12 行的
+  `body{visibility:hidden}` 死白遮罩，改成全站共用的「標題＋進度條」
+  布幕（`html.jonaminz-loading` 的 `::before`/`::after` 兩個
+  pseudo-element：前者顯示 `attr(data-loading-title)` 並帶脈動動畫，
+  後者用 hard-stop `linear-gradient` 同時畫出進度條的已完成／軌道兩段，
+  不用額外的第三個元素，也不受 `body{visibility:hidden}` 的繼承問題
+  影響——因為兩者都掛在 `html` 上，不在 `body` 底下）。**跟 skhpsv2 的
+  差異（刻意簡化）**：skhpsv2 對 header/main/footer 做逐階段分開淡入，
+  前提是每頁固定有 `[data-skhps-header]`/`main`/`[data-skhps-footer]`
+  結構；jonaminz 首頁是簽名式導覽版型、沒有這些共用元素（見
+  `index.html` 開頭註解），改成「整個 `body` 用同一塊布幕蓋住，
+  all-ready 才一次揭幕」，不分階段掀布——邏輯更簡單、對所有頁面型態
+  都成立。進度百分比由 `entry-core.js` 在里程碑（version 載完 15%、
+  config 解完 30%、CSS chain 完成 55%→65%、shell chain 完成 85%、
+  all-ready 100%）寫入 CSS 變數 `--jonaminz-loading-progress`。
+  配色沿用 `--color-bg-dark`/`--color-text-dark`/`--color-primary`
+  （跟首頁深色相片版型同色系，避免亮→暗閃爍；admin/login 系頁面是
+  淺色版，布幕→揭幕會有一次短暫深→淺切換，可接受）。
+  **驗證**：本機 Playwright 對 5 頁（home/admin/admin-theme/
+  admin-contracts/login）逐一截圖確認布幕出現＋正確揭幕＋zero console
+  錯誤（含 admin 系頁面未登入時正確導去 `/pages/login/?next=...`、
+  導頁後布幕正確重新出現一輪）；同一個 browser context 對首頁連續
+  載入兩次比對請求網址，確認完全一致（證明快取修復生效，不再每次
+  產生新版號）；確認 `<link rel="stylesheet">` 的 DOM 順序（reservoir
+  01→06→page CSS）在並行載入前後不變，cascade 沒有被打亂。
+  **這次沒做**：Jonathan/Minz 個人門戶頁（階段②）、後台首頁 Dashboard
+  化（階段③），見 `docs/frontend-quality-plan-202607.md` 對應段落。
 - 首頁（簽名式導覽版型）＋ loading gate（css/shell/main 三段）。
 - CSS 八層疊加架構全部運作中（reservoir 六層 + Page Layer + Theme 動態層）。
 - Theme 系統端到端可用：後台 `/pages/admin/theme/` 編輯 → Worker →
@@ -625,9 +679,13 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.10.0-202607121252`（`version.js`，第 9 項階段 B 這批
-  變更的 bump）。規則：每次 push 前要 bump，且要先查真的系統時間再填
-  `buildTime`/`updatedAt`（不能用猜的，見 `RULES.md` §二-1）。
+- 業務版本：`v0.11.0-202607121559`（`version.js`，前端品質重建計畫
+  階段①這批變更的 bump）。規則：每次 push 前要 bump，且要先查真的
+  系統時間再填 `buildTime`/`updatedAt`（不能用猜的，見 `RULES.md`
+  §二-1）。**這個版本字串 2026-07-12 起兼任全站資源的 cache-buster**
+  （見 §3 前端品質重建條目），bump 這個檔案現在同時是「讓使用者肉眼
+  確認上線」跟「強制瀏覽器拿新資源」兩件事的唯一機制，比以前更重要，
+  不能漏。
   **2026-07-11～12 implementation plan 第 3-7 項、第 9 項階段 A、第 9
   項階段 B、後台整站登入保護（第 9 項之後追加）皆完成並已上線**：第 3
   項（核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的

@@ -20,6 +20,80 @@
 
 ---
 
+## 2026-07-12 — 前端品質重建計畫階段①：效能重建＋全站布幕
+
+- **任務**：接續前一筆的規劃文件（`docs/frontend-quality-plan-202607.md`），
+  執行階段①。使用者切換到 Fable 5 規劃、切回 Sonnet 5 執行，指名照該
+  文件做階段①。
+- **變更**：
+  - **快取修復（根因）**：5 個頁面（home/admin/admin-theme/
+    admin-contracts/login）的 bootstrap `<head>` script 原本都用
+    `document.write` + `String(Date.now())` 當 `jonaminz-loading.css`／
+    `entry-core.js` 這兩個前置檔的版號，每次載入都是新值，快取命中率
+    恆為 0%。改成靜態 `<link>`/`<script>` 標籤、完全不帶版號（吃
+    GitHub Pages 原生快取）。`entry-core.js` 內部新增
+    `resourceVersion`／`withVersion()`：version.js 本身也不帶版號，
+    讀到之後才知道 `window.JONAMINZ_APP_VERSION.version`，後續所有
+    資源（config.json、CSS、theme-runtime.js、header/footer/
+    registry-loader、頁面 app.js）改用這個字串當版號——同版本內重複
+    造訪全部命中快取，只有 bump `version.js` 才會讓網址改變。
+    `window.JONAMINZ_ENTRY_VERSION` 保留（`registry-loader.js` 沒改，
+    繼續讀這個全域變數），但指派成同一個版本字串而不是 `Date.now()`。
+  - **並行化**：`entry-core.js` 的載入鏈從全序列 `.reduce()` 改成
+    `Promise.all`：6 層 reservoir CSS 一次全送出（`<link>` append 順序
+    仍同步發生在 `Promise.all` 呼叫當下，cascade 順序不受影響）；
+    config.json 抓取、reservoir CSS、theme-runtime.js 預載三者同時
+    開始；config 解析完後 page CSS 與 header/footer/registry-loader
+    三支 shell script 同時開始（header.js 的 `render()` 讀
+    `window.JONAMINZ_SITE_CONFIG`，這條依賴保留，必須等 config 解完
+    才能開始，沒有更早）。
+  - **Theme 不再無上限擋 gate**：新增 `loadThemeWithCap(800)`，首次
+    造訪（無 localStorage 快取）跟 800ms 賽跑，逾時就先放行、
+    `theme-runtime.js` 自己的 promise 繼續在背景跑，資料到了照樣
+    `applyCss()`（`theme-runtime.js` 本身完全沒改）。回訪（有快取）
+    `theme.load()` 本來就同步套用完立刻 resolve，這個 race 對它幾乎
+    是 no-op。
+  - **布幕重寫**：`jonaminz-loading.css` 從 12 行的死白遮罩改成全站
+    共用的「標題＋進度條」布幕。只用 `html` 的 `::before`（標題文字，
+    脈動動畫）／`::after`（hard-stop `linear-gradient` 同時畫出進度條
+    已完成／軌道兩段，省掉第三個元素，也避開 `body{visibility:hidden}`
+    的繼承問題——因為兩者都不在 `body` 底下）。**刻意不做 skhpsv2 那種
+    逐階段（header/main/footer 分開淡入）揭幕**：那套的前提是每頁固定
+    有 `[data-skhps-header]`/`main`/`[data-skhps-footer]` 結構，jonaminz
+    首頁是簽名式導覽版型沒有這些共用元素，改成整個 `body` 用同一塊布幕
+    蓋住、all-ready 一次揭幕，邏輯更簡單、對所有頁面型態都成立。
+    `entry-core.js` 在里程碑（version 15%、config 30%、CSS chain 完成
+    55%→65%、shell chain 完成 85%、all-ready 100%）寫入 CSS 變數
+    `--jonaminz-loading-progress` 給進度條讀。配色沿用
+    `--color-bg-dark`/`--color-text-dark`/`--color-primary`。
+  - **Hero 圖壓縮**：`assets/img/home-hero.jpg` 用 `npx sharp-cli`
+    （quality 62、寬度上限 1800px、progressive）從 581KB 壓到 267KB
+    （減 54%），目視確認人物/場景細節沒有明顯劣化。`index.html` 新增
+    `<link rel="preload" as="image">`。
+  - `version.js` 檔頭註解同步更新（cache-buster 現在是這個檔案的
+    version 字串本身，不再提已經不存在的舊機制）。
+- **驗證**：
+  1. 本機 `dev-server.js` + Playwright：對 5 頁逐一截圖確認布幕正確
+     出現（標題＋進度條）、正確揭幕（`jonaminz-loading` 等 class 全部
+     移除、`body` visibility/opacity 正確恢復）、全程零 console/page
+     錯誤；admin 系三頁未登入時正確導去 `/pages/login/?next=...`，
+     導頁後布幕在新頁面正確重新跑一輪，沒有露出未完成畫面。
+  2. 同一個 browser context 對首頁連續載入兩次，比對兩次實際發出的
+     資源請求網址，確認完全一致（證明快取修復生效，不再每次產生新
+     版號）；確認 `<link rel="stylesheet">` 的 DOM 順序（01→06 reservoir
+     →page CSS）在並行載入前後不變，cascade 沒被打亂。
+  3. 截圖目視確認（治本重構規則）：首頁布幕→揭幕視覺正常、深色系
+     一致無閃爍；後台/登入頁布幕→（導頁）→登入頁揭幕視覺正常，既有
+     視覺打磨（Google 按鈕、身分徽章等）沒有被動到。
+- **狀態變化**：前端品質重建計畫**階段①完成並已 push**。階段②
+  （Jonathan/Minz 個人門戶頁）、階段③（後台 Dashboard 化）尚未開始。
+- **遺留**：無（`theme-runtime.js`／`registry-loader.js`／`header.js`
+  皆未修改，行為與依賴關係原樣保留）。
+- **版本**：`v0.11.0-202607121559`（`version.js`；bump 這個檔案現在
+  同時觸發全站資源版號更新，比以前更重要）。
+
+---
+
 ## 2026-07-12 — 前端品質重建計畫定案（純規劃，無程式碼變更）
 
 - **任務**：使用者反映首頁很慢、loading gate 只有死白畫面，要求規劃
