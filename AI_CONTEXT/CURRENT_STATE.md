@@ -46,8 +46,11 @@
   任何人，是刻意的（跟當初 `css` 授予的保守策略一致）。
 
 **尚未完成／已知缺口**：
-- Google OAuth 登入這條路**沒有**把 `?next=` 帶回，永遠導回發起登入的
-  origin 根目錄；內部密語登入才有完整的 `next` 支援。
+- ~~Google OAuth 登入這條路沒有把 `?next=` 帶回~~ **已於 2026-07-12
+  修復**：`oauth_states` 新增 `next` 欄位、`handleGoogleStart`/
+  `handleGoogleCallback` 驗證後帶著走，跟內部密語登入行為一致。機制
+  已部署驗證，但還沒有人親自走完一次完整 Google 登入流程確認最終導頁
+  正確（見 `KNOWN_ISSUES.md` 第 2 條）。
 - 沒有跨子網域的 App SSO——`pages/identity-relay/` 只做「單向查詢身分」
   （用於 SDK 的 `identity.currentUser()`），不是完整的單一登入態同步。
 - 沒有跨 App 的 `returnTo`（從外部 App 導去 jonaminz 登入、登入完再導回

@@ -69,6 +69,30 @@
         "afterScripts": ["/assets/js/backend-client.js", "/pages/login/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
+    },
+    "jonathan": {
+      "pageId": "jonathan",
+      "title": "Jonathan",
+      "path": "/pages/jonathan/",
+      "group": "main",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/jonathan/assets/css/page-jonathan.css"],
+        "afterScripts": ["/pages/jonathan/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
+    "minz": {
+      "pageId": "minz",
+      "title": "Minz",
+      "path": "/pages/minz/",
+      "group": "main",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/minz/assets/css/page-minz.css"],
+        "afterScripts": ["/pages/minz/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
     }
   },
 

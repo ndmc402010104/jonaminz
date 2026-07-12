@@ -30,6 +30,11 @@
 - `pages/identity-relay/` — 跨子網域身分轉發頁（implementation plan 第 9 項
   階段 B）：不走水庫 bootstrap，供其他 `*.jonaminz.com` 專案的 SDK 透過隱藏
   iframe 查詢「目前登入的是誰」。
+- `pages/jonathan/` — Jonathan（石益昇）個人門戶頁（前端品質重建計畫階段②，
+  2026-07-12）：簡介＋專案卡片（SKHPS、jonaminz-movies，原本放在
+  `pages/admin/` 的 SKHPS 連結搬來這裡）。公開頁面，不需要登入。
+- `pages/minz/` — Minz 個人門戶頁，目前是骨架佔位頁（內容留白等本人提供
+  簡介文字/照片），版型跟 `pages/jonathan/` 對稱。公開頁面，不需要登入。
 
 **2026-07-12 起：整個後台（`pages/admin/`、`pages/admin/theme/`、
 `pages/admin/contracts/`）都要求登入才能進入**（`window.JonaminzIdentity.requireLogin()`，

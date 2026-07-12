@@ -860,6 +860,25 @@ function resolveOauthReturnOrigin(candidate) {
   return OAUTH_DEFAULT_RETURN_ORIGIN;
 }
 
+// 2026-07-12：Google OAuth 完成後導回網站裡的哪一頁——跟 return_origin
+// 是兩個獨立的東西（origin 是「哪個網站」，這個是「網站裡的哪一頁」）。
+// 內部密語登入是純前端 POST，登入成功後直接用 JS 導去 next，這條路本來
+// 就完整支援；Google OAuth 要整個跳去 Google 再跳回來，中間是這支
+// Worker 做 302，一直沒有把 next 一起存進 oauth_states 帶著走，導致
+// Google 登入完永遠回網站根目錄，不會回到原本被 requireLogin() 攔下來
+// 的那一頁——這裡補上。跟 pages/login/assets/js/app.js 的 getNextUrl()
+// 同一套白名單邏輯（只接受同源相對路徑，開頭單一個 `/`，不含 `://`
+// 也不是 `//` 開頭）：不驗證就直接拿使用者可控的字串當 redirect 路徑
+// 的一部分，是開放式重導向漏洞，這裡故意收斂成白名單式檢查。
+function resolveOauthReturnNext(candidate) {
+  candidate = String(candidate || "");
+  if (!candidate) return "/";
+  if (candidate.indexOf("://") !== -1) return "/";
+  if (candidate.slice(0, 2) === "//") return "/";
+  if (candidate.charAt(0) !== "/") return "/";
+  return candidate;
+}
+
 function randomToken() {
   return crypto.randomUUID() + crypto.randomUUID();
 }
@@ -985,6 +1004,10 @@ async function handleGoogleStart(env, url) {
   // query string 裡，這裡驗證過白名單後存進 oauth_states，callback 才
   // 知道要導回哪裡——不然永遠寫死導回正式站，本機測不了這條路。
   const returnOrigin = resolveOauthReturnOrigin(url.searchParams.get("origin") || "");
+  // 登入頁被 requireLogin() 導來時帶的 ?next=，同一套白名單邏輯驗證過
+  // 後存進 oauth_states，callback 才能導回原本要去的那一頁而不是網站
+  // 根目錄（見上方 resolveOauthReturnNext() 註解）。
+  const returnNext = resolveOauthReturnNext(url.searchParams.get("next") || "");
 
   const state = randomToken();
   const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
@@ -993,7 +1016,7 @@ async function handleGoogleStart(env, url) {
   const insertResponse = await fetch(insertUrl, {
     method: "POST",
     headers: supabaseHeaders(env),
-    body: JSON.stringify({ state: state, return_origin: returnOrigin, expires_at: expiresAt })
+    body: JSON.stringify({ state: state, return_origin: returnOrigin, next: returnNext, expires_at: expiresAt })
   });
   if (!insertResponse.ok) {
     throw new Error("Supabase insert failed: HTTP " + insertResponse.status + " " + (await insertResponse.text()));
@@ -1037,7 +1060,7 @@ async function handleGoogleCallback(env, url) {
   const stateUrl =
     env.SUPABASE_URL.replace(/\/+$/, "") +
     "/rest/v1/oauth_states?state=eq." + encodeURIComponent(state) +
-    "&select=state,expires_at,return_origin";
+    "&select=state,expires_at,return_origin,next";
   const stateResponse = await fetch(stateUrl, { method: "GET", headers: supabaseHeaders(env) });
   if (!stateResponse.ok) {
     throw new Error("Supabase read failed: HTTP " + stateResponse.status + " " + (await stateResponse.text()));
@@ -1086,10 +1109,12 @@ async function handleGoogleCallback(env, url) {
   }
 
   const session = await createSession(env, identity, "google");
-  // stateRow.return_origin 是 handleGoogleStart 當時就已經驗證過白名單
-  // 存進 DB 的值，這裡直接信任、不用再驗一次；resolveOauthReturnOrigin
-  // 再包一層只是防禦舊資料列（升級前建立、沒有這欄）落到 fallback。
+  // stateRow.return_origin／stateRow.next 是 handleGoogleStart 當時就已經
+  // 驗證過白名單存進 DB 的值，這裡直接信任、不用再驗一次；
+  // resolveOauthReturnOrigin／resolveOauthReturnNext 再包一層只是防禦舊
+  // 資料列（升級前建立、沒有這兩欄）落到各自的 fallback。
   const returnOrigin = resolveOauthReturnOrigin(stateRow.return_origin || "");
-  const redirectUrl = returnOrigin + "/#jonaminzSessionToken=" + encodeURIComponent(session.token);
+  const returnNext = resolveOauthReturnNext(stateRow.next || "");
+  const redirectUrl = returnOrigin + returnNext + "#jonaminzSessionToken=" + encodeURIComponent(session.token);
   return Response.redirect(redirectUrl, 302);
 }

@@ -62,7 +62,7 @@
 | # | 事實 | 驗證檔案 | repo 已實作 | 已部署 | 已人工驗證 |
 |---|---|---|---|---|---|
 | 30 | 登入頁支援 `?next=` 參數，登入成功後導回原頁面，且做了開放式重導向防護（只接受同源相對路徑，拒絕 `://`／`//` 開頭與非 `/` 開頭的值） | `pages/login/assets/js/app.js` `getNextUrl()`（第70-81行） | 是 | 是 | 是（CHANGELOG 記載 Playwright 驗證過 next 正常流程與開放式重導向防護） |
-| 31 | Google OAuth 這條登入路**沒有**把 `next`／`returnTo` 一起帶回——`handleGoogleCallback` 固定導回發起登入的 origin 根目錄，不是導回使用者原本要去的頁面 | `worker.js` 第1093行只組出 `returnOrigin + "/#jonaminzSessionToken=..."`，沒有拼接原始 `next` 路徑 | 是（這是目前真實行為，且 CHANGELOG/implementation-plan 皆明確承認是「已知、刻意先不修的小缺口」） | 是 | — |
+| 31 | Google OAuth 這條登入路（2026-07-12 修復後）**已經**把 `next` 一起帶回——`handleGoogleStart` 驗證存進 `oauth_states.next`，`handleGoogleCallback` 重新驗證後拼進最終 redirect（`returnOrigin + returnNext + "#jonaminzSessionToken=..."`），跟內部密語登入行為一致 | `worker.js` 的 `resolveOauthReturnNext()`／`handleGoogleStart`／`handleGoogleCallback`；`backend/supabase/auth_schema.sql` 的 `oauth_states.next` 欄位；`pages/login/assets/js/app.js` `googleStartUrl()` 帶 `&next=` | 是 | 是（`wrangler deploy` Version ID `03659c8e-ecbc-4051-a368-8ffd3c1d85cd`；DB migration 已套用到 `jonaminz-db`） | 部分：node 腳本窮舉 10 種 edge case 確認 sanitize 邏輯正確、curl 確認轉址正常、直連 DB 確認 `next` 欄位正確存值；但 Google 同意畫面那段需要真人瀏覽器互動，**還沒有人親自走完一次完整登入流程確認最終導頁正確** |
 | 32 | Access policy 不是整個 App 二分 public/private，而是以 `entryId`／頁面為粒度個別決定（例如後台三頁各自 `requireLogin()`，首頁與登入頁不需要登入） | 逐頁核對 `init()` 邏輯：首頁/登入頁無保護，後台三頁各自呼叫 `requireLogin()` | 是 | 是 | 是 |
 | 33 | Contract 的 `not` 反面表列明文禁止合約自己宣告 `enabled`／`visibility`／`placement`／`permissions`／`grantedCapabilities` 等定位類欄位——定位永遠由平台（Integration Settings）決定，不是合約自己說了算 | `docs/contract-schema/jonaminz.contract.schema.json` 的 `$defs/forbiddenFieldsGuard`；`docs/contract-schema/README.md` 逐欄位對應表 | 是 | 是 | 是（ajv-cli 跑過反例確認這些欄位出現會讓合約 invalid） |
 

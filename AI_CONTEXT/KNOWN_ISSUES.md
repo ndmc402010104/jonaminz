@@ -28,20 +28,22 @@ JS），第三方腳本注入面相對小；`identity-relay` 傳遞的 postMessa
 
 ---
 
-## 2. Google OAuth 的 `next`／`returnTo` 沒有完整保留
+## 2. ~~Google OAuth 的 `next`／`returnTo` 沒有完整保留~~ 已修復（2026-07-12）
 
-**現況**：內部密語登入完整支援 `?next=`（登入成功導回原頁面，且做了
-開放式重導向防護）。**Google OAuth 這條路沒有把 `next` 一起帶過去**——
+**原現況**：內部密語登入完整支援 `?next=`（登入成功導回原頁面，且做了
+開放式重導向防護）。Google OAuth 這條路沒有把 `next` 一起帶過去——
 `worker.js` 的 `handleGoogleCallback` 固定導回 `resolveOauthReturnOrigin()`
 算出來的 origin 根目錄，不是使用者原本想去的頁面。
 
-**影響**：使用者從後台某個深層頁面被踢去登入、選擇用 Google 登入時，
-登入完成後會被丟回首頁，不是原本的頁面，需要自己再導航一次。
+**修復**：`oauth_states` 表新增 `next` 欄位（已套用到 `jonaminz-db`），
+`handleGoogleStart` 驗證後存進去、`handleGoogleCallback` 重新驗證一次
+再拼進最終 redirect 網址，`googleStartUrl()` 帶上 `&next=`——跟內部密語
+登入現在行為一致。細節見 `AI_CONTEXT/CHANGELOG.md` 同日「Google OAuth
+`next` 缺口修復」條目、`AI_CONTEXT/FACTS.md` 對應事實列。
 
-**風險等級**：低（使用體驗瑕疵，不是安全問題）。
-
-**現況判定**：CHANGELOG 與 implementation plan 皆明確承認這是「已知、
-刻意先不修的小缺口」，不是遺漏。
+**尚未確認**：機制本身（DB 存值、Worker 重新驗證、curl 驗證轉址）已
+驗證正確，但 Google 同意畫面那段需要真人瀏覽器互動，**還沒有人親自
+點過一次完整登入流程確認最終真的導回原頁面**。
 
 ---
 

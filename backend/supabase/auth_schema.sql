@@ -22,17 +22,24 @@ create index if not exists sessions_expires_at_idx on sessions (expires_at);
 -- callback 導回原本那個來源而不是永遠導回正式站——本機測 Google OAuth
 -- 用得到（2026-07-12 加，見 worker.js 的 ALLOWED_OAUTH_RETURN_ORIGINS
 -- 白名單，值只可能是白名單裡的其中一個，不是使用者能任意帶的字串）。
+-- next：發起登入時原本要去的頁面路徑（後台頁被 requireLogin() 導來這裡
+-- 時帶的 ?next=），讓 Google OAuth 登入完也能跟內部密語登入一樣導回原頁，
+-- 不是永遠導回網站根目錄（2026-07-12 補，同樣只信經 worker.js
+-- resolveOauthReturnNext() 驗證過的同源相對路徑，不是使用者能任意帶的
+-- 字串）。
 create table if not exists oauth_states (
   state text primary key,
   return_origin text,
+  next text,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null
 );
 
--- 2026-07-12：既有正式環境的表已經建過，沒有這欄，補一次 ALTER。新建
--- 資料庫走上面的 CREATE TABLE 就已經含這欄，這行只是為了讓舊環境同步，
--- 重跑本檔不會出錯（IF NOT EXISTS）。
+-- 2026-07-12：既有正式環境的表已經建過，沒有這兩欄，補一次 ALTER。新建
+-- 資料庫走上面的 CREATE TABLE 就已經含這兩欄，這兩行只是為了讓舊環境
+-- 同步，重跑本檔不會出錯（IF NOT EXISTS）。
 alter table oauth_states add column if not exists return_origin text;
+alter table oauth_states add column if not exists next text;
 
 -- 開 RLS 但不加任何 public policy：只有拿 service role key 的 Cloudflare
 -- Worker 能讀寫這兩張表，瀏覽器端完全碰不到（跟既有表同一個原則）。

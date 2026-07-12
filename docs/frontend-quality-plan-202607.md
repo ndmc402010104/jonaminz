@@ -99,32 +99,56 @@ admin-contracts／login）。驗收方式與截圖驗證紀錄見
 
 ---
 
-## 階段②：Jonathan 個人門戶頁（＋Minz 佔位頁）
+## 階段②：Jonathan 個人門戶頁（＋Minz 佔位頁）✅ 完成（2026-07-12，已驗證）
 
-### 目標
+見 `AI_CONTEXT/CHANGELOG.md` 同日「待辦總表順序⑥」條目。
+
+### 目標（達成，一個地方跟原計畫不同，見下方）
 首頁 piece 02「Jonathan」點下去是真實頁面：個人門戶＝簡介區塊＋自己的
-專案入口卡片（**SKHPS 連結從後台搬到這裡**，jonaminz-movies 也放入）。
-Minz（piece 01）同步建對稱的骨架佔位頁，內容留白等本人填，連結不再是
-死錨點。風格延續首頁簽名式設計。
+專案入口卡片。Minz（piece 01）同步建對稱的骨架佔位頁，內容留白等本人填，
+連結不再是死錨點。
 
-### 可修改檔案
-- 新增 `pages/jonathan/`、`pages/minz/`（照 `pages/README.md` 標準流程：
-  index.html 複製 bootstrap、`assets/js/app.js`、`assets/css/page-*.css`）
-- `config.json`（登記兩個新頁面）
-- `index.html`（nav 與 signature 的 `#jonathan`/`#minz` 錨點改成
-  `/pages/jonathan/`、`/pages/minz/`）
-- `pages/admin/assets/js/app.js`（移除 SKHPS 連結卡片——搬去 Jonathan 頁）
-- `version.js`、AI_CONTEXT 兩份（固定允許）
+**跟原計畫的差異**：原本這裡寫「SKHPS 連結從後台搬到這裡，jonaminz-movies
+也放入」——實作時使用者當場糾正，jonaminz-movies 是 Jonathan／Minz
+兩人共用的後台功能，不是 Jonathan 個人專案，不該跟 SKHPS 並列在個人
+專案卡片裡，已從卡片移除。目前 Jonathan 頁只有 SKHPS 一張卡片。
 
-### 驗收
-- [ ] 首頁兩個 name-link 都能進入對應頁面，布幕行為與其他頁一致
-- [ ] Jonathan 頁有簡介區塊＋專案卡片（SKHPS、jonaminz-movies），
-  卡片外開新分頁
-- [ ] 後台首頁不再有 SKHPS 卡片
-- [ ] 手機寬度版面正常（截圖確認）
+### 落地檔案
+- 新增 `pages/jonathan/`（`index.html`／`assets/js/app.js`／
+  `assets/css/page-jonathan.css`）、`pages/minz/`（同結構，佔位內容）
+- `config.json` 新增 `jonathan`／`minz` 兩個 page entry
+- `index.html`：`#jonathan`/`#minz` 死錨點改成 `/pages/jonathan/`、
+  `/pages/minz/`
+- `pages/admin/assets/js/app.js`：移除 SKHPS 連結卡片
+- `assets/img/jonathan-portrait.jpg`（新增，Jonathan 形象照，見下方壓縮
+  說明）
+- `pages/jonathan/assets/js/app.js`：SKHPS 連結環境感知邏輯（見下方）
 
-### 待使用者提供（實作時再問，不擋開工）
-- Jonathan 簡介文字與照片（先用佔位文＋既有 hero 圖裁切亦可）
+### 驗收（全部通過）
+- [x] 首頁兩個 name-link 都能進入對應頁面，布幕行為與其他頁一致
+- [x] Jonathan 頁有簡介區塊＋SKHPS 專案卡片，卡片外開新分頁
+- [x] 後台首頁不再有 SKHPS 卡片
+- [x] 手機寬度版面正常（截圖確認，375px 寬度圖片/文字正確堆疊）
+
+### SKHPS 連結環境感知（實作時追加，原計畫沒有這段）
+使用者測試時指出 SKHPS 連結應該要能在本機 dev 測試時連到本機的 SKHPS
+（`/skhpsv2/`），不是永遠連正式站。跟 OAuth `origin` 白名單同一個判斷
+精神：loopback（`localhost`／`127.0.0.1`）不管哪個 port 都算本機，不寫死
+單一 port 的假設（`pages/jonathan/assets/js/app.js` 的
+`LOOPBACK_HOSTNAME_PATTERN`）。SKHPS 是唯一需要 JS 動態接手的連結，
+其餘內容都是靜態 HTML，不需要動態渲染。
+
+### 使用者提供的素材
+- Jonathan 簡介文字：石益昇，整形外科醫師（實際文字見
+  `pages/jonathan/index.html`）
+- Jonathan 形象照：使用者提供的原始 PNG（3840×5760，24MB）用
+  `sharp-cli` 壓成 `assets/img/jonathan-portrait.jpg`（JPEG，1000×1500，
+  quality 78，80KB）
+- 首頁 hero 圖同批也換成使用者提供的高解析度原始檔重壓版本（2200×1467，
+  quality 70，408KB，取代原本較低畫質來源壓出的 267KB 版本）
+
+### Minz 頁仍待補
+Minz 簡介文字與照片尚未提供，`pages/minz/` 目前是骨架佔位頁。
 
 ---
 

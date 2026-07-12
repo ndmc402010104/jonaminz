@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/jonathan/index.html
+用途：Jonathan（石益昇）個人門戶頁（水庫下游頁面，複製自根目錄 index.html
+的 bootstrap，只改 pageId / title / 內容，載入路徑維持根目錄絕對路徑，
+不用因為巢狀資料夾改路徑）。公開頁面，不需要登入——內容是靜態簡介＋
+專案卡片，不用像後台頁那樣做 requireLogin()。SKHPS 連結（data-skhps-link）
+由 app.js 依 window.location 動態改寫成本機或正式站網址，見該檔案註解。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="Jonathan"
+  data-jonaminz-page-id="jonathan"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Jonathan - Jonaminz</title>
+
+  <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
+  <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
+  <script src="/assets/js/entry-core.js"></script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page jonaminz-profile-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-profile-container">
+      <section class="jonaminz-profile-hero">
+        <div class="jonaminz-profile-photo">
+          <img src="/assets/img/jonathan-portrait.jpg" alt="石益昇">
+        </div>
+        <div class="jonaminz-profile-info">
+          <p class="jonaminz-eyebrow">Jonathan</p>
+          <h1 class="jonaminz-profile-name">石益昇｜整形外科醫師</h1>
+          <p class="jonaminz-profile-bio">我是一名整形外科醫師，專注於臨床醫療、傷口照護與醫學研究。除了醫療工作，我也持續投入流程改善、數位工具與 AI 應用開發，嘗試用更有效率、更有系統的方式解決複雜問題。</p>
+          <p class="jonaminz-profile-bio">我相信醫療不只需要專業與經驗，也需要持續創新。無論是臨床照護、研究分析，或數位系統設計，我希望把想法真正做成能被使用、能改善現況的成果。</p>
+        </div>
+      </section>
+
+      <section class="jonaminz-profile-projects">
+        <p class="jonaminz-eyebrow">Projects</p>
+        <h2 class="jonaminz-profile-section-title">專案</h2>
+        <div class="jonaminz-profile-links" data-jonathan-links>
+          <a class="jonaminz-profile-link-card" data-skhps-link href="https://skhps.jonaminz.com" target="_blank" rel="noopener">
+            <span class="jonaminz-profile-link-title">SKHPS</span>
+            <span class="jonaminz-profile-link-desc">skhps.jonaminz.com</span>
+          </a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>

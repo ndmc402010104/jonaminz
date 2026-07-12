@@ -20,6 +20,158 @@
 
 ---
 
+## 2026-07-12 — 文件真實性盤點與同步
+
+- **任務**：使用者交辦一次完整文件審計（不是開發任務）：早期文件可能
+  沒跟上後續實作，造成互相矛盾、舊決策被誤認成現況。要求以實際程式碼／
+  schema／設定檔／近期紀錄為準交叉驗證，不因文件寫「已完成」就相信，
+  也不因 repo 有程式碼就推論「已部署」／「已人工驗證」（三者要分開標）。
+- **變更**：用 general-purpose 子 agent 執行完整盤點（避免主對話被大量
+  檔案讀取塞爆），全程只碰 `.md` 檔案。新增 `AI_CONTEXT/FACTS.md`
+  （逐條事實＋驗證檔案＋repo實作/已部署/已人工驗證三態）、
+  `DECISIONS.md`（使用者已裁決但不代表已實作的架構方向）、
+  `CURRENT_STATE.md`（現況速覽濃縮版）、`KNOWN_ISSUES.md`、
+  `EXPERIMENTS.md`（未拍板選項）、`SESSION_LOG.md`、`CHECKPOINTS.md`、
+  `DOCUMENT_STATUS.md`（全站文件狀態總表）。修正 13 份既有文件：
+  `pages/README.md` 仍講已淘汰的 `JONAMINZ_ADMIN_TOKEN`、根目錄
+  `README.md` 檔案結構圖過舊（沒列 admin/contracts、login、
+  identity-relay、sdk/ 等後來才有的資料夾）、10 份 Platform Integration
+  規劃期文件（consensus／spec-review／review-request／
+  review-consolidation／5 份 review／RC 驗收）加上 Historical/Superseded
+  標記指向 Frozen 規格，原文一字未動。
+- **驗證**：`git diff --stat`／`git diff --name-only` 確認異動範圍；
+  `git status --porcelain` 取全部異動檔案（含新增）逐一取副檔名去重，
+  結果只有 `.md` 一種，證明沒有動到任何程式碼。全程沒有執行
+  `wrangler deploy` 或對正式環境發新請求，「已部署」「已人工驗證」的
+  判定全部引用既有 CHANGELOG 紀錄，不是重新驗證。
+- **狀態變化**：AI_CONTEXT 從 5 份文件（RULES/PROJECT_STATE/
+  ARCHITECTURE/ACCEPTANCE/CHANGELOG）擴充到 13 份。
+- **遺留**：盤點意外挖到一個真的功能缺口（不是文件錯誤）：Google OAuth
+  登入沒有保留 `?next=`。使用者同一次對話裡接著要求修掉，見下一條。
+- **版本**：無程式碼變更。
+
+---
+
+## 2026-07-12 — Google OAuth `next` 缺口修復
+
+- **任務**：上一條文件盤點挖到的缺口——`pages/login/assets/js/app.js`
+  檔頭註解自己承認「Google OAuth 那條路沒有把 next 一起帶過去，是已知、
+  刻意先不修的小缺口」。使用者確認要修：「修完直接可以做⑥」。
+- **變更**：`return_origin`（哪個網站）跟 `next`（網站裡的哪一頁）是兩個
+  獨立參數，Google OAuth 走 Worker 302 中轉，`oauth_states` 表原本只存
+  `return_origin`，沒把 `next` 帶著走，導致 Google 登入完永遠回網站
+  根目錄，跟內部密語登入（純前端 POST，登入完直接用 JS 導去 `next`）
+  行為不一致。
+  - `backend/supabase/auth_schema.sql`：`oauth_states` 新增 `next text`
+    欄位（CREATE TABLE 含 + 獨立 ALTER TABLE ADD COLUMN IF NOT EXISTS
+    給既有正式環境用），**已直連套用到 `jonaminz-db`**（先用
+    `/v1/projects` 查證專案 ref 是 `xhwrizmacantlubasixe`，套用後
+    查 `information_schema.columns` 確認欄位真的加上）。
+  - `backend/cloudflare-worker/worker.js`：新增
+    `resolveOauthReturnNext(candidate)`（跟既有
+    `resolveOauthReturnOrigin()` 同一套白名單邏輯：只接受同源相對路徑，
+    開頭單一個 `/`，不含 `://` 也不是 `//` 開頭，防開放式重導向）。
+    `handleGoogleStart` 讀 `?next=`、驗證後存進 `oauth_states`；
+    `handleGoogleCallback` select 出來重新驗證一次（不信任 DB 裡存的
+    值免驗，跟 `return_origin` 現有的雙重驗證做法一致），拼進最終
+    redirect 網址（`returnOrigin + returnNext + "#jonaminzSessionToken=..."`）。
+  - `pages/login/assets/js/app.js`：`googleStartUrl()` 帶上
+    `&next=` + `encodeURIComponent(getNextUrl())`（複用既有
+    `getNextUrl()` 的 sanitize 邏輯，兩個都是函式宣告、hoist，呼叫
+    順序跟定義順序無關）。檔頭註解同步更新，拿掉「刻意先不修」的舊說明。
+- **部署**：esbuild 打包＋`node --check` 確認乾淨後 `wrangler deploy`
+  （Version ID `03659c8e-ecbc-4051-a368-8ffd3c1d85cd`）——**DB migration
+  跟 wrangler deploy 都先問過使用者才動手**（自動模式的正式環境保護
+  classifier 主動擋下了第一次嘗試，要求明確授權，這是預期中的正確
+  行為，不是 bug）。
+- **驗證**：node 腳本窮舉 10 種 edge case（含 `//evil.com/phish`、
+  `https://evil.com/phish`、`javascript://alert(1)` 等開放式重導向
+  嘗試、`/pages/admin/theme/?foo=bar` 這種帶 query string 的合法路徑）
+  確認 `resolveOauthReturnNext()` 全部正確判斷；部署後 curl 打
+  `/auth/google/start?origin=...&next=/pages/admin/theme/` 確認正確
+  302 去 Google；直連 DB 查最新 `oauth_states` 列（只查
+  `return_origin`/`next`/`expires_at` 非機密欄位）確認
+  `next` 真的存成 `/pages/admin/theme/`，另兩筆舊資料列（升級前建立，
+  沒有 `next` 欄位）正確顯示 `null`，fallback 邏輯不會炸。
+- **狀態變化**：`AI_CONTEXT/KNOWN_ISSUES.md`／`CURRENT_STATE.md`／
+  `FACTS.md`（文件盤點當時新增的）裡「OAuth 不保留 next」的記錄需要
+  同步更新成已修復——**下一棒接手前記得檢查這三份文件是否已經更新**
+  （這次修復跟文件盤點是連續兩個任務，如果文件更新這步被跳過，
+  三份文件會變成剛盤點完就過期）。
+- **遺留**：Google 同意畫面那段需要真人瀏覽器互動，機制本身（DB 存值、
+  Worker 重新驗證、最終導頁組合）已驗證正確，但**還需要使用者自己
+  實際點一次完整登入流程**，確認瀏覽器真的被導回原本要去的那一頁
+  （跟階段 A 當初 Google OAuth 上線時的驗證缺口是同一種、必須真人操作
+  的部分，自動化測不到 Google 同意畫面那一段）。
+- **版本**：`v0.17.0-202607122328`（跟下一條 Jonathan/Minz 門戶頁同一次
+  bump，兩個任務是連續完成、一起 commit 的）。
+
+---
+
+## 2026-07-12 — 待辦總表順序⑥：前端品質重建計畫階段②，Jonathan/Minz 門戶頁
+
+- **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做⑥。首頁兩個
+  name-link（`#jonathan`/`#minz`）從死錨點變成真實頁面，見
+  `docs/frontend-quality-plan-202607.md` 階段②。使用者順帶提供
+  Jonathan 的簡介文字與形象照。
+- **變更**：
+  - 新增 `pages/jonathan/`（`index.html`／`assets/js/app.js`／
+    `assets/css/page-jonathan.css`）：簡介區塊（石益昇，整形外科醫師，
+    使用者提供的簡介文字）＋ SKHPS 專案卡片。公開頁面，不需要登入，
+    內容是靜態 HTML，`app.js` 只回報 loading task（SKHPS 連結例外，
+    見下方）。
+  - 新增 `pages/minz/`（同結構）：骨架佔位頁，內容留白（「這裡準備中，
+    晚點會補上 Minz 的自我介紹與照片」），版型跟 Jonathan 頁對稱但
+    強調色改用 `--color-primary-2` 區分。
+  - `config.json` 新增 `jonathan`／`minz` 兩個 page entry；`index.html`
+    的 `#jonathan`/`#minz` 錨點改成 `/pages/jonathan/`、`/pages/minz/`；
+    `pages/admin/assets/js/app.js` 移除 SKHPS 連結卡片（後台是管理入口，
+    SKHPS 是 Jonathan 自己的專案，不該混在一起）。
+  - **跟原計畫的差異（使用者當場糾正）**：原計畫 Jonathan 專案卡片要放
+    SKHPS 跟 jonaminz-movies 兩張，使用者指出「jonaminz movies是我們
+    後台我跟minz的功能不是專案功能」——jonaminz-movies 是兩人共用的
+    後台功能，不是 Jonathan 個人專案，已從卡片移除，這次不歸類在
+    任何地方（真正該放哪裡，之後再決定）。
+  - **SKHPS 連結環境感知**：本機測試時 SKHPS 連結要連本機的
+    `/skhpsv2/`，不是永遠連正式站 `https://skhps.jonaminz.com`。
+    第一版打算問使用者要寫死哪個 port，使用者立刻指出這跟 OAuth
+    `origin` 白名單當初「loopback 不寫死單一 port」的教訓重複——改成
+    `pages/jonathan/assets/js/app.js` 的 `LOOPBACK_HOSTNAME_PATTERN`
+    判斷 `window.location.hostname` 是不是 loopback（`localhost`／
+    `127.0.0.1`，任何 port），是的話用
+    `window.location.origin + "/skhpsv2/"`（同 origin 相對路徑，自動
+    跟著目前的 port 走），不是的話才用正式站網址。比 worker.js 那份
+    `OAUTH_LOOPBACK_RETURN_ORIGIN_PATTERN` 更單純：判斷依據是頁面自己
+    的 `window.location`，不是外部輸入，不需要另外驗證 protocol 或
+    防偽造。
+  - **素材處理**：使用者提供 Jonathan 形象照原始檔（PNG，3840×5760，
+    24MB），用 `sharp-cli` 壓成 `assets/img/jonathan-portrait.jpg`
+    （JPEG，1000×1500，quality 78，80KB）。使用者同時提供首頁 hero 圖
+    的高解析度原始檔（之前的來源畫質較差），一併重壓
+    `assets/img/home-hero.jpg`（2200×1467，quality 70，408KB，取代舊版
+    1800×1200、quality 62、267KB）。兩張原始檔壓完即刪，repo 裡只留
+    最終壓縮版本（使用者明確要求「整體保留一個檔案就好」）。
+- **驗證**：Playwright 對 jonathan/minz/admin/home 四頁跑桌機
+  （1280px）與手機（375px）截圖，確認零 console error、首頁連結指向
+  真實路徑、admin 頁不再有 SKHPS 卡片、jonathan 頁卡片只有 SKHPS（沒有
+  jonaminz-movies）。SKHPS 連結環境感知另外用 node 腳本窮舉 6 種
+  hostname 組合（含 `127.0.0.1.evil.com` 這種試圖矇混的變形網址）確認
+  邏輯正確，再實際跑在本機 dev server（127.0.0.1:5577）上確認算出的
+  href 真的是 `http://127.0.0.1:5577/skhpsv2/`，不是寫死的某個 port。
+  過程中一度被 VS Code 自己的 Live Server（也綁在預設 5500 port）
+  干擾，同一個 port 上有兩個監聽者導致 curl 結果忽 200 忽 404——改用
+  非預設 port（5577）跑自己的 `dev-server.js` 才排除干擾，這個坑之後
+  本機測試前可以先 `netstat` 確認 port 沒有被 Live Server 佔用。
+- **狀態變化**：`docs/roadmap-202607.md` 順序⑥完成；
+  `docs/frontend-quality-plan-202607.md` 階段②完成。
+- **遺留**：Minz 簡介文字與照片尚未提供，`pages/minz/` 維持骨架佔位；
+  jonaminz-movies 真正該放在哪個入口（首頁？admin？獨立入口？）使用者
+  裁決之後再說，這次刻意不猜；skhpsv2 遷移到消費 jonaminz 這幾項能力
+  仍待另開新 prompt（同既有慣例）。
+- **版本**：`v0.17.0-202607122328`。
+
+---
+
 ## 2026-07-12 — 待辦總表順序④：Runtime 診斷系統拉高層級（重新設計）
 
 - **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做④。SKHPS 的

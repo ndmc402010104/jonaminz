@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔OAuth 本機導頁〕②〔讀條演算法〕③〔RWD/viewport 量測層〕④〔Runtime 診斷系統〕皆已完成、驗證並 push（906c94e）；順序⑤〔麵包屑〕維持延後不做，下一個可執行項目是順序⑥〔Jonathan/Minz 門戶頁，需要使用者提供簡介文字/照片，沒有可先佔位〕）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔OAuth 本機導頁〕②〔讀條演算法〕③〔RWD/viewport 量測層〕④〔Runtime 診斷系統〕⑥〔Jonathan/Minz 門戶頁〕皆已完成、驗證，⑥尚未 commit/push；順序⑤〔麵包屑〕維持延後不做；文件真實性盤點已完成並 push（25b341e），新增 AI_CONTEXT 七份現況文件＋DOCUMENT_STATUS；同批追加修好一個文件盤點挖到的真實缺口：Google OAuth 登入原本不保留 `?next=`，已補上跟內部密語登入一致的行為，已部署並直連 DB 驗證；首頁 hero 圖與 Jonathan 形象照都已換成使用者提供的高解析度原始檔重壓版本）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -148,6 +148,84 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **文件真實性盤點與同步（2026-07-12，已 commit+push，25b341e）：** 使用者
+  交辦一次完整審計，用實際程式碼／schema／設定檔逐項核對登入/Session/
+  Contract/外部 App 邊界等主題，不信任文件自稱「已完成」。新增
+  `AI_CONTEXT/FACTS.md`／`DECISIONS.md`／`CURRENT_STATE.md`／
+  `KNOWN_ISSUES.md`／`EXPERIMENTS.md`／`SESSION_LOG.md`／
+  `CHECKPOINTS.md`／`DOCUMENT_STATUS.md` 八份新文件，修正 13 份既有
+  文件的過期說法（`pages/README.md` 仍講已淘汰的 `JONAMINZ_ADMIN_TOKEN`、
+  根目錄 `README.md` 檔案結構圖過舊、10 份 Platform Integration 規劃期
+  文件補上 Historical/Superseded 標記指向 Frozen 規格）。全程只碰 .md
+  檔案，零程式碼異動（已用 `git diff --name-only` 驗證過副檔名清單只有
+  `.md`）。**盤點過程意外挖到一個真的功能缺口**（不是文件錯誤，是程式碼
+  本身的行為缺口）：Google OAuth 登入沒有保留 `?next=`，永遠導回網站
+  根目錄，只有內部密語登入才有完整的登入後導回原頁功能——已記錄進
+  `KNOWN_ISSUES.md`，同一批工作接著修掉，見下一條。
+- **Google OAuth `next` 缺口修復（2026-07-12，已部署並直連 DB 驗證）：**
+  上面文件盤點挖到的缺口。根因：`return_origin`（哪個網站）跟 `next`
+  （網站裡的哪一頁）是兩個獨立參數，Google OAuth 走 Worker 302 中轉，
+  `oauth_states` 表原本只存了 `return_origin`，沒有把 `next` 一起帶著走，
+  導致 Google 登入完永遠回網站根目錄，跟內部密語登入（純前端 POST，
+  登入完直接用 JS 導去 `next`）行為不一致。修法：
+  `backend/supabase/auth_schema.sql` 新增 `oauth_states.next` 欄位
+  （已直連套用到 `jonaminz-db`，套用前查過 `information_schema`）；
+  `worker.js` 新增 `resolveOauthReturnNext()`（跟既有
+  `resolveOauthReturnOrigin()` 同一套白名單邏輯：只接受同源相對路徑，
+  開頭單一個 `/`，不含 `://` 也不是 `//` 開頭），`handleGoogleStart`
+  驗證後存進 DB，`handleGoogleCallback` 讀出來重新驗證一次再拼進最終
+  redirect 網址；`pages/login/assets/js/app.js` 的 `googleStartUrl()`
+  帶上 `&next=`（複用既有 `getNextUrl()` 的同一套 sanitize 邏輯，函式
+  宣告 hoist，呼叫順序跟定義順序無關）。**驗證**：node 腳本窮舉 10 種
+  edge case（含 `//evil.com`、`javascript://`、`https://evil.com` 等
+  開放式重導向嘗試）確認 `resolveOauthReturnNext()` 全部正確擋下；
+  `wrangler deploy` 前用 esbuild 打包＋`node --check` 確認乾淨；部署後
+  curl 打 `/auth/google/start?origin=...&next=/pages/admin/theme/`
+  確認正確轉址去 Google；直連 DB 查最新 `oauth_states` 列確認
+  `next` 欄位真的存成 `/pages/admin/theme/`。Google 同意畫面那段一樣
+  需要真人瀏覽器互動，機制本身已驗證正確，**還需要使用者自己實際點一次
+  完整登入流程確認最終導回頁面正確**（跟階段 A 當初 Google OAuth 上線
+  時的驗證缺口是同一種、需要真人操作的部分）。
+- **前端品質重建計畫階段②：Jonathan/Minz 門戶頁（2026-07-12，
+  `docs/roadmap-202607.md` 順序⑥）：完成並已驗證，尚待 push。** 見
+  `docs/frontend-quality-plan-202607.md` 階段②同日更新的完整細節。
+  新增 `pages/jonathan/`（真實內容：石益昇，整形外科醫師，簡介文字＋
+  SKHPS 專案卡片）、`pages/minz/`（骨架佔位頁，內容留白等本人提供）。
+  首頁兩個 name-link 從 `#jonathan`/`#minz` 死錨點改成真實路徑，
+  `pages/admin/` 移除 SKHPS 卡片（原本在後台，現在搬到 Jonathan 頁，
+  後台是管理入口不該混業務連結）。
+  - **跟原計畫的差異（使用者當場糾正）**：原計畫 Jonathan 專案卡片要放
+    SKHPS **跟 jonaminz-movies** 兩張，實作時使用者指出 jonaminz-movies
+    是 Jonathan／Minz 兩人共用的後台功能，不是 Jonathan 個人專案，
+    已從卡片移除，不歸類在這裡（真正該放哪裡，之後再決定）。
+  - **SKHPS 連結環境感知（使用者測試時追加，原計畫沒有）**：本機測試
+    時 SKHPS 連結要連本機的 `/skhpsv2/`，不是永遠連正式站
+    `https://skhps.jonaminz.com`。第一版曾考慮寫死一個 port，使用者
+    立刻指出這跟 OAuth `origin` 白名單當初「不要寫死單一 port」的教訓
+    重複——改成 `pages/jonathan/assets/js/app.js` 的
+    `LOOPBACK_HOSTNAME_PATTERN` 判斷 `window.location.hostname`
+    是不是 loopback（`localhost`／`127.0.0.1`，任何 port），是的話用
+    `window.location.origin + "/skhpsv2/"`（同 origin 下的相對路徑，
+    自動跟著目前的 port 走），不是的話才用正式站網址。跟 worker.js 的
+    `OAUTH_LOOPBACK_RETURN_ORIGIN_PATTERN` 判斷精神一致，但這裡更單純：
+    依據是頁面自己的 `window.location`，不是外部輸入，不需要另外驗證
+    protocol 或防偽造。
+  - **素材處理**：使用者提供 Jonathan 形象照原始檔（PNG，3840×5760，
+    24MB），用 `sharp-cli` 壓成 `assets/img/jonathan-portrait.jpg`
+    （JPEG，1000×1500，quality 78，80KB）。同一批也把首頁
+    `assets/img/home-hero.jpg` 換成使用者提供的高解析度原始檔重壓版本
+    （原本的來源檔畫質較差；新來源 2200×1467、quality 70、408KB，
+    取代舊版 1800×1200、quality 62、267KB），兩張原始檔用完即刪，
+    repo 裡只留最終壓縮版本。
+  - **驗證**：Playwright 對 jonathan/minz/admin/home 四頁跑桌機
+    （1280px）與手機（375px）截圖，確認零 console error、首頁連結指向
+    真實路徑、admin 頁不再有 SKHPS 卡片、jonathan 頁卡片只有 SKHPS
+    （沒有 jonaminz-movies）；SKHPS 連結環境感知邏輯額外用 node 腳本
+    窮舉 6 種 hostname 組合（含 `127.0.0.1.evil.com` 這種試圖矇混的
+    變形網址）＋實際跑在本機 dev server 上驗證 href 屬性正確算出
+    `http://127.0.0.1:<實際 port>/skhpsv2/`。
+  - **這次沒做**：Minz 簡介文字與照片（尚未提供，維持骨架佔位）；
+    jonaminz-movies 真正該放在哪個入口（使用者裁決之後再說）。
 - **Runtime 診斷系統拉高層級（2026-07-12，`docs/roadmap-202607.md`
   順序④）：完成並已驗證，尚待 push。** 新檔 `assets/js/runtime.js`：
   `window.JonaminzRuntime`（`log()`／`registerModule(name, meta)`／

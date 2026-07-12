@@ -1,0 +1,67 @@
+/*
+檔案位置：jonaminz/pages/minz/assets/css/page-minz.css
+用途：CSS 疊加第 7 層 - Page Layer，只給 Minz 個人門戶頁用。目前是骨架
+佔位頁（內容留白等本人填），版型跟 pages/jonathan/page-jonathan.css
+對稱但刻意不共用檔案（同一份理由，見那份檔案的檔頭說明）。強調色用
+--color-primary-2（Jonathan 頁用 --color-primary），呼應既有的
+Jonathan/Minz 顏色區分慣例（見 pages/admin/contracts/ 的登入身分徽章）。
+*/
+
+.jonaminz-profile-page {
+  padding: var(--space-7) 0;
+}
+
+.jonaminz-profile-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.jonaminz-profile-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.jonaminz-profile-photo-placeholder {
+  flex: 0 0 auto;
+  width: 220px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--color-border);
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.jonaminz-profile-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jonaminz-profile-name {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--text-2xl);
+  color: var(--color-primary-2);
+}
+
+.jonaminz-profile-bio {
+  margin: 0;
+  max-width: 640px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  .jonaminz-profile-hero {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .jonaminz-profile-photo-placeholder {
+    width: 160px;
+  }
+
+  .jonaminz-profile-bio {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

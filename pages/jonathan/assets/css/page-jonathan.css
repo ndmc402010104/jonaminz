@@ -1,0 +1,115 @@
+/*
+檔案位置：jonaminz/pages/jonathan/assets/css/page-jonathan.css
+用途：CSS 疊加第 7 層 - Page Layer，只給 Jonathan 個人門戶頁用。疊加在
+reservoir 六層之上，只新增 .jonaminz-profile-* 這頁專屬版型，不去改
+05-components.css 本體。其他頁面不會載到這份檔案（見 config.json ->
+pages.jonathan.entry.styles）。跟 pages/minz/page-minz.css 是兩份獨立
+檔案，刻意不共用（水庫法則：頁面各自的 Page Layer 各自維護，不要為了
+兩頁版型像就抽共用檔案）。
+*/
+
+.jonaminz-profile-page {
+  padding: var(--space-7) 0;
+}
+
+.jonaminz-profile-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.jonaminz-profile-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.jonaminz-profile-photo {
+  flex: 0 0 auto;
+  width: 220px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.jonaminz-profile-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.jonaminz-profile-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jonaminz-profile-name {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--text-2xl);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.jonaminz-profile-bio {
+  margin: 0 0 var(--space-3);
+  max-width: 640px;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+.jonaminz-profile-section-title {
+  margin: var(--space-2) 0 var(--space-5);
+  font-size: var(--text-xl);
+}
+
+.jonaminz-profile-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.jonaminz-profile-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.jonaminz-profile-link-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.jonaminz-profile-link-title {
+  font-weight: 600;
+}
+
+.jonaminz-profile-link-desc {
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .jonaminz-profile-hero {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .jonaminz-profile-photo {
+    width: 160px;
+  }
+
+  .jonaminz-profile-bio {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
