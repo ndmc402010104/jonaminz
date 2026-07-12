@@ -47,6 +47,13 @@
      或任何會改變部署行為的變更——push 前更新 `version.js` 的
      version / buildTime / updatedAt 三項，讓使用者能在 footer 肉眼確認上線與否。
    - **不 bump**：純 `AI_CONTEXT/`、`docs/`、README 類文件的修改。
+   - **時間戳一定要查真的系統時間，不能用猜的**〔使用者，2026-07-12 定案，
+     見 CHANGELOG 同日「修正 version.js 的錯誤時間戳」條目〕：agent 拿得到
+     的系統資訊只有日期，沒有現在幾點，寫 `buildTime`／`updatedAt` 這類
+     精確到分鐘的欄位前，必須先實際執行查時間指令（Bash `date` 或
+     PowerShell `Get-Date`）取得真實時間再填入，不能憑印象猜一個「看起來
+     合理」的時間——過去已發生多次猜出來的時間跟實際 commit 時間差好幾
+     小時的錯誤。
 2. **git push 預設不用先問**〔使用者〕，但使用者單次臨時喊停要照辦。
    **`wrangler deploy`（Worker 部署）不適用此預設**〔使用者，2026-07-10 定案〕：
    必須由任務單明確授權，否則部署前先問。git push 與 wrangler deploy

@@ -577,9 +577,14 @@ jonaminz/
   repo（push 完後）完全同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
-- 未 commit 檔案（建檔當下）：`docs/platform-integration-spec-review.md`、
-  `docs/platform-integration-consensus.md`（皆 untracked）＋本次新增的 `AI_CONTEXT/`。
-- `.gitignore` 已涵蓋 `*pw*.txt` / `*secret*.txt` / `.env*` / `.wrangler/` / `.codemap/`。
+- `.gitignore` 已涵蓋 `*pw*.txt` / `*pw*.json` / `*secret*.txt` / `.env*` / `.wrangler/` / `.codemap/`。
+- `2026-07-12 重新掃描確認`：`JONAMINZ_ADMIN_TOKEN` 已用 `wrangler secret list`
+  直接查證線上真實清單，確認不存在（剩 8 個 secret：`JONAMINZ_GOOGLE_CLIENT_ID`／
+  `JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／
+  `JONAMINZ_GOOGLE_EMAIL_MINZ`／`JONAMINZ_LOGIN_JONATHAN`／
+  `JONAMINZ_LOGIN_MINZ`／`SUPABASE_SECRET_KEY`／`SUPABASE_URL`）。
+  `pages/admin/contracts/assets/js/app.js` 也重新 grep 確認乾淨，僅
+  `worker.js` 註解裡還提到這把密語（說明已淘汰），不是真的還在用。
 
 ## 7. UNKNOWN / 待確認清單
 

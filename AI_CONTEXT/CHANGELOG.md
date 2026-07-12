@@ -20,6 +20,54 @@
 
 ---
 
+## 2026-07-12 — 修正 version.js 的錯誤時間戳（buildTime 對不上真實 commit 時間）
+
+- **任務**：使用者指出 `version.js` 裡的時間長期都是錯的。查證後發現根因：
+  AI agent 只有「今天日期」可用，沒有「現在幾點」，過去寫 `buildTime`／
+  `updatedAt` 時是憑印象猜一個「看起來合理的時間」，不是真的查系統時間。
+  例如這次修正前的 `202607121600`（16:00），對應的「登入頁視覺打磨」
+  commit（`17db025`）實際 git 時間是 `11:16:49`，差了快 5 小時；往前翻還有
+  `202607120900` 對到實際 commit `03:22` 的例子，同樣的模式。
+- **變更**：`version.js` 的 `version`／`buildTime`／`updatedAt` 三處全部改成
+  對齊 `17db025` 這個 commit 的真實 git 時間（`git log -1 --format=%cI`
+  查出來的 `2026-07-12T11:16:49+08:00`）。**版本號本身（v0.9.2）沒有變**——
+  這不是新的一版，只是修正記錄「v0.9.2 是什麼時候建的」這個中繼資料本身的
+  錯誤，所以沒有 bump patch。
+- **狀態變化**：無功能變化，純資料修正。
+- **遺留**：**行為規則變更，寫進 `AI_CONTEXT/RULES.md` 才能真正生效**——
+  之後任何 agent 要寫入精確時間戳（`version.js` 的 `buildTime`／`updatedAt`，
+  或任何其他需要 HH:MM 的欄位）之前，必須先實際執行查時間指令（Bash `date`
+  或 PowerShell `Get-Date`），不能用推測/印象/「currentDate」這種只有日期
+  沒有時間的系統資訊去湊。這條這次只記在 CHANGELOG 和使用者的跨專案記憶
+  裡，還沒補進 RULES.md，下一棒看到這筆時可以考慮順手補上。
+- **版本**：`v0.9.2-202607121116`（`buildTime`／`updatedAt` 訂正，版本號
+  未變，見上方說明）。
+
+---
+
+## 2026-07-12 — 文件盤點：修正 PROJECT_STATE.md 過期的 untracked 檔案紀錄，重新查證 JONAMINZ_ADMIN_TOKEN 確實刪除
+
+- **任務**：使用者對話中斷後重啟新 session，擔心進度遺失（誤以為是外部工具
+  更新造成）。查證 git 狀態（clean、與 origin 同步、reflog 無異常）後排除
+  疑慮。過程中發現 `PROJECT_STATE.md` §6 記錄的「`docs/platform-integration-*`
+  兩份文件＋ `AI_CONTEXT/` 尚未 commit」已經過期（實際早被 commit），依使用者
+  明確偏好（看到過期筆記直接修掉，不用另外問）就地訂正。使用者同時質疑
+  Contracts 頁面／`JONAMINZ_ADMIN_TOKEN` 是否真的如文件所述已清乾淨，重新
+  查證。
+- **變更**：
+  - `PROJECT_STATE.md` §6 刪除過期的「未 commit 檔案」條目。
+  - 新增查證結果：`npx wrangler secret list` 直接查線上真實 secret 清單，
+    確認 `JONAMINZ_ADMIN_TOKEN` 不存在（剩 8 個 secret）；grep
+    `pages/admin/contracts/assets/js/app.js` 確認沒有殘留的 `adminToken`
+    程式碼，`worker.js` 裡唯一出現 `JONAMINZ_ADMIN_TOKEN` 字樣的地方是
+    說明「已淘汰」的註解，不是還在用的邏輯。
+- **狀態變化**：無功能變化，純文件校正 + 重新驗證既有結論（結論不變：
+  admin token 機制確實已完全淘汰）。
+- **遺留**：無。
+- **版本**：無程式碼變更（純文件），`version.js` 不動。
+
+---
+
 ## 2026-07-12 — 登入頁與 Contracts 工具列視覺打磨 + 刪除已淘汰的 JONAMINZ_ADMIN_TOKEN secret
 
 - **任務**：使用者正式環境驗證登入功能「都正常」，順手要求把
