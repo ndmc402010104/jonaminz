@@ -20,6 +20,31 @@
 
 ---
 
+## 2026-07-12 — 待辦總表彙整：平台能力拉高層級 + 前端計畫剩餘階段排序
+
+- **任務**：SKHPSV2 水庫層盤點完（三輪對話，逐檔讀完全部 19 個檔案）
+  後，使用者確認方向：loading-gate 讀條演算法、layout-metrics RWD 量測
+  層、runtime 診斷系統都值得拉高層級變成 jonaminz 提供的平台能力
+  （skhpsv2 反過來向 jonaminz 拿，不是 jonaminz 向 skhpsv2 借概念）；
+  麵包屑（page-map.js）決定不搬、在 jonaminz 重寫更好的版本。動手前
+  使用者要求先把所有還沒做完的事排出完整順序。
+- **變更**：新增 `docs/roadmap-202607.md`，彙整並排序：①Google OAuth
+  本機導頁修復（診斷過，`handleGoogleCallback` 導回網址寫死正式站）、
+  ②讀條演算法拉高層級、③RWD 量測層拉高層級、④Runtime 診斷系統重新
+  設計成可插拔後拉高層級、⑤麵包屑（等 Jonathan/Minz 門戶頁做出來、
+  頁面深度夠了再做）、⑥前端品質重建計畫階段②（Jonathan/Minz 門戶頁）、
+  ⑦階段③（後台 Dashboard 化）。另外列出「需要另開新 prompt 才會動」
+  （skhpsv2 遷移、identity 階段 C、skhpsv2 開放註冊）跟「懸而未決不是
+  任務」（jonaminz 自己要不要開放註冊、封面照片要不要換）兩類不主動
+  排入的項目，以及兩個已知但刻意不修的小事（favicon 缺失、contract
+  schema `$id` release checklist）。
+- **狀態變化**：無功能變化，純規劃彙整。下一棒直接照
+  `docs/roadmap-202607.md` 的順序執行即可，不用重新問使用者要做什麼。
+- **遺留**：全部七個排序項目都還沒實作。
+- **版本**：無程式碼變更（純文件），`version.js` 不動。
+
+---
+
 ## 2026-07-12 — 首頁照片放大 + 修復登入後無路徑回後台的漏洞
 
 - **任務**：接續上一筆首頁改版，使用者看過覺得桌機下照片太小，並發現

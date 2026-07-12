@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；階段②③尚未開始）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
