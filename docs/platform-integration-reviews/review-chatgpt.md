@@ -3,6 +3,12 @@
 收件日：2026-07-10
 對應 RFC：docs/platform-integration-review-request.md（凍結版，12 問）
 狀態：原文照錄，未經編輯。彙整前不據此修改任何規格文件。
+
+Status: Historical / Superseded
+此文件是規格定稿前的一份審查意見，不代表目前實作，內容已由
+docs/platform-integration-review-consolidation.md 彙整、
+docs/platform-integration-spec-v1.md（S1-S39，唯一權威）吸收定案。
+目前狀態請參考：AI_CONTEXT/CURRENT_STATE.md 與 docs/platform-integration-spec-v1.md。
 -->
 
 # Jonaminz Platform Integration v1 — Architecture Review

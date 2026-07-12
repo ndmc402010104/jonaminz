@@ -3,6 +3,12 @@
 收件日：2026-07-10
 對應 RFC：docs/platform-integration-review-request.md（凍結版，12 問）
 狀態：原文照錄，未經編輯。彙整前不據此修改任何規格文件。
+
+Status: Historical / Superseded
+此文件是規格定稿前的一份審查意見，不代表目前實作，內容已由
+docs/platform-integration-review-consolidation.md 彙整、
+docs/platform-integration-spec-v1.md（S1-S39，唯一權威）吸收定案。
+目前狀態請參考：AI_CONTEXT/CURRENT_STATE.md 與 docs/platform-integration-spec-v1.md。
 -->
 
 以下是我會給這份 RFC 的 Architecture Review。先講結論：你的方向大致正確，而且有刻意避開「兩人平台卻蓋成 SaaS」的過度設計。但真正需要凍結的，不只 Contract schema 和 SDK URL，而是 **失敗語意、初始化語意、能力協商語意、設定快照語意、以及安全信任邊界**。這些一旦模糊，十年後會變成每個 app 都用自己的方式補洞。

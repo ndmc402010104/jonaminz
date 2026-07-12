@@ -42,12 +42,27 @@ jonaminz/
       theme-runtime.js       CSS 疊加第 8 層：讀 Supabase 的 Theme 規則、組 CSS、注入，獨立可攜給外部專案共用
       app.js                 首頁自己的業務入口
   pages/                     未來頁面放這裡，見 pages/README.md
-    admin/                   後台頁範例（首頁「登入」按鈕導向這裡）
-      theme/                 Theme 編輯頁：讀寫 Supabase 的 CSS 規則，存檔立即套用
+    admin/                   後台首頁（整頁要求登入）
+      theme/                 Theme 編輯頁：讀寫 Supabase 的 CSS 規則，存檔立即套用（整頁要求登入）
+      contracts/             Contract 核准後台：pending 清單、diff、核准／否決（整頁要求登入）
+    login/                   登入頁：內部密語＋Google OAuth 兩條路，支援 ?next= 導回
+    identity-relay/          跨子網域身分轉發頁，供其他 *.jonaminz.com 專案的 SDK 查詢登入身分
+  sdk/                       Platform Integration 的 SDK：常青 loader（jonaminz-entry.js）
+                             + Kernel（sdk-src/sdk.js，含 identity.currentUser@1）
   backend/                   Cloudflare Worker + Supabase schema，見 backend/README.md
+                             （含 auth_schema.sql／contract_schema.sql：登入 session 與
+                             Contract 收取/核准用的資料表；integration-settings.json：
+                             外部專案的 Contract 授權登記表）
   docs/
-    external-project-manifest.md   外部專案怎麼接進 jonaminz 水庫、怎麼共用 Theme
+    external-project-manifest.md   v0 外部專案接入方式（拉模式，registry.json，現行有效）
+    platform-integration-spec-v1.md  Platform Integration（Contract 推模式）Frozen 規格
+    contract-schema/               Contract JSON Schema 定案版
 ```
+
+**現況速覽請看 `AI_CONTEXT/CURRENT_STATE.md`**：本檔（根目錄 README）著重
+「怎麼跑起來、CSS 疊加架構怎麼運作」這類相對穩定的骨架說明；登入/Session/
+Contract 平台這類持續在動的功能現況，以 `AI_CONTEXT/` 資料夾（`CURRENT_STATE.md`／
+`FACTS.md`／`PROJECT_STATE.md`）為準，本檔不逐一同步每個功能的最新細節。
 
 所有頁面（包含 `pages/` 底下巢狀的頁面）一律用網站根目錄絕對路徑（開頭 `/`）載入
 `entry-core.js` 等共用資源，不用頁面相對路徑——因為頁面深度不一定相同。

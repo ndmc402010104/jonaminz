@@ -4,6 +4,12 @@
 對象：docs/platform-integration-spec-v1.md（RC 第一版）
 判定：RC 合格，Frozen 暫緩——七項架構級修正＋數項文字級修正。
 處置：全數採納，已修入 spec-v1 RC2（同日）。逐項對照見文末處置表。
+
+Status: Historical / Superseded
+此文件是規格 RC 階段的驗收意見，已全數處置並吸收進正式 Frozen 規格
+docs/platform-integration-spec-v1.md（S1-S39，唯一權威），不代表目前
+待辦事項。目前狀態請參考：AI_CONTEXT/CURRENT_STATE.md 與
+docs/platform-integration-spec-v1.md。
 -->
 
 # Spec v1.0 RC 驗收 Review（原文照錄）

@@ -19,10 +19,23 @@
 
 ## 目前的頁面
 
-- `pages/admin/` — 後台首頁，先做路線佔位（連到 skhps.jonaminz.com）+ Theme 頁連結。
+- `pages/admin/` — 後台首頁，先做路線佔位（連到 skhps.jonaminz.com）+ Theme 頁連結
+  + Contract 核准連結。
 - `pages/admin/theme/` — Theme 頁：CSS 疊加架構的展示櫃（token + 共用元件的活文件），
   未來會擴充成可以拖拉調整顏色/間距的 CSS playground。
 - `pages/admin/contracts/` — Contract 核准後台（implementation plan 第 3 項）：
-  外部專案推送的 Contract pending 清單、diff 檢視、核准／否決。approve/reject
-  是目前唯一有身分驗證保護的寫入動作（Worker secret `JONAMINZ_ADMIN_TOKEN`
-  臨時關卡，見 backend/README.md）。
+  外部專案推送的 Contract pending 清單、diff 檢視、核准／否決。
+- `pages/login/` — 登入頁（implementation plan 第 9 項）：內部密語表單＋Google
+  OAuth 連結，支援 `?next=` 登入後導回原頁面。
+- `pages/identity-relay/` — 跨子網域身分轉發頁（implementation plan 第 9 項
+  階段 B）：不走水庫 bootstrap，供其他 `*.jonaminz.com` 專案的 SDK 透過隱藏
+  iframe 查詢「目前登入的是誰」。
+
+**2026-07-12 起：整個後台（`pages/admin/`、`pages/admin/theme/`、
+`pages/admin/contracts/`）都要求登入才能進入**（`window.JonaminzIdentity.requireLogin()`，
+見 `assets/js/header.js`），`saveThemeCssRules`／`approveContract`／`rejectContract`
+三個寫入動作在 Worker 端也各自要求有效登入 session（`requireSession()`）。
+原本的 Worker secret `JONAMINZ_ADMIN_TOKEN` 臨時關卡已經淘汰、完全移除，
+不再是保護機制的一部分——這句話取代舊版「approve/reject 是目前唯一有保護
+的寫入動作」的說法，那是 2026-07-11 當時（整站登入保護上線前）的舊狀態。
+細節見 `backend/README.md`、`AI_CONTEXT/CURRENT_STATE.md`。

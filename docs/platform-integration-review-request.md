@@ -1,4 +1,11 @@
 <!--
+Status: Historical / Superseded
+此文件描述早期設計（發給審查 Agent 的 RFC 本體），不代表目前實作。
+正式規格已於 2026-07-10 凍結為 docs/platform-integration-spec-v1.md
+（S1-S39，唯一權威，與本文矛盾時以該文為準）。
+目前狀態請參考：AI_CONTEXT/CURRENT_STATE.md 與 docs/platform-integration-spec-v1.md。
+-->
+<!--
 狀態：RFC（已凍結，2026-07-10）。本文內容不再修改。
 用途：發給每一位審查 Agent 的同一份 Review Request。
 流程：Draft Spec → 本 RFC → 收集 3~5 份 Architecture Review →

@@ -1,3 +1,9 @@
+> Status: Historical / Superseded
+> 此文件描述早期設計（凍結前的共識版理解，F1-F12 編號），不代表目前實作。
+> 正式規格已於 2026-07-10 凍結為 `docs/platform-integration-spec-v1.md`
+> （S1-S39，唯一權威，與本文矛盾時以該文為準）。
+> 目前狀態請參考：`AI_CONTEXT/CURRENT_STATE.md` 與 `docs/platform-integration-spec-v1.md`。
+
 # Jonaminz Platform Integration — 共識版理解（給其他 Agent 交叉確認用）
 
 日期：2026-07-10

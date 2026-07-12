@@ -1,3 +1,9 @@
+> Status: Historical / Superseded
+> 此文件描述早期設計（Platform Integration 規格定稿前的架構審查），不代表目前實作。
+> 正式規格已於 2026-07-10 凍結為 `docs/platform-integration-spec-v1.md`
+> （S1-S39，唯一權威，與本文矛盾時以該文為準）。
+> 目前狀態請參考：`AI_CONTEXT/CURRENT_STATE.md` 與 `docs/platform-integration-spec-v1.md`。
+
 # Jonaminz Platform Integration Spec v1 — 架構審查
 
 審查對象：使用者提供的《Jonaminz Platform Integration Specification v1》（Contract /

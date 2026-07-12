@@ -36,7 +36,17 @@
 
 ---
 
-## 階段①：效能重建＋布幕（先做，動水庫本體）
+## 階段①：效能重建＋布幕（先做，動水庫本體）✅ 完成並已上線（2026-07-12）
+
+實際落地：`assets/js/entry-core.js`（快取修復＋並行載入＋讀條引擎）、
+`assets/css/jonaminz-loading.css`（布幕重寫）、`assets/img/home-hero.jpg`
+（壓縮）、五頁 bootstrap script（首頁／admin／admin-theme／
+admin-contracts／login）。驗收方式與截圖驗證紀錄見
+`AI_CONTEXT/CHANGELOG.md` 2026-07-12「前端品質重建計畫階段①」條目。
+下面的「作法」與「驗收」清單維持原樣（規劃時的設計依據），實際實作與
+規劃有兩處差異：讀條動畫後來（同日）另外用 `docs/roadmap-202607.md`
+順序②的「Runway Chase」演算法整個取代了這裡設想的「簡化版」寫法，
+細節見 CHANGELOG 對應條目，不是本計畫文件本身要追記的範圍。
 
 ### 目標
 回訪幾乎秒開（資源全走快取）；首訪布幕第一幀即出現、約 1 秒內揭幕；
