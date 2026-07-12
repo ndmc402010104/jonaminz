@@ -170,7 +170,14 @@ jonaminz/
   正常導回 localhost**（Google Cloud Console 的 redirect URI 只登記了
   Worker 自己的網域 `jonaminz-backend.../auth/google/callback`，這個
   不用改，改的是 callback 完成後 Worker 自己 302 去哪裡，跟 Google 端
-  設定無關）。
+  設定無關）。**使用者實測後續追加修正（同日）**：第一版白名單只放了
+  `http://localhost:5500`，使用者實際操作時開的是
+  `http://127.0.0.1:5500`——瀏覽器把這兩個當成不同 origin（主機名稱
+  不同即使指向同一台機器），沒對到白名單就 fallback 回正式站，症狀
+  跟原本一樣。已補上 `http://127.0.0.1:5500` 進白名單並重新部署，curl
+  確認能正常導去 Google。**教訓記錄**：本機開發網址至少有
+  `localhost`／`127.0.0.1` 兩種常見寫法，白名單類的網域比對要兩個都
+  放，不能只顧一種。
 - **前端品質重建計畫階段①（效能重建＋全站布幕）：完成並已上線
   （2026-07-12，`docs/frontend-quality-plan-202607.md`）。** 診斷出的
   最大元凶：舊版 5 個頁面的 bootstrap script 都用 `String(Date.now())`

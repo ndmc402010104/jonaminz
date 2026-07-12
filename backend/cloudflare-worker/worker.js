@@ -844,7 +844,15 @@ const GOOGLE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.dev/
 // ——不能直接信任呼叫端帶來的 origin 字串，不然變成開放式重導向（任何人
 // 都能把登入 session token 導到自己的網域去）。第一個是預設值（找不到
 // 合法 origin 時的 fallback）。
-const ALLOWED_OAUTH_RETURN_ORIGINS = ["https://www.jonaminz.com", "http://localhost:5500"];
+// 本機同時列 localhost 跟 127.0.0.1 兩種寫法：瀏覽器把這兩個當成不同
+// origin（同一台機器但主機名稱不同），使用者實測發現用 127.0.0.1:5500
+// 開發時整個被 fallback 回正式站——第一版只顧到 localhost 這個寫法，
+// 漏了 127.0.0.1，是真的會發生的情境，不是防禦性多寫。
+const ALLOWED_OAUTH_RETURN_ORIGINS = [
+  "https://www.jonaminz.com",
+  "http://localhost:5500",
+  "http://127.0.0.1:5500"
+];
 
 function resolveOauthReturnOrigin(candidate) {
   return ALLOWED_OAUTH_RETURN_ORIGINS.indexOf(candidate) !== -1

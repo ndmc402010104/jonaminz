@@ -20,6 +20,35 @@
 
 ---
 
+## 2026-07-12 — OAuth 白名單追加 127.0.0.1:5500（上一筆的漏洞）
+
+- **任務**：使用者實測上一筆的修法，錄影操作 `http://127.0.0.1:5500`
+  登入，結果還是被導回正式站——附了 Chrome DevTools Recorder 錄下的
+  script 佐證，`page.goto('http://127.0.0.1:5500/')`。
+- **變更**：`ALLOWED_OAUTH_RETURN_ORIGINS` 白名單第一版只放了
+  `http://localhost:5500`，漏了 `http://127.0.0.1:5500`——瀏覽器把
+  這兩個當成不同 origin（主機名稱不同，即使指向同一台機器），沒對到
+  白名單的請求走 `resolveOauthReturnOrigin()` 的 fallback 邏輯，
+  跟原本沒修之前症狀一樣。補上這個值，重新 `wrangler deploy`。
+- **驗證**：
+  1. 直連 jonaminz-db 查最近的 `sessions` 表（**只查
+     `provider`／`count`／`max(created_at)`，不選 `token` 欄位本身
+     ——第一次寫的診斷 script 選了 `token` 欄位被 auto mode classifier
+     擋下，判定是把真實可用的 session 憑證印進逐字稿，是真的合理的
+     擋，之後類似診斷都要避開選出敏感欄位本身）確認使用者剛剛那次
+     Google 登入真的有成功建立 session（`google` provider 一筆最新
+     記錄），問題僅止於最後導回的網址，不是整條登入流程都失敗。
+  2. `esbuild --bundle` + `node --check` 確認語法乾淨。
+  3. `wrangler deploy` 後 curl `origin=http://127.0.0.1:5500` 正確
+     302 去 Google。
+- **狀態變化**：`docs/roadmap-202607.md` 順序①的白名單缺口補齊。
+- **遺留**：使用者仍需要自己完整測一次
+  `http://127.0.0.1:5500` 的 Google 登入確認真的能導回本機（上一輪
+  只測了 `localhost:5500` 這個寫法）。
+- **版本**：`v0.13.1-202607121713`。
+
+---
+
 ## 2026-07-12 — 待辦總表順序①：Google OAuth 本機導頁修復
 
 - **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做①。使用者
