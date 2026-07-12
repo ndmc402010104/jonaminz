@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "revision": 2,
+  "revision": 3,
   "projects": {
     "jonaminz-movies": {
       "environments": {
-        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none" }
+        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": [] }
       }
     }
   }

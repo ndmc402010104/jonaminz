@@ -5,18 +5,27 @@
 （skhps.jonaminz.com）之類的 *.jonaminz.com 專案想知道「現在誰登入
 jonaminz」，就在自己頁面隱藏嵌入一個指向這裡的 <iframe>：這頁載入時
 讀「自己」（www.jonaminz.com）的 localStorage session token、呼叫
-Worker 的 getCurrentIdentity、把結果 postMessage 給嵌入它的父頁面。
+Worker 取得「這個 projectId 有沒有被授權讀身分＋現在的身分是誰」，
+把結果 postMessage 給嵌入它的父頁面。
 
 刻意不走 entry-core.js／config.json 那套水庫 bootstrap（loading gate、
 CSS 八層疊加）——這頁不會被人看到，只會被當背景 iframe 用，載入速度
 比視覺一致性重要，依賴越少越好。
 
+implementation plan 第 9 項階段 B（identity.currentUser@1 capability，
+S30-33）：`projectId` 從自己的 URL query string 讀（SDK Kernel 建立
+iframe 時會帶上，見 sdk/sdk-src/sdk.js 的 fetchIdentityViaRelay），
+一併送給 Worker 的 getGrantedIdentity action。S33 規定授權判斷要由
+Worker 逐請求重算，不能只信 SDK 端快取的 capabilities 陣列——這頁本身
+不做任何授權判斷，只是把 projectId 轉交給 Worker，granted 與否完全
+由 Worker 說了算。
+
 postMessage 的 targetOrigin 用 "*"：iframe 讀不到父頁面實際的 origin
 （跨源限制），沒有事先握手協定就沒辦法縮小範圍。這裡不算安全缺口——
-往外送的內容只有 "jonathan"/"minz"/null 這個字串本身，不含 session
-token，外洩了也不能拿去做任何事。真正該驗證來源的是「接收端」（SDK
-Kernel 的 identity.currentUser() 實作），那裡才要核對 event.origin，
-不然任何頁面都能偽造一筆身分結果回應。
+往外送的內容只有 granted（布林）跟 "jonathan"/"minz"/null 這個字串
+本身，不含 session token，外洩了也不能拿去做任何事。真正該驗證來源的
+是「接收端」（SDK Kernel 的 identity.currentUser() 實作），那裡才要
+核對 event.origin，不然任何頁面都能偽造一筆身分結果回應。
 -->
 <html lang="zh-Hant">
 <head><meta charset="utf-8"><title>jonaminz identity relay</title></head>
@@ -28,37 +37,45 @@ Kernel 的 identity.currentUser() 實作），那裡才要核對 event.origin，
   var WORKER_URL = "https://jonaminz-backend.ndmc402010104.workers.dev/api/action";
   var TOKEN_KEY = "jonaminz.sessionToken";
 
-  function reply(identity) {
+  function reply(granted, identity) {
     try {
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ source: "jonaminz-identity-relay", identity: identity || null }, "*");
+        window.parent.postMessage(
+          { source: "jonaminz-identity-relay", granted: !!granted, identity: identity || null },
+          "*"
+        );
       }
     } catch (error) {
       // 不燒房子：連 postMessage 都失敗就真的放棄，這頁本來就沒有人看得到。
     }
   }
 
-  try {
-    var token = window.localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      reply(null);
-      return;
+  function getProjectId() {
+    try {
+      return new URLSearchParams(window.location.search).get("projectId") || "";
+    } catch (error) {
+      return "";
     }
+  }
+
+  try {
+    var token = window.localStorage.getItem(TOKEN_KEY) || "";
+    var projectId = getProjectId();
 
     fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "getCurrentIdentity", payload: { token: token } })
+      body: JSON.stringify({ action: "getGrantedIdentity", payload: { token: token, projectId: projectId } })
     })
       .then(function (response) { return response.json(); })
       .then(function (data) {
-        reply(data && data.ok && data.identity ? data.identity : null);
+        reply(data && data.ok && data.granted, data && data.identity);
       })
       .catch(function () {
-        reply(null);
+        reply(false, null);
       });
   } catch (error) {
-    reply(null);
+    reply(false, null);
   }
 })();
 </script>

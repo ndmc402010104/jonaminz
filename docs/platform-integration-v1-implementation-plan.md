@@ -161,10 +161,14 @@
    日期條目）：內部密語登入＋Google OAuth 兩條路都有、身分要能單向
    傳給 skhpsv2（僅供前端顯示問候語）、整件事做成 jonaminz 可選擇要不
    要開放的 capability（S30-33），不是外部專案硬依賴的東西。分三階段：
-   **階段 A**（jonaminz 自己的登入/登出，這次做的）使用者已親自測過
-   內部密語登入與 Google OAuth 兩條路都正常運作；**階段 B**（把 identity
-   接成正式 `identity.currentUser@1` capability）與**階段 C**（skhpsv2
-   正式接入，另一個 repo）尚未開始，排程見下方 SKHPSv2 段落。
+   **階段 A**（jonaminz 自己的登入/登出）使用者已親自測過內部密語登入與
+   Google OAuth 兩條路都正常運作；**階段 B**（把 identity 接成正式
+   `identity.currentUser@1` capability，S30-33）已於 2026-07-12 完成並
+   部署上線，機制就位但沒有授權給任何專案，細節見
+   `AI_CONTEXT/CHANGELOG.md` 同日條目；**階段 C**（真的把這個 capability
+   接進 skhpsv2，另一個 repo）尚未開始——使用者說 skhpsv2 repo 目前是
+   另一個 AI 工具（Codex）在處理，之後才會另外交辦，排程見下方 SKHPSv2
+   段落。
 
 **SKHPSv2 正式接入 jonaminz（用 Contract 機制登記成外部專案）是使用者的真實
 意圖，但 2026-07-11 明確裁決不急，排在上面第 3–9 項（核心架構）都做完之後**，

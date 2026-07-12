@@ -5,14 +5,6 @@
 snippet 的 `ready` Promise。對應規格 S18-S23（contract discovery、snippet
 協定）、S26（lifecycle 狀態機）、S27-S29（錯誤模型）。
 
-範圍刻意收窄：v1 沒有任何已正式發布的 service（S30-32 的 capability
-文法），所以這裡**不掛任何 window.Jonaminz.* service 命名空間**——這是
-照 S32「未授權的工具存在但婉拒，但本條只適用於已正式發布的 service」
-推論出的正確結果，不是漏做。JonaminzError 的物件形狀（S27：
-`{code, message, service, capability, retryable}`）只在 SDK_INIT_FAILED
-這唯一的 reject 情況用到，這裡沒有生一個沒人呼叫的 constructor——等
-第一個真實 service 出現才有東西需要 reject。
-
 implementation plan 第 7 項新增：`effectiveCss === "tokens"` 時呼叫
 `applyTokens()`，收編 `assets/js/theme-runtime.js` 現有的「讀
 `theme_css_rules`、組 CSS、注入 `<style>`」邏輯，但走 gated 路徑
@@ -25,6 +17,18 @@ Contract／Settings 審核，v0 舊機制，這次不動它）。只收編 `:roo
 `ready` 的必要條件，套用失敗只是不顯示外觀，不影響核心 lifecycle
 （跟 theme-runtime.js 一樣的容錯哲學）。
 
+implementation plan 第 9 項階段 B 新增：第一個正式發布的 service——
+`window.Jonaminz.identity.currentUser()`（`identity.currentUser@1`，
+S30-33）。S32 規定一經發布，這個 function 永遠掛在 API 物件上，不論
+呼叫端的專案有沒有被授權都不能變成 undefined；未授權時呼叫要 reject
+`CAPABILITY_NOT_GRANTED`，不能同步 throw。實際取得身分的方式是動態建立
+一個隱藏 iframe 指到 `pages/identity-relay/`（同源於 jonaminz.com，能
+讀到 jonaminz 自己的登入 session；這裡跟 jonaminz.com 不同源，讀不到），
+用 postMessage 收結果——**SDK 端的 capabilities 陣列只是提示，S33 規定
+真正的授權判斷要由 Worker 逐請求重算**，所以 relay 頁面背後打的是新
+action `getGrantedIdentity`，不是隨便信任這裡快取的值。identity 授權
+與否是獨立的能力，不影響 tokens／`ready`／`degraded` 這條既有 lifecycle。
+
 改這個檔案後要重跑 sdk/generate-sdk-release.mjs 產生新的
 sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指過去
 （不自動發生）。
@@ -35,6 +39,35 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
   var WORKER_URL = "https://jonaminz-backend.ndmc402010104.workers.dev/api/action";
   var DEFAULT_CONTRACT_PATH = "/jonaminz.contract.json";
   var FETCH_TIMEOUT_MS = 8000;
+
+  var IDENTITY_CAPABILITY = "identity.currentUser@1";
+  var IDENTITY_RELAY_URL = "https://www.jonaminz.com/pages/identity-relay/";
+  var IDENTITY_RELAY_ORIGIN = "https://www.jonaminz.com";
+  var IDENTITY_TIMEOUT_MS = 5000;
+  var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
+
+  // S31 的 effective capabilities（getEffectiveSettings 回應算出來的
+  // 交集），在 settings 這輪流程跑完之前一律是空陣列——currentUser() 會
+  // 先等 whenSettingsSettled() 才讀這個變數，不會讀到中途的暫時值。
+  var effectiveCapabilities = [];
+  var settingsSettled = false;
+  var settingsWaiters = [];
+
+  function whenSettingsSettled() {
+    if (settingsSettled) return Promise.resolve();
+    return new Promise(function (resolve) { settingsWaiters.push(resolve); });
+  }
+
+  // report() 是既有 lifecycle 唯一寫入 status 的地方，這裡搭便車在每次
+  // report() 呼叫時一併 settle，涵蓋所有既有的 ready/degraded 路徑，不用
+  // 另外在每個 .then()/.catch() 分支各自加一次 settle 呼叫。
+  function settleSettings() {
+    if (settingsSettled) return;
+    settingsSettled = true;
+    var waiters = settingsWaiters;
+    settingsWaiters = [];
+    waiters.forEach(function (resolve) { resolve(); });
+  }
 
   function timeoutFetch(url, options) {
     var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -116,6 +149,7 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
       jz.status = status;
       jz.reason = reason || null;
     }
+    settleSettings();
   }
 
   // S36：機械式轉換，不引入新的命名意見——拿掉舊前綴（目前只有
@@ -158,6 +192,75 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
       });
   }
 
+  function makeCapabilityError(code, message, retryable) {
+    return {
+      code: code,
+      message: message,
+      service: "identity",
+      capability: IDENTITY_CAPABILITY,
+      retryable: !!retryable
+    };
+  }
+
+  function mapIdentity(identity) {
+    if (!identity) return null;
+    return { id: identity, displayName: IDENTITY_LABEL[identity] || identity };
+  }
+
+  // 動態建立隱藏 iframe 指到 pages/identity-relay/（帶上 projectId query
+  // string），監聽 postMessage 拿回「granted＋identity」。event.origin
+  // 驗證在這裡做——relay 頁面本身刻意不驗證來源（見該檔案註解，往外送的
+  // 內容不含 token），真正該驗證的是接收端，也就是這裡。5 秒逾時視為
+  // relay 沒回應（多半是網路問題，reject 標 retryable:true，跟
+  // CAPABILITY_NOT_GRANTED 那種「問到答案是不准」明確分開）。
+  function fetchIdentityViaRelay(projectId) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = IDENTITY_RELAY_URL + "?projectId=" + encodeURIComponent(projectId);
+
+      function cleanup() {
+        window.removeEventListener("message", onMessage);
+        clearTimeout(timer);
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }
+
+      function finish(fn, value) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      }
+
+      function onMessage(event) {
+        if (event.origin !== IDENTITY_RELAY_ORIGIN) return;
+        var data = event.data;
+        if (!data || data.source !== "jonaminz-identity-relay") return;
+        if (!data.granted) {
+          finish(reject, makeCapabilityError(
+            "CAPABILITY_NOT_GRANTED",
+            "identity.currentUser@1 is not granted to this project",
+            false
+          ));
+          return;
+        }
+        finish(resolve, { currentUser: mapIdentity(data.identity) });
+      }
+
+      var timer = setTimeout(function () {
+        finish(reject, makeCapabilityError(
+          "IDENTITY_TIMEOUT",
+          "identity relay did not respond in time",
+          true
+        ));
+      }, IDENTITY_TIMEOUT_MS);
+
+      window.addEventListener("message", onMessage);
+      document.body.appendChild(iframe);
+    });
+  }
+
   function init() {
     var jz = findSnippetTarget();
     if (!jz) {
@@ -184,14 +287,34 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
       rollback: false
     };
 
+    var projectId = null;
+
+    // S32：一經發布，這個 function 永遠掛在 window.Jonaminz.identity 上，
+    // 不論這個專案的合約有沒有宣告、有沒有被 Settings 授權都不能變成
+    // undefined——所以在這裡（contract discovery 完成前）就先掛上去，
+    // 不是等 getEffectiveSettings 回來才決定要不要建立這個 namespace。
+    // 呼叫時才去看 effectiveCapabilities（等 whenSettingsSettled() 之後
+    // 的最終值），沒授權就 reject，不同步 throw。
+    function currentUser() {
+      return whenSettingsSettled().then(function () {
+        if (effectiveCapabilities.indexOf(IDENTITY_CAPABILITY) === -1) {
+          return Promise.reject(makeCapabilityError(
+            "CAPABILITY_NOT_GRANTED",
+            "identity.currentUser@1 is not granted to this project",
+            false
+          ));
+        }
+        return fetchIdentityViaRelay(projectId);
+      });
+    }
+    jz.identity = { currentUser: currentUser };
+
     var contractUrl = resolveContractUrl(contractOverride);
     if (!contractUrl) {
       diagnostics.lastErrorCode = "CONTRACT_NOT_FOUND";
       report(jz, "degraded", "CONTRACT_NOT_FOUND", diagnostics);
       return;
     }
-
-    var projectId = null;
 
     timeoutFetch(contractUrl, { headers: { Accept: "application/json" } })
       .then(function (response) {
@@ -239,6 +362,12 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
         }
 
         diagnostics.settingsRevision = settings.revision;
+        // S31 effective capabilities：不論 approved 與否都先存下來
+        // （未 approved 時 Worker 本來就回 []），currentUser() 靠
+        // whenSettingsSettled() 保證讀到的是這裡設定完的最終值。
+        effectiveCapabilities = (settings.capabilities || []).filter(function (c) {
+          return typeof c === "string";
+        });
 
         // S23/S31：沒有 active approved snapshot → resolve degraded
         // （reason 標明 unapproved），不是 reject——這不是操作失敗，
@@ -264,6 +393,7 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
   } catch (error) {
     // S23 唯一的 reject 情況：SDK 自身不可恢復錯誤（不是查無合約、未核准
     // 這類正常降級路徑，那些都在 init() 內部的 .catch() 被吞成 degraded）。
+    settleSettings();
     try {
       var jz = window.Jonaminz;
       if (jz && jz.__bootstrap) {

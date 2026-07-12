@@ -20,6 +20,97 @@
 
 ---
 
+## 2026-07-12 — Implementation plan 第 9 項階段 B：identity.currentUser@1 capability
+
+- **任務**：接續第 9 項階段 A（jonaminz 主站登入），做階段 B——把登入身分
+  包裝成符合 Frozen 規格 S30-33 的正式 capability，為將來階段 B（skhpsv2
+  接入，使用者說目前是 Codex 在處理、之後才交辦）鋪路。使用者明確要求
+  「這次先做 B，機制蓋好就好，不用授權給任何專案」。過程中先用 Plan mode
+  完整探索 Contract schema／Frozen 條文／既有 Worker 程式碼／SDK Kernel
+  結構，寫成 plan 檔請使用者核准後才動工。
+- **變更**：
+  - `worker.js` 新增共用 helper `resolveEffectiveCapabilities(env,
+    projectId, environment, envSettings)`：S31 公式（Approved Contract
+    `capabilities.supports` ∩ Integration Settings 授權的 `capabilities`
+    陣列）。`getEffectiveSettings` 的 `capabilities` 欄位從寫死的 `[]`
+    改用這個 helper 算真實值（原本重複的 Supabase 查詢邏輯一併抽掉）。
+  - `worker.js` 新增 action `getGrantedIdentity`：只給
+    `pages/identity-relay/` 呼叫，token 不離開 jonaminz.com 自己的瀏覽器。
+    用同一個 helper 逐請求重算 `identity.currentUser@1` 是否在授權交集
+    裡（S33：SDK 端快取的 capabilities 陣列不是授權證明）；未授權直接回
+    `granted:false, identity:null`、完全不查 session，避免對未授權的
+    呼叫端洩漏「現在有沒有人登入」這個資訊本身。
+  - `integration-settings.json` 每個 environment 新增選填的 `capabilities`
+    陣列（省略視為 `[]`），`revision` 2→3。`jonaminz-movies` 維持 `[]`
+    （機制蓋好但不開通，跟當初 `css:"none"` 同一個做法）。
+  - `pages/identity-relay/index.html`：改讀自己 URL 的 `projectId` query
+    string（SDK Kernel 建立 iframe 時會帶上），呼叫新 action
+    `getGrantedIdentity`（取代原本的 `getCurrentIdentity`），postMessage
+    內容加上 `granted` 欄位。`targetOrigin` 維持 `"*"`（訊息內容本身不含
+    token，安全假設不變）。
+  - `sdk/sdk-src/sdk.js`：**第一個正式發布的 service**——
+    `window.Jonaminz.identity.currentUser()`。照 S32 字面走：`init()`
+    一開始（contract discovery 完成前）就無條件掛上
+    `jz.identity = {currentUser}`，不論這個專案有沒有被授權都不會變成
+    `undefined`。新增 `whenSettingsSettled()`/`settleSettings()` 這個小
+    gate（搭 `report()` 既有的每個呼叫點順便 settle，涵蓋所有既有的
+    ready/degraded 路徑，不用另外在每個分支加呼叫），`currentUser()`
+    呼叫時先等這個 gate，再檢查 `effectiveCapabilities`（從
+    `getEffectiveSettings` 回應存下來）有沒有包含這個 capability——沒有
+    就 reject `CAPABILITY_NOT_GRANTED`（S27 形狀）。有的話動態建立隱藏
+    iframe 打 `https://www.jonaminz.com/pages/identity-relay/?projectId=...`，
+    **`event.origin` 驗證在接收端（這裡）做**（relay 頁面本身刻意不驗證，
+    見該檔案註解，往外送的內容不含 token），5 秒逾時 reject
+    `IDENTITY_TIMEOUT`（`retryable:true`）；relay 說 `granted:false` 也
+    reject `CAPABILITY_NOT_GRANTED`——這是 S33 的雙重防線，SDK 端快取的
+    capabilities 陣列可能過期，relay 背後的 Worker 才是真正的權威判斷。
+    identity 呼叫成功與否跟 `ready`/`degraded` 生命週期完全獨立。
+- **驗證**：
+  1. `resolveEffectiveCapabilities` 的交集邏輯先寫 node 腳本窮舉 8 種組合
+     （Contract 有/沒宣告 supports、Settings 有/沒授權、雙方都空等），
+     比照第 4 項 `computeEffectiveCss` 當初的做法，全部通過。
+  2. `npx esbuild worker.js --bundle` + `node --check` 確認 `worker.js`
+     語法乾淨、無 eval；`node --check` 確認 `sdk.js`、
+     `identity-relay/index.html` 內嵌 script 語法乾淨。
+  3. `wrangler deploy` 後 curl 驗證正式環境：未登記 projectId、已登記但
+     未授權、缺 projectId 三種情況 `getGrantedIdentity` 都正確回
+     `granted:false`；`getEffectiveSettings` 對 `jonaminz-movies` 正確回
+     真實 `capabilities:[]`；`getSdkVersion`／`getCurrentIdentity` 等既有
+     action 不受影響。
+  4. `node sdk/generate-sdk-release.mjs` 產生新 hash `5d8e909081bf`。
+     Playwright 端到端（本機 harness 頁模擬官方 S21 snippet + loader 指向
+     本機新 hash，`page.route()` 只 mock `getEffectiveSettings`／
+     `getGrantedIdentity`，identity-relay 頁面本身吃真實檔案內容跑真實
+     程式碼）驗證六種情境全數正確：未授權 reject
+     `CAPABILITY_NOT_GRANTED`；已授權＋已登入 resolve
+     `{currentUser:{id,displayName}}`；已授權＋未登入 resolve
+     `{currentUser:null}`；SDK 端快取誤判 granted 但 Worker 端真正判斷是
+     false（S33 雙重防線）正確擋下；relay 逾時 5 秒後正確 reject
+     `IDENTITY_TIMEOUT`；**從錯誤 origin（測試頁自己）偽造一筆
+     `postMessage` 授權結果，被 `event.origin` 檢查正確忽略**（沒有被
+     誤採信）。全程零 console/page 錯誤，`window.Jonaminz.status` 全程
+     不受 identity 呼叫結果影響。
+  5. 使用者授權後把 `stable`/`next` channel 指向新 hash 並 `wrangler
+     deploy`，curl 確認 `getSdkVersion` 回傳新 hash。
+- **狀態變化**：implementation plan **第 9 項階段 B 完成並已部署上線**。
+  identity capability 機制就位，但**沒有任何專案被授權**（`jonaminz-movies`
+  的 `capabilities` 仍是空陣列）。下一步是階段 C（真的把這個 capability
+  接進 skhpsv2）——不是這次範圍，使用者說 skhpsv2 repo 目前是 Codex 在
+  處理，之後才會另外交辦一個新 prompt。
+- **遺留**：「正向授權」路徑（某個真實專案的 Contract 真的宣告
+  `capabilities.supports` 含這個值、Settings 也真的授權、透過已登入
+  session 拿到真實身分）目前只在 mock 環境驗證過，沒有真實 DB 資料可測
+  ——跟第 4 項當初「tokens 正向成功」路徑一樣的保留，等真的有專案（很
+  可能是 skhpsv2）要用時再一併做真實端到端驗證，不補假資料。`sdk/`
+  資料夾這次收尾一併 git push，push 之後 `https://jonaminz.com/sdk/
+  sdk-5d8e909081bf.js` 才會是真的在正式站上可以載到的檔案（之前
+  `getSdkVersion` 雖然已經指過去，但靜態檔案還沒上 GitHub Pages）。
+- **版本**：`v0.10.0-202607121252`（`version.js`；SDK Kernel、Worker
+  action、`integration-settings.json`／`sdk-versions.json` 皆屬程式碼/
+  設定檔變更，minor 版號 bump 反映這是新功能不是單純修 bug）。
+
+---
+
 ## 2026-07-12 — 修正 version.js 的錯誤時間戳（buildTime 對不上真實 commit 時間）
 
 - **任務**：使用者指出 `version.js` 裡的時間長期都是錯的。查證後發現根因：

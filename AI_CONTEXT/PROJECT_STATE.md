@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -65,11 +65,15 @@ jonaminz/
                               表單＋Google 登入連結，兩條路都能選，已上線並經正式
                               環境驗證。支援 `?next=` 登入後導回原本要去的頁面
                               （後台整站登入保護追加的功能，見 §4）
-    identity-relay/           跨子網域身分轉發頁（implementation plan 第 9 項階段
-                              A，給 skhpsv2 之類的其他 *.jonaminz.com 專案未來用）：
+    identity-relay/           跨子網域身分轉發頁（implementation plan 第 9 項
+                              階段 A 建立、階段 B 接上真實授權判斷，給
+                              skhpsv2 之類的其他 *.jonaminz.com 專案未來用）：
                               極簡、不走 entry-core.js bootstrap，讀自己
-                              （www.jonaminz.com）的 localStorage token、查
-                              getCurrentIdentity、postMessage 給嵌入它的父頁面
+                              （www.jonaminz.com）的 localStorage token＋自己
+                              URL 的 projectId query string，呼叫
+                              getGrantedIdentity（不是 getCurrentIdentity，
+                              階段 B 起改用會做授權判斷的這支），postMessage
+                              {granted, identity} 給嵌入它的父頁面（SDK Kernel）
   sdk/
     jonaminz-entry.js          常青 SDK loader（implementation plan 第 5 項，S37）：
                               向 getSdkVersion 問版本指標 → 動態載入對應的
@@ -77,12 +81,13 @@ jonaminz/
                               自己的 release hash 轉貼給 Kernel（第 6 項新增，
                               S18 銜接缺口，見 §4）。極簡、try/catch 全包
     sdk-src/sdk.js             SDK Kernel 真實邏輯（implementation plan 第 6、
-                              7 項）：contract discovery、推送合約、查
+                              7、9 項階段 B）：contract discovery、推送合約、查
                               Effective Settings、settle S21 官方 snippet 的
                               ready Promise、effectiveCss==="tokens" 時套用
                               CSS custom properties（收編 theme-runtime.js，
-                              舊名＋--jz-* 新名並存）。v1 不掛任何
-                              window.Jonaminz.* service 命名空間（見 §4）
+                              舊名＋--jz-* 新名並存）。**第一個正式發布的
+                              service**：window.Jonaminz.identity.currentUser()
+                              （identity.currentUser@1，S30-33，見 §4）
     generate-sdk-release.mjs   build-time 腳本：讀 sdk-src/sdk.js、算 sha256 前 12 碼、
                               產生 immutable 的 sdk-<hash>.js（不自動改 sdk-versions.json，
                               要不要發版是人的決定）
@@ -90,7 +95,7 @@ jonaminz/
     sdk-empty.js                kill-switch 目標，內容真的什麼都不做
   backend/
     README.md                 後端部署說明
-    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，10 個 action（見 §5）
+    cloudflare-worker/worker.js   唯一後端入口 POST /api/action，11 個 action（見 §5）
     cloudflare-worker/wrangler.toml   含 [vars] JONAMINZ_ENVIRONMENT（見 §4 Platform Integration）
     cloudflare-worker/package.json    ajv 依賴（Contract JSON Schema 驗證用）
     cloudflare-worker/integration-settings.json  Integration Settings（git 檔案，
@@ -410,8 +415,8 @@ jonaminz/
     Cloudflare），Worker 無法掛 `*.jonaminz.com` custom domain，原本設想
     的 `Domain=.jonaminz.com` 共用 cookie 不可行——改用 iframe +
     postMessage 轉發（`pages/identity-relay/`）+ localStorage 存 token，
-    對外的穩定介面仍是未來 `window.Jonaminz.identity.currentUser()`
-    （階段 B 才會掛這個命名空間），DNS 若未來真的搬去 Cloudflare只需要
+    對外的穩定介面是 `window.Jonaminz.identity.currentUser()`（階段 B
+    已完成，見下方該項條目），DNS 若未來真的搬去 Cloudflare 只需要
     換掉這段內部實作，外部呼叫端程式碼不用改。
     **階段 A 已完成的部分**：新表 `sessions`／`oauth_states`
     （`backend/supabase/auth_schema.sql`，含 service_role grant，**已於
@@ -474,6 +479,68 @@ jonaminz/
     達成並驗證完畢；之後才會做討論中額外擴大的階段 B（identity
     capability）與階段 C（skhpsv2 接入），排程見 implementation-plan.md
     SKHPSv2 段落（不急，等核心架構做完再排）。
+  - **第 9 項階段 B（identity.currentUser@1 capability）：完成並已部署
+    上線（2026-07-12）。** 目的是把 jonaminz 的登入身分包裝成符合 Frozen
+    規格 S30-33 的正式 capability，讓外部專案（未來的 skhpsv2）能透過
+    SDK 用同一套 Contract／Integration Settings 授權機制取得身分，而不是
+    走專案間互踩的捷徑。**只做機制，這次沒有授權給任何專案**（`jonaminz-movies`
+    的 `capabilities` 仍是空陣列）。
+    - `worker.js` 新增共用 helper `resolveEffectiveCapabilities(env,
+      projectId, environment, envSettings)`（S31 公式：Approved Contract
+      `capabilities.supports` ∩ Integration Settings 授權的 `capabilities`
+      陣列），`getEffectiveSettings` 的 `capabilities` 欄位從寫死的 `[]`
+      改成真實計算值（這只是給 SDK 的提示，S33 規定不能當授權證明）。
+    - 新增 action `getGrantedIdentity`：只給 `pages/identity-relay/`
+      呼叫（token 不離開 jonaminz.com 自己的瀏覽器），用同一個 helper
+      逐請求重新計算是否授權 `identity.currentUser@1`，未授權直接回
+      `granted:false, identity:null`，不查 session（避免洩漏「現在有沒有
+      人登入」這個資訊本身）。
+    - `integration-settings.json` 每個 environment 新增選填的
+      `capabilities` 陣列（省略視為 `[]`），`revision` 3。
+    - `pages/identity-relay/index.html` 改讀自己 URL 的 `projectId` query
+      string（SDK Kernel 建立 iframe 時帶上），呼叫新 action
+      `getGrantedIdentity`，postMessage 內容加上 `granted` 欄位。
+    - `sdk/sdk-src/sdk.js`：**第一個正式發布的 service**——
+      `window.Jonaminz.identity.currentUser()`。照 S32 字面走：在
+      `init()` 一開始（contract discovery 完成前）就無條件掛上
+      `jz.identity = {currentUser}`，不論這個專案有沒有被授權都不會變成
+      `undefined`；呼叫時才用新的 `whenSettingsSettled()`/`settleSettings()`
+      gate（搭 `report()` 的既有呼叫點順便 settle）等 `getEffectiveSettings`
+      這輪跑完，檢查 `effectiveCapabilities` 有沒有包含這個 capability，
+      沒有就 reject `CAPABILITY_NOT_GRANTED`（S27 形狀）。有的話動態建立
+      隱藏 iframe 打 `https://www.jonaminz.com/pages/identity-relay/`，
+      **`event.origin` 驗證在這裡做**（relay 頁面本身刻意不驗證，見該
+      檔案註解），5 秒逾時 reject `IDENTITY_TIMEOUT`（`retryable:true`）；
+      relay 說 `granted:false` 一樣 reject `CAPABILITY_NOT_GRANTED`——
+      這是 S33 的雙重防線，SDK 端快取的 capabilities 陣列可能過期，
+      relay 背後的 Worker 才是真正的權威判斷。identity 是否成功跟
+      `ready`/`degraded` 生命週期完全獨立，不互相影響。
+      `sdk/generate-sdk-release.mjs` 產生新 hash `5d8e909081bf`，
+      `stable`/`next` channel 都已指過去並 `wrangler deploy`。
+    - **驗證**：`resolveEffectiveCapabilities` 交集邏輯先用 node 腳本
+      窮舉 8 種組合（比照第 4 項 `computeEffectiveCss` 的做法）；
+      `esbuild --bundle` + `node --check` 確認 `worker.js`／`sdk.js`／
+      `identity-relay` 內嵌 script 語法乾淨、無 eval；curl 驗證正式環境
+      未登記/未授權都正確回 `granted:false`，`getEffectiveSettings` 對
+      `jonaminz-movies` 正確回真實 `capabilities:[]`，既有 action 不受
+      影響；Playwright 端到端（本機 harness 頁 + `page.route()` mock
+      `getEffectiveSettings`／`getGrantedIdentity`，其餘走真實 Worker/
+      relay 程式碼）驗證六種情境全數正確：未授權 reject、已授權+已登入
+      resolve 正確 `{id, displayName}`、已授權+未登入 resolve `null`、
+      SDK 端快取誤判但 Worker 真正判斷擋下（S33 雙重防線）、relay 逾時
+      5 秒後正確 reject、**偽造來源的 `postMessage` 被 `event.origin`
+      檢查正確忽略**（安全性質，不是行為正確性）。全程零 JS 錯誤，
+      `window.Jonaminz.status` 全程不受 identity 呼叫結果影響。
+    - **這次沒做**：階段 C（真的把這個 capability 接進 skhpsv2 頁面）——
+      使用者說 skhpsv2 repo 目前是另一個 AI 工具（Codex）在處理，之後才會
+      另外交辦，**接手 jonaminz 任務時不要主動跨去碰 skhpsv2 repo**。
+      `identity.currentUser@1` 以外的其他 capability（`search`／
+      `notification` 等 reserved 名稱）也不在範圍內。「正向授權」路徑
+      （某個真實專案的 Contract 宣告支援 identity、Settings 也真的授權、
+      實際透過已登入 session 拿到身分）目前只在 mock 環境驗證過，沒有
+      真實 DB 資料可測（沒有任何專案的 Contract 宣告 `capabilities.supports`
+      含這個值）——跟第 4 項當初「tokens 正向成功」路徑一樣的保留，等
+      真的有專案（很可能是 skhpsv2）要用時再一併做真實端到端驗證。
   - **後台整站登入保護（2026-07-12，第 9 項之後的追加工作）**：使用者
     透過 AskUserQuestion 明確選定兩件事——整個後台（`/pages/admin/`、
     `/pages/admin/theme/`、`/pages/admin/contracts/`）都要登入才能進來，
@@ -550,7 +617,7 @@ jonaminz/
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
 | 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。七張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`、`sessions`、`oauth_states`（後兩張 2026-07-12 新增，第 9 項階段 A），皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
 | Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`；`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`（內部密語登入，已設定）、`JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`（Google OAuth，已設定）。**`JONAMINZ_ADMIN_TOKEN` 已於 2026-07-12 用 `wrangler secret delete` 移除**（`wrangler secret list` 確認不在清單內）。全部存在 Cloudflare，不在 repo，Claude 不經手實際值 |
-| Worker API | `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**要求登入 session**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**要求登入 session，操作人＝登入身分**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標）/ `loginWithInternalToken`／`getCurrentIdentity`／`logout`（第 9 項階段 A）。另有兩個非 `/api/action` 的 GET 路由：`/auth/google/start`／`/auth/google/callback`（Google OAuth）。三個要求登入的 action 共用 `requireSession(env, payload)` helper，`payload.token` 須是有效 session |
+| Worker API | `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**要求登入 session**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**要求登入 session，操作人＝登入身分**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式，`capabilities` 是真實計算值）/ `getSdkVersion`（公開唯讀，S37 版本指標）/ `loginWithInternalToken`／`getCurrentIdentity`／`logout`（第 9 項階段 A）/ `getGrantedIdentity`（第 9 項階段 B，只給 `pages/identity-relay/` 呼叫，逐請求重算 `identity.currentUser@1` 是否授權）。另有兩個非 `/api/action` 的 GET 路由：`/auth/google/start`／`/auth/google/callback`（Google OAuth）。三個要求登入的 action 共用 `requireSession(env, payload)` helper，`payload.token` 須是有效 session |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
@@ -558,23 +625,26 @@ jonaminz/
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 
-- 業務版本：`v0.9.1-202607121400`（`version.js`，後台整站登入保護
-  這批前端變更的 bump）。規則：每次 push 前要 bump。
-  **2026-07-11～12 implementation plan 第 3-7 項、第 9 項階段 A、以及
-  後台整站登入保護（第 9 項之後追加）皆完成並已上線**：第 3 項
-  （核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的 approve/
-  reject Postgres function（含改判邏輯修正版）已套用到 jonaminz-db、
-  `pages/admin/contracts/` 已 push 上線；**2026-07-12 起改成要求登入
-  session，`JONAMINZ_ADMIN_TOKEN` 已淘汰**。第 4 項（`getEffectiveSettings`）Worker 已
-  `wrangler deploy`、`integration-settings.json` 的 `css`/`revision`
-  欄位已隨部署生效，curl 已驗證三條路徑正確。第 5 項（SDK Loader）、
-  第 6 項（SDK Kernel）、第 7 項（tokens CSS 收編）都已 `wrangler deploy`
-  （`getSdkVersion` 指標現在指向含 tokens 邏輯的 Kernel，hash
-  `c0d679686951`）；`sdk/` 資料夾本次收尾會一併 git push（push 之後
-  `https://jonaminz.com/sdk/jonaminz-entry.js` 才會是真的常青網址上線，
-  之前都在 localhost／mock 指標測試）。第 5 項的 kill-switch／回滾已在
-  正式環境的 `sdk-versions.json` 上實際操作並復原過。Worker 線上版本與
-  repo（push 完後）完全同步。
+- 業務版本：`v0.10.0-202607121252`（`version.js`，第 9 項階段 B 這批
+  變更的 bump）。規則：每次 push 前要 bump，且要先查真的系統時間再填
+  `buildTime`/`updatedAt`（不能用猜的，見 `RULES.md` §二-1）。
+  **2026-07-11～12 implementation plan 第 3-7 項、第 9 項階段 A、第 9
+  項階段 B、後台整站登入保護（第 9 項之後追加）皆完成並已上線**：第 3
+  項（核准後台）Worker 已 `wrangler deploy`、`contract_schema.sql` 的
+  approve/reject Postgres function（含改判邏輯修正版）已套用到
+  jonaminz-db、`pages/admin/contracts/` 已 push 上線；**2026-07-12 起
+  改成要求登入 session，`JONAMINZ_ADMIN_TOKEN` 已淘汰**。第 4 項
+  （`getEffectiveSettings`）Worker 已 `wrangler deploy`、
+  `integration-settings.json` 的 `css`/`revision` 欄位已隨部署生效，
+  curl 已驗證三條路徑正確。第 5 項（SDK Loader）、第 6 項（SDK
+  Kernel）、第 7 項（tokens CSS 收編）、第 9 項階段 B（identity
+  capability）都已 `wrangler deploy`（`getSdkVersion` 指標現在指向含
+  identity capability 的 Kernel，hash `5d8e909081bf`）；`sdk/` 資料夾
+  本次收尾會一併 git push（push 之後 `https://jonaminz.com/sdk/
+  jonaminz-entry.js` 才會是真的常青網址上線目前這個新 hash，之前都在
+  localhost／mock 指標測試）。第 5 項的 kill-switch／回滾已在正式環境的
+  `sdk-versions.json` 上實際操作並復原過。Worker 線上版本與 repo（push
+  完後）完全同步。
 - 分支：只有 `main`，remote 只有 `origin`（GitHub）。與 SKHPS 的 skhpsv2 不同，
   **沒有** prod/dev 雙 remote 切換機制。
 - `.gitignore` 已涵蓋 `*pw*.txt` / `*pw*.json` / `*secret*.txt` / `.env*` / `.wrangler/` / `.codemap/`。

@@ -31,10 +31,13 @@
   謊報 environment 繞過檢查。沒有 active approved snapshot 時回
   `approved:false, css:"none"`（S31 明文規定的降級）；有的話回
   `css: Contract 聲明 × Settings 授予 的 min`（S34，v1 只有 none/tokens
-  兩級）。`capabilities` 目前固定空陣列——第 6 項才會有真實 service，
-  這裡先把回應形狀定下來，之後只加內容不改形狀。這個端點回答的是
-  「准不准套用 tokens」，不是「tokens 的規則長怎樣」，後者仍是
-  getThemeCssRules 的事，這次沒有動它。
+  兩級）。`capabilities` 從 implementation plan 第 9 項階段 B 起是真實值
+  （Approved Contract `capabilities.supports` ∩ Integration Settings
+  `capabilities` 授權，見 `resolveEffectiveCapabilities`）——但這只是給
+  SDK 一個「值不值得嘗試」的提示，S33 規定不能當授權證明，會回傳實際資料
+  的 action（例如下面的 getGrantedIdentity）要自己逐請求重算一次。這個
+  端點回答的是「准不准套用 tokens／有哪些 capability」，不是「tokens 的
+  規則長怎樣」，後者仍是 getThemeCssRules 的事，這次沒有動它。
 - getSdkVersion：implementation plan 第 5 項（S37）。公開唯讀，回傳
   `sdk-versions.json` 裡某個 channel（stable/next）目前指向哪個
   immutable release（`hash`/`url`）。`payload.projectId` 選填——有給的話
@@ -55,6 +58,13 @@
   `docs/platform-integration-v1-implementation-plan.md` 第 9 項的
   查證紀錄）。這三個 action 走既有的 `Access-Control-Allow-Origin: *`，
   不涉及 credentials，不用改 CORS。
+- getGrantedIdentity：implementation plan 第 9 項階段 B（`identity.currentUser@1`
+  capability，S30-33）。只給 `pages/identity-relay/` 呼叫，不是給外部
+  專案的 SDK 直接打——token 永遠留在 jonaminz.com 自己的瀏覽器裡。用
+  `resolveEffectiveCapabilities` 重新算一次 `identity.currentUser@1`
+  是否在該 (projectId, environment) 的授權交集裡（S33：不信任何快取），
+  沒授權直接回 `granted:false, identity:null`，連 session 查詢都不做，
+  避免對未授權的呼叫端洩漏「現在有沒有人登入」這個資訊本身。
 - `GET /auth/google/start` ／ `GET /auth/google/callback`：**唯二
   不是 `POST /api/action` 的路徑**——Google OAuth 的 authorization
   code flow 本質是瀏覽器導航（302 redirect），不是 fetch() 呼叫。
@@ -191,6 +201,10 @@ export default {
 
       if (action === "getCurrentIdentity") {
         return json(await getCurrentIdentity(env, payload), 200);
+      }
+
+      if (action === "getGrantedIdentity") {
+        return json(await getGrantedIdentity(env, payload), 200);
       }
 
       if (action === "logout") {
@@ -676,6 +690,38 @@ function computeEffectiveCss(contractCss, settingsCss) {
   return c === "tokens" && s === "tokens" ? "tokens" : "none";
 }
 
+// implementation plan 第 9 項階段 B：S31 capability 公式（Effective =
+// Approved Contract capabilities.supports ∩ Settings 授權）。抽成共用
+// helper 是因為 getEffectiveSettings（給 SDK 當提示用）跟 getGrantedIdentity
+// （真正的授權判斷，S33 要求 Worker 逐請求重算）都需要同一份邏輯——兩處
+// 各自算一次很容易因為改一邊忘了改另一邊而產生真正的安全漏洞。呼叫端自己
+// 先查好 projectId/environment 是否登記（各自的錯誤 code 語意不同，這裡
+// 不重複判斷），把已經解出來的 envSettings 傳進來即可。
+async function resolveEffectiveCapabilities(env, projectId, environment, envSettings) {
+  const activeUrl =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/contract_active_snapshots?project_id=eq." + encodeURIComponent(projectId) +
+    "&environment=eq." + encodeURIComponent(environment) +
+    "&select=contract_snapshots(raw_contract)";
+
+  const response = await fetch(activeUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  const active = rows[0] && rows[0].contract_snapshots;
+  if (!active) {
+    return { capabilities: [], activeContract: null };
+  }
+
+  const rawContract = active.raw_contract || {};
+  const supports = (rawContract.capabilities && rawContract.capabilities.supports) || [];
+  const granted = envSettings.capabilities || [];
+  const capabilities = supports.filter(function (c) { return granted.indexOf(c) !== -1; });
+
+  return { capabilities: capabilities, activeContract: rawContract };
+}
+
 async function getEffectiveSettings(env, payload) {
   const projectId = String((payload && payload.projectId) || "").trim();
   if (!projectId) {
@@ -707,22 +753,11 @@ async function getEffectiveSettings(env, payload) {
     };
   }
 
-  const activeUrl =
-    env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/contract_active_snapshots?project_id=eq." + encodeURIComponent(projectId) +
-    "&environment=eq." + encodeURIComponent(environment) +
-    "&select=contract_snapshots(raw_contract)";
-
-  const response = await fetch(activeUrl, { method: "GET", headers: supabaseHeaders(env) });
-  if (!response.ok) {
-    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
-  }
-  const rows = await response.json();
-  const active = rows[0] && rows[0].contract_snapshots;
+  const { capabilities, activeContract } = await resolveEffectiveCapabilities(env, projectId, environment, envSettings);
 
   // S31：沒有 active approved snapshot 時不啟用任何能力、不掛 Shell——
   // observed 推送照收，這裡只是不採信而已（S13/S16 一路貫徹下來）。
-  if (!active) {
+  if (!activeContract) {
     return {
       ok: true,
       projectId: projectId,
@@ -737,7 +772,7 @@ async function getEffectiveSettings(env, payload) {
     };
   }
 
-  const effectiveCss = computeEffectiveCss(active.raw_contract && active.raw_contract.css, envSettings.css);
+  const effectiveCss = computeEffectiveCss(activeContract.css, envSettings.css);
 
   return {
     ok: true,
@@ -748,8 +783,11 @@ async function getEffectiveSettings(env, payload) {
     revision: integrationSettings.revision,
     generatedAt: new Date().toISOString(),
     css: effectiveCss,
-    // 佔位：第 6 項才會有真實 service capability，形狀先定、內容留白。
-    capabilities: []
+    // implementation plan 第 9 項階段 B：真實 capability 交集（S30-33），
+    // 不再是佔位空陣列。這裡只是給 SDK 一個「值不值得嘗試」的提示，S33
+    // 規定真正的授權判斷要在 getGrantedIdentity 這類會回傳實際資料的
+    // action 裡逐請求重算，不能只信這個回應。
+    capabilities: capabilities
   };
 }
 
@@ -871,6 +909,33 @@ async function requireSession(env, payload) {
 
 async function getCurrentIdentity(env, payload) {
   return { ok: true, identity: await requireSession(env, payload) };
+}
+
+// implementation plan 第 9 項階段 B：給 pages/identity-relay/ 呼叫，不是
+// 給外部專案直接打（session token 永遠不離開 jonaminz.com 自己的瀏覽器）。
+// S33：不能只信 getEffectiveSettings 回應裡快取的 capabilities 陣列，這裡
+// 用 resolveEffectiveCapabilities 逐請求重算一次「identity.currentUser@1」
+// 是不是真的在授權交集裡，granted:false 時完全不查身分、直接回 null，
+// 避免對未授權的呼叫端洩漏「這個人現在有沒有登入」這個資訊本身。
+async function getGrantedIdentity(env, payload) {
+  const projectId = String((payload && payload.projectId) || "").trim();
+  if (!projectId) {
+    return { ok: true, granted: false, identity: null };
+  }
+
+  const environment = env.JONAMINZ_ENVIRONMENT;
+  const projectSettings = integrationSettings.projects && integrationSettings.projects[projectId];
+  const envSettings = projectSettings && projectSettings.environments && projectSettings.environments[environment];
+  if (!envSettings) {
+    return { ok: true, granted: false, identity: null };
+  }
+
+  const { capabilities } = await resolveEffectiveCapabilities(env, projectId, environment, envSettings);
+  if (capabilities.indexOf("identity.currentUser@1") === -1) {
+    return { ok: true, granted: false, identity: null };
+  }
+
+  return { ok: true, granted: true, identity: await requireSession(env, payload) };
 }
 
 async function logout(env, payload) {
