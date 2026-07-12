@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除；第 9 項階段 B identity.currentUser@1 capability 完成並部署上線，機制就位但尚未授權給任何專案；前端品質重建計畫階段①（效能重建＋全站布幕）完成並 push；首頁改版：封面照片從全螢幕背景改成固定 aspect-ratio 的小相片框（根本解決 RWD 裁切問題）、移除重複導覽按鈕與「共用入口」按鈕、後台系頁面 header 品牌可回首頁，皆已 push；**待辦總表見 `docs/roadmap-202607.md`**，接手前先看那份文件的排序，不要重新問使用者要做什麼；順序①〔OAuth 本機導頁〕②〔讀條演算法〕③〔RWD/viewport 量測層〕④〔Runtime 診斷系統〕⑥〔Jonathan/Minz 門戶頁〕皆已完成、驗證；順序⑤〔麵包屑〕維持延後不做；文件真實性盤點已完成並 push（25b341e），新增 AI_CONTEXT 七份現況文件＋DOCUMENT_STATUS；同批追加修好一個文件盤點挖到的真實缺口：Google OAuth 登入原本不保留 `?next=`，已補上跟內部密語登入一致的行為，已部署並直連 DB 驗證；首頁 hero 圖與 Jonathan 形象照都已換成使用者提供的高解析度原始檔重壓版本；⑥上線後 SKHPS 連結改連 skhpsv2 新增的固定 port 5501 dev-server（不再猜同 origin 路徑），皆已 push；**待辦總表新增順序⑧手機 App 包裝（Capacitor，排在①-⑦全部完成之後）**；下一步順序⑦〔後台 Dashboard 化〕）
+最後更新：2026-07-13（**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節，不要重新問使用者要做什麼；第 9 項階段 A/B（登入＋整站保護＋identity capability）皆已上線；前端品質重建計畫三階段（效能重建、Jonathan/Minz 門戶頁、後台 Dashboard 化）皆完成；文件真實性盤點完成，AI_CONTEXT 擴充成 13 份文件；**下一步是順序⑧手機 App 包裝（Capacitor），排在 roadmap 最後、使用者已確認方向**，細節見 roadmap 該段；順序⑤麵包屑維持延後不做）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -148,6 +148,26 @@ jonaminz/
 
 ## 3. 已完成的功能
 
+- **前端品質重建計畫階段③：後台首頁 Dashboard 化（2026-07-13，
+  `docs/roadmap-202607.md` 順序⑦）：完成並已驗證，尚待 push。**
+  `pages/admin/` 從路線佔位卡片升級成 dashboard：登入身分徽章（沿用
+  `.jonaminz-identity-badge` 視覺，jonathan/minz 各自配色）、pending
+  Contract 數量（跟 `pages/admin/contracts/` 同一套
+  `status==="pending"` 篩選邏輯，兩邊數字保證一致，不是各自算一套）、
+  外部專案回報清單（既有功能不變）、Theme/Contracts 快速入口。全程
+  沒有動 `worker.js`，純前端聚合既有的 `listPendingContracts`／
+  `listExternalAppRegistrations` 兩個既有 action。
+  - **跟原計畫的差異**：pending 數量原計畫是「徽章」，實作時改成卡片
+    描述文字（如「2 筆待審核」／「無待審」），才能自然滿足「0 筆顯示
+    無待審」跟「Worker 打不通顯示錯誤文字」這兩條驗收——純數字徽章
+    沒有空間放這些文字狀態。
+  - **驗證**：Playwright 三情境——①正常路徑（mock 登入 jonathan／2 筆
+    pending／1 筆外部專案，畫面全部正確、零 console 錯誤）；②0 筆
+    pending＋minz 身分（正確顯示「無待審」跟「Minz 你好」）；③Worker
+    全斷線（`route.abort`），pending／registrations 兩區塊各自顯示
+    「XXX讀取失敗：Failed to fetch」，gate 仍在 ~400ms 正常放行，沒有
+    任何未捕捉例外。桌機/手機截圖確認排版正常。
+  - **待辦總表①-⑦全部完成**，roadmap 只剩順序⑧手機 App 包裝。
 - **文件真實性盤點與同步（2026-07-12，已 commit+push，25b341e）：** 使用者
   交辦一次完整審計，用實際程式碼／schema／設定檔逐項核對登入/Session/
   Contract/外部 App 邊界等主題，不信任文件自稱「已完成」。新增

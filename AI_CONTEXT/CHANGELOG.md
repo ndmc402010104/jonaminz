@@ -20,6 +20,47 @@
 
 ---
 
+## 2026-07-13 — 待辦總表順序⑦：前端品質重建計畫階段③，後台首頁 Dashboard 化
+
+- **任務**：接續 `docs/roadmap-202607.md` 排出來的順序，做⑦（roadmap
+  最後一個既有項目）。見 `docs/frontend-quality-plan-202607.md` 階段③。
+- **變更**：
+  - `pages/admin/assets/js/app.js`：`render()` 改吃 `requireLogin()`
+    resolve 出來的 identity 參數，畫身分徽章（`identityBadgeHtml()`，
+    跟 `pages/admin/contracts/`／`pages/login/` 同款視覺：圓形色塊
+    +姓名首字母，jonathan 用 `--color-primary`、minz 用
+    `--color-primary-2`）；移除舊的路線佔位說明文字；新增
+    `renderPendingStatus()`，用既有 `listPendingContracts` action，
+    跟 `pages/admin/contracts/` 同一套 `rows.filter(status==="pending")`
+    篩選邏輯（不是自己另外算一套，保證兩邊數字一致），寫進 Contract
+    核准卡片的描述文字位置（不是額外疊加的數字徽章——這樣才有空間放
+    「無待審」／錯誤文字這些狀態，不只是一個數字）。
+  - `pages/admin/assets/css/page-admin.css`：新增
+    `.jonaminz-admin-identity`／`.jonaminz-identity-badge`
+    （`--jonathan`／`--minz` 兩個色彩變體）；移除不再使用的
+    `.jonaminz-admin-subtitle`（render() 不再輸出這個 class 的內容，
+    全 repo grep 確認沒有其他地方用到才刪）。
+  - `pages/admin/index.html` 沒有改——`render()` 注入內容本來就透過
+    `[data-app-root]`，HTML 骨架維持原樣。**沒有動 `worker.js`**：
+    `listPendingContracts`／`listExternalAppRegistrations` 都是既有
+    action，純前端聚合。
+- **驗證**：Playwright 三情境，全部針對本機 dev server（mock
+  `/api/action`，不打正式 Worker）——①正常路徑：mock 登入 jonathan、
+  2 筆 pending、1 筆外部專案回報，畫面全部正確顯示，console 零錯誤；
+  ②0 筆 pending＋minz 身分：正確顯示「無待審」（不是空白）、身分徽章
+  正確顯示 Minz；③Worker 全斷線（`route.abort("failed")`）：pending
+  區塊顯示「待審數量讀取失敗：Failed to fetch」、外部專案區塊顯示
+  「讀取失敗：Failed to fetch」，兩者互相獨立、都不擋 gate（~400ms 內
+  正常放行 all-ready），沒有任何未捕捉的 pageerror。桌機（1280px）跟
+  手機（375px）截圖確認排版正常、不溢出。
+- **狀態變化**：`docs/roadmap-202607.md` 順序⑦完成——**①-⑦全部完成**，
+  roadmap 只剩順序⑧手機 App 包裝（Capacitor，使用者已確認方向，見
+  roadmap 該段）。
+- **遺留**：無（這次驗收項目全數通過，沒有已知缺口）。
+- **版本**：`v0.18.0-202607130016`。
+
+---
+
 ## 2026-07-12 — SKHPS 連結改連固定 port，不再猜同 origin 路徑
 
 - **任務**：順序⑥上線後使用者實測，`pages/jonathan/` 的 SKHPS 連結在

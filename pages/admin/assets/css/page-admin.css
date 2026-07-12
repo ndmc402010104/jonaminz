@@ -43,9 +43,35 @@
   color: transparent;
 }
 
-.jonaminz-admin-subtitle {
-  margin: 0 0 var(--space-6);
-  opacity: 0.7;
+.jonaminz-admin-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.jonaminz-identity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.jonaminz-identity-badge--jonathan {
+  background: var(--color-primary);
+}
+
+.jonaminz-identity-badge--minz {
+  background: var(--color-primary-2);
 }
 
 .jonaminz-admin-links {
