@@ -20,6 +20,38 @@
 
 ---
 
+## 2026-07-12 — 登入頁與 Contracts 工具列視覺打磨 + 刪除已淘汰的 JONAMINZ_ADMIN_TOKEN secret
+
+- **任務**：使用者正式環境驗證登入功能「都正常」，順手要求把
+  `JONAMINZ_ADMIN_TOKEN`（已確認沒人用）刪掉，並把登入頁跟 Contracts
+  後台工具列「弄漂亮一點」。
+- **變更**：
+  - `npx wrangler secret delete JONAMINZ_ADMIN_TOKEN`，`wrangler secret
+    list` 確認已移除，curl smoke test 確認 Worker 仍正常運作。
+  - `pages/login/`：Google 登入改成白底＋官方四色 G 標誌的按鈕樣式
+    （較貼近一般「使用 Google 登入」的視覺慣例），內部密語登入按鈕改用
+    既有的 `.btn-ghost`（次要動作，Google 是主要動作）；「或」分隔線
+    改成兩側夾線的樣式；已登入畫面新增身分徽章（圓形、姓名首字母，
+    Jonathan 用 `--color-primary`、Minz 用 `--color-primary-2`，都是
+    既有 design token，沒新增顏色）。
+  - `pages/admin/contracts/`：工具列的「登入身分：Jonathan」文字前面
+    加上同一套身分徽章，跟登入頁視覺一致。
+  - 兩處身分徽章的 CSS（`.jonaminz-identity-badge` 及
+    `--jonathan`/`--minz` 變體）目前各自獨立寫在兩份 Page Layer CSS
+    裡（`page-login.css`／`page-admin-contracts.css`，規則完全一致但
+    沒有共用檔案）——純視覺樣式、沒有邏輯，重複兩份 class 定義換取
+    「不用另外開一個共用 CSS 檔案」的簡單，之後如果還有第三個地方要用
+    再考慮抽出來。
+  - 本機 Playwright 完整 regression 測試（登入關卡/next 參數/payload
+    格式）全數重跑一次，確認視覺調整沒有動到任何功能邏輯或 DOM
+    selector（`[data-login-form]`／`[data-approve]` 等測試用的 hook
+    都還在）。
+- **狀態變化**：純視覺/清理，沒有新增或改變任何功能行為。
+- **遺留**：無。
+- **版本**：`v0.9.2-202607121600`（`version.js`）。
+
+---
+
 ## 2026-07-12 — 後台登入保護部署：wrangler deploy + 正式環境 smoke test
 
 - **任務**：接續上一筆（後台登入保護程式碼完成但未部署），取得使用者

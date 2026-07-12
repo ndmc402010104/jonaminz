@@ -173,9 +173,14 @@ Worker 端也要求 session（見 worker.js 的 requireSession），操作人
   }
 
   function toolbarHtml() {
+    var label = IDENTITY_LABEL[identity] || identity || "?";
     return (
       '<div class="jonaminz-theme-toolbar jonaminz-contracts-toolbar">' +
-        '<span class="jonaminz-contracts-identity">登入身分：' + escapeHtml(IDENTITY_LABEL[identity] || identity || "") + '</span>' +
+        '<span class="jonaminz-contracts-identity">' +
+          '<span class="jonaminz-identity-badge jonaminz-identity-badge--' + escapeHtml(identity || "") + '">' +
+            escapeHtml(label.charAt(0).toUpperCase()) + '</span>' +
+          escapeHtml(label) +
+        '</span>' +
         '<button class="btn btn-ghost" type="button" data-refresh>重新整理</button>' +
         '<p class="jonaminz-page-subtitle" data-status></p>' +
       '</div>'

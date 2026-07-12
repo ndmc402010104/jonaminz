@@ -1,6 +1,6 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-12（第 9 項階段 A 完成並驗證＋後台整站登入保護完成並已部署，待使用者正式環境驗證）
+最後更新：2026-07-12（第 9 項階段 A＋後台整站登入保護皆完成、部署、使用者正式環境驗證通過，`JONAMINZ_ADMIN_TOKEN` 已刪除）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -504,7 +504,12 @@ jonaminz/
     `UNAUTHORIZED`、改帶舊的 `adminToken` 欄位測試也一樣被拒絕
     （確認舊機制真的失效）、其餘既有 action 不受影響。**仍待使用者
     親自到正式環境用真實帳號登入驗證**（curl 只能測「擋沒登入的」，
-    測不到「真的登入後操作是否正常」）。
+    測不到「真的登入後操作是否正常」）。**2026-07-12 使用者已親自到正式
+    環境用真實帳號驗證通過（內部密語登入、Google OAuth、Contract 核准/
+    否決操作人正確帶入、Theme 存檔皆正常），並要求刪除
+    `JONAMINZ_ADMIN_TOKEN`——已用 `npx wrangler secret delete` 刪除，
+    `wrangler secret list` 確認移除。**
+  - **2026-07-11：第一個真實外部專案 `jonaminz-movies` 已登記**
     （`integration-settings.json` 新增 `prod` origin
     `https://ndmc402010104.github.io`）。獨立 repo
     [`ndmc402010104/jonaminz-movies`](https://github.com/ndmc402010104/jonaminz-movies)
@@ -544,7 +549,7 @@ jonaminz/
 | 前端託管 | GitHub Pages，repo `ndmc402010104/jonaminz`，branch `main`，網域 `www.jonaminz.com`（CNAME） |
 | 後端 | Cloudflare Worker `jonaminz-backend.ndmc402010104.workers.dev`，部署指令 `npx wrangler deploy`（在 `backend/cloudflare-worker/` 下） |
 | 資料庫 | Supabase Postgres，專案 `jonaminz-db`（ref `xhwrizmacantlubasixe`，AWS ap-southeast-1）。七張表：`external_app_registrations`、`theme_css_rules`、`contract_snapshots`、`contract_active_snapshots`、`contract_audit_log`、`sessions`、`oauth_states`（後兩張 2026-07-12 新增，第 9 項階段 A），皆開 RLS 無 public policy（只有 Worker 用 secret key 能碰）。**注意**：同一個 Supabase 組織下還有 `skhps-db`（另一專案，ref `ybixaibejrigqbrostnq`）——共用同一把 Management API token，操作前務必核對 project ref，不要碰錯專案 |
-| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`；`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`（內部密語登入，已設定）、`JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`（Google OAuth，已設定）。**`JONAMINZ_ADMIN_TOKEN` 已淘汰**（2026-07-12 起 Worker 不再讀取，可用 `wrangler secret delete` 自行清掉，未自動做）。全部存在 Cloudflare，不在 repo，Claude 不經手實際值 |
+| Worker secrets | `SUPABASE_URL`、`SUPABASE_SECRET_KEY`；`JONAMINZ_LOGIN_JONATHAN`／`JONAMINZ_LOGIN_MINZ`（內部密語登入，已設定）、`JONAMINZ_GOOGLE_CLIENT_ID`／`JONAMINZ_GOOGLE_CLIENT_SECRET`／`JONAMINZ_GOOGLE_EMAIL_JONATHAN`／`JONAMINZ_GOOGLE_EMAIL_MINZ`（Google OAuth，已設定）。**`JONAMINZ_ADMIN_TOKEN` 已於 2026-07-12 用 `wrangler secret delete` 移除**（`wrangler secret list` 確認不在清單內）。全部存在 Cloudflare，不在 repo，Claude 不經手實際值 |
 | Worker API | `POST /api/action`，action：`registerExternalApp` / `listExternalAppRegistrations` / `getThemeCssRules`（公開唯讀）/ `saveThemeCssRules`（**要求登入 session**）/ `submitContract`（Contract 收取，一律存 pending）/ `listPendingContracts`（公開唯讀）/ `approveContract` / `rejectContract`（**要求登入 session，操作人＝登入身分**，可互相改判）/ `getEffectiveSettings`（公開唯讀，S31 公式）/ `getSdkVersion`（公開唯讀，S37 版本指標）/ `loginWithInternalToken`／`getCurrentIdentity`／`logout`（第 9 項階段 A）。另有兩個非 `/api/action` 的 GET 路由：`/auth/google/start`／`/auth/google/callback`（Google OAuth）。三個要求登入的 action 共用 `requireSession(env, payload)` helper，`payload.token` 須是有效 session |
 | CORS | Worker 回 `Access-Control-Allow-Origin: *` |
 

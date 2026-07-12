@@ -26,15 +26,47 @@ pages/admin/assets/css/page-admin.css 的 .jonaminz-admin-* 置中卡片，
 }
 
 .jonaminz-login-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   width: 100%;
-  text-decoration: none;
   margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: #3c4043;
+  border: 1px solid var(--color-border);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.jonaminz-login-google-btn:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.jonaminz-login-google-btn svg {
+  flex: none;
 }
 
 .jonaminz-login-divider {
-  margin: var(--space-4) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-5) 0;
   opacity: 0.5;
   font-size: var(--text-xs);
+}
+
+.jonaminz-login-divider::before,
+.jonaminz-login-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
 }
 
 .jonaminz-login-form {
@@ -59,9 +91,43 @@ pages/admin/assets/css/page-admin.css 的 .jonaminz-admin-* 置中卡片，
   color: var(--color-text);
 }
 
+.jonaminz-login-form button[type="submit"] {
+  width: 100%;
+}
+
 .jonaminz-login-error {
   min-height: 1.2em;
   margin: var(--space-3) 0 0;
   color: crimson;
   font-size: var(--text-sm);
+}
+
+.jonaminz-login-identity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-6);
+  opacity: 0.8;
+}
+
+.jonaminz-identity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.jonaminz-identity-badge--jonathan {
+  background: var(--color-primary);
+}
+
+.jonaminz-identity-badge--minz {
+  background: var(--color-primary-2);
 }
