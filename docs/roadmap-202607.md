@@ -46,6 +46,16 @@ mode/group、header/footer 邊界、可用內容區）搬進 jonaminz，補上
 `config.json` 裡 `layout.rwd.groups` 現在有宣告但沒有 JS 真的在用的洞。
 一樣先套進 jonaminz 自己，skhpsv2 遷移待另外交辦。
 
+**順手要一併考慮的設計點（2026-07-12 使用者提出）**：手機用區網 IP
+（例如 `192.168.1.101:5500`）測本機開發時，Google OAuth 的
+`ALLOWED_OAUTH_RETURN_ORIGINS`／loopback 白名單機制不會放行（區網 IP
+跟 loopback 不是同一個安全等級，見 `AI_CONTEXT/CHANGELOG.md` 對應日期
+條目），使用者裁決先不處理、等這個 RWD/裝置辨識系統做出來後，考慮
+在登入頁「偵測到是手機裝置就自動導去內部密語登入、跳過 Google
+OAuth」——手機用戶反正也比較常用密語登入，這樣可以順帶繞開 LAN IP
+導頁的問題，不用真的放行區網 IP 白名單。這不是這個 RWD 量測層本身的
+需求，是它做出來之後可以順便解決的一個週邊問題，動手時記得考慮進去。
+
 ---
 
 ## 順序④：平台能力拉高層級——Runtime 診斷系統（重新設計）
