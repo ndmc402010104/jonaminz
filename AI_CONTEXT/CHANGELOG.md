@@ -20,6 +20,91 @@
 
 ---
 
+## 2026-07-13 — Movie 主題卡片真連結＋視覺架構圖書館模型盤點
+
+- **任務**：接手兩件事。(1) 使用者裁決新的視覺架構方向——jonaminz 是
+  圖書館，公開前台是圖書館本體（專業乾淨中性）、登入後是 Jonathan／
+  Minz 的管理員室（沿用亞麻米，溫暖私密）、每個外部專案是各自獨立的
+  一本書（不用跟前台或管理員室一致）。(2) 讓 `/pages/admin/design/`
+  的專案卡片「進入」從 disabled 假按鈕長出真連結，通用機制，
+  `jonaminz-movies` 作第一個正式驗收案例。明確指示先做可驗收小步驟、
+  不要一次重構整個 Theme 系統，本輪完成連結後只盤點 Theme 分流方案、
+  不動手實作。
+- **變更**：
+  - `AI_CONTEXT/DECISIONS.md` 新增 §四「視覺架構：圖書館模型」（第
+    18-21 條），逐條標明實作狀態——公開圖書館尚未實作專屬外觀、管理員室
+    沿用現行亞麻米但「只套用在管理員室」的分流尚未做、每本書機制已
+    上線且有真實案例。
+  - `backend/cloudflare-worker/worker.js`：`listPendingContracts` 的
+    `previousApproved` 新增 `origin` 欄位，來自
+    `integration-settings.json`（伺服器端登記資料），不是 Contract
+    自報或 snapshot 的 `submitted_origin`——後者實測同一專案不同筆會
+    不一致甚至是 `null`，不可信任。純加欄位，向後相容，`pages/admin/
+    contracts/` 等既有呼叫端只讀 `.rawContract`/`.snapshotId`，不受
+    影響。`node --check`＋`esbuild --bundle` 確認語法乾淨、無
+    eval/new Function，`wrangler deploy` 部署（使用者 AskUserQuestion
+    授權，Version ID `2d96d19e-1d51-4ac0-93cd-4b67c3b09758`）。
+  - `pages/admin/design/assets/js/app.js`：新增 `pickMainEntry()`（
+    entryId==="main" 優先，否則第一個有 url 的 entry，都沒有回傳
+    null）與 `resolveEntryHref()`（`new URL(entry.url, origin)`，
+    origin／url 任一缺漏或格式錯誤都回傳 null，不猜測），卡片渲染
+    改成有 href 就是真 `<a>`、沒有維持 `<button disabled>`（原生停用
+    語意，不用另外處理 `aria-disabled`）。`JONAMINZ_CORE_ENTRY`（
+    jonaminz 自己，非 Contract 登記者）明確給 `entries:[]`／
+    `origin:null`，不捏造連結。通用機制，沒有任何 `jonaminz-movies`
+    字串硬寫在邏輯裡。
+  - `pages/admin/design/assets/css/page-admin-design.css`：`<a>` 版按鈕
+    加 `hover`（`opacity`）／`focus-visible`（`outline`）樣式，
+    `<button disabled>` 版加 `cursor:not-allowed`＋降低 `opacity`
+    區隔視覺。
+  - `AI_CONTEXT/ARCHITECTURE.md`：順手修正兩處 2026-07-11 遺留的過期
+    敘述（approve/reject 保護機制已改用登入 session、不是
+    `JONAMINZ_ADMIN_TOKEN`；`capabilities` 已是真實交集、不是佔位
+    空陣列），這兩處在 2026-07-12 文件真實性盤點時被遺漏。
+  - `AI_CONTEXT/EXPERIMENTS.md` 新增 #10「Theme 架構盤點」：逐條回答
+    任務指示的 8 個問題（現況在哪些層被當全站預設、哪些 selector 同時
+    影響兩個空間、`unique(selector,property)` 為何是硬性阻礙、
+    `theme-runtime.js` 單一 cache key 為何會污染、最小可行分流方案、
+    哪些該共用哪些該分流、外部專案邊界如何維持不變），並提出 7 步
+    遷移順序——**只分析不實作**。
+  - `AI_CONTEXT/FACTS.md`／`CURRENT_STATE.md`：同步新增/修正對應事實
+    （新增 #34；更正 #32「後台三頁」為「後台四頁」，`admin-design`
+    2026-07-11 當時尚未存在）。
+- **狀態變化**：implementation plan 外新增的「Contract entries → 真
+  連結」機制完成並上線，是 `pages/admin/design/` 自 2026-07-13 上線
+  以來的第一個功能性升級。視覺架構圖書館模型方向拍板，但**三層分流
+  完全尚未實作**——目前仍是全站一套亞麻米，`jonathan`／`minz`／
+  `login` 三頁照新裁決屬於公開圖書館但視覺上跟管理員室無法區分，這是
+  本次盤點發現的具體落差，記錄在 `EXPERIMENTS.md` #10 第 2 點。
+- **遺留**：Theme 分流的 7 步遷移方案已提出、等使用者裁決要不要做、
+  何時做。公開圖書館的實際配色/字體方向也還沒選定（不是本次盤點範圍，
+  需要使用者另外決定）。
+- **版本**：`v0.21.0-202607131223`（Worker action 新增回傳欄位＋前端
+  新功能，minor bump 反映這是新能力不是單純修 bug，跟 identity
+  capability 當初 v0.10.0 bump 同樣的判斷標準）。
+
+---
+
+## 2026-07-13 — 圓相高級感修整：偏心手勢、墨色層次與留白主次
+
+- **任務**：接續使用者「方向正確但仍缺高級感」的回饋，在不推翻已確認毛筆骨架的前提下，消除素材庫圓環與 UI icon 感。
+- **變更**：將外／內輪廓改成輕微偏心、底部略扁的不對稱手勢；主墨由平面單色改成低彩度同色系微漸層，疊加只作用於墨體內的低對比紙纖維 grain，並把主墨 opacity 降至 `.82`。外緣 displacement 從 7 降到 3.4，保留毛邊但避免髒污；右側原本連續的幽靈弧線拆成三段短絲，飛白改為錯落短段與切線方向細紙紋，留白開始有主次。
+- **狀態變化**：800px 與 160px 重新渲染目視通過；縮至品牌小尺寸時仍先辨識到左重、底部拖筆、右側似閉未閉的毛束，而不是粗 C 圖示。
+- **遺留**：仍待使用者確認此輪高級感方向；確認後再與字標組合，不先接入正式頁面。
+- **版本**：`v0.20.11-202607131213`。
+
+---
+
+## 2026-07-13 — 圓相重構為真實不等寬毛筆墨體
+
+- **任務**：依使用者補充的清晰圓相裁圖及「不像毛筆、細節不足」回饋，重新處理 `jonaminz-enso-c.svg`，不再沿用等寬圓弧疊線。
+- **變更**：完整淘汰原本的同軌粗 stroke 骨架，改成一個手工描繪的不等寬封閉墨體；上薄、左厚、底部拖筆，右側保留似閉未閉的失墨區並以尖形輪廓收筆。新增 luminance mask 內的分段飛白與細碎紙紋，真實挖除 alpha；毛邊使用局部 turbulence/displacement，另保留乾刷、開口游絲與起收筆纖維為獨立 `pathLength=1` 路徑供後續動畫。未接入頁面、未使用點陣圖或外部資源。
+- **狀態變化**：已通過 XML、ID 唯一性、內部 href 解析與 512px／128px 透明背景渲染檢查；小尺寸仍能辨識左重右輕的圓相輪廓。
+- **遺留**：目前仍是獨立元件，須待使用者確認視覺後才與字標、竹枝、疊石組裝；逐筆動畫需 inline SVG。
+- **版本**：`v0.20.10-202607131210`。
+
+---
+
 ## 2026-07-13 — 首頁相片套用 RWD 判斷：小螢幕更貼邊、大螢幕滿版
 
 - **任務**：使用者要求首頁 `.hero-photo` 改用 `layout-metrics.js` 廣播的

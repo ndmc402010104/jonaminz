@@ -1,12 +1,31 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最新品牌元件：`assets/img/jonaminz-enso-c.svg` 是透明背景、animation-ready 的獨立書法 C／圓相；右側保留不對稱開口，以淡墨底層、主筆、左側與下緣加重、內外乾刷、斷續飛白及起收筆纖維共 10 個獨立 data-part 組成。所有真正畫線的 path 皆設 `pathLength="1"`，可依序做 stroke-dasharray/dashoffset 一筆畫動畫。未使用 filter、點陣圖或外部資源，未接入頁面。
+最新品牌元件：`assets/img/jonaminz-enso-c.svg` 是透明背景、animation-ready 的獨立書法 C／圓相。2026-07-13 依使用者提供的清晰裁圖與多輪目視回饋，已淘汰「多條等寬 Bézier 疊成工程線」的舊骨架，改用單一手工不等寬墨體：上方較薄、左側壓筆、底部拖筆、右側約 55 度失墨開口，兩端直接收成尖鋒。luminance mask 真正挖出順著運筆方向的飛白與短紙紋，外緣只用低幅度 turbulence/displacement 產生毛邊；乾刷、開口幽靈刷絲與起收筆尖鋒仍是獨立 `pathLength="1"` path，可分層動畫。高級感修正版另把正圓調成輕微偏心與底部略扁，主墨改為同色系三段微漸層加低對比紙纖維 grain，並拆短右側幽靈刷絲、降低整體墨層 opacity，避免塑膠感與 UI icon 感。透明背景、無點陣圖／script／外部資源，尚未接入頁面。
 
 最新品牌元件：`assets/img/jonaminz-bamboo-sprig.svg` 是透明背景、animation-ready 的獨立竹枝；主莖、6 段側枝、14 片披針形竹葉皆為獨立 data-part。每片葉的外層 motion group 無靜態 transform，實際定位放在內層，並提供 `data-anchor-x/y` 作旋轉支點；主莖與側枝主 path 有 `pathLength="1"`，可直接做畫線生長動畫。未內建動畫、未接入頁面。
 
 最新新增：`assets/img/jonaminz-stacked-stones.svg` 是 animation-ready 的獨立四層疊石元件；四顆石頭與 `ground-brush` 各自擁有穩定且帶元件前綴的 `<g id>`，紋理、高光與裂紋跟隨各自石頭群組，未內建動畫、未接入頁面。2026-07-13 依使用者回饋完成精細紋理版：粗長龜裂改為短礦脈、髮絲紋、低對比不規則礦物斑與較細 grain，主要細節為純向量 path，不依賴加重濾鏡。要從外頁 CSS/JS 控制內部群組時必須 inline SVG（一般 `<img>` 無法選取內部 ID）。
 
-最後更新：2026-07-13（**新增 `assets/img/jonaminz-wordmark.svg` 獨立文字標誌元件**：透明背景、緊密 viewBox、字標為純 path，不依賴外部字型；建議數位最小顯示寬度 160px，目前未接入頁面。另有 `assets/img/jonaminz-zen-logo.svg` 完整禪意構圖草案：依使用者提供的參考圖原創重繪，包含圓相、向量字標、竹枝與疊石；透明背景、無外部字型或點陣圖依賴，目前未接入任何頁面。**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節；第 9 項階段 A/B、前端品質重建計畫三階段皆已上線；文件真實性盤點完成。**⑦之後追加的視覺方向工作已全部完成並驗證**：Contract schema 新增 `app.visualIdentity` 自報欄位；jonaminz-movies 正式環境 Contract 帶 `visualIdentity`（酒紅 Editorial，snapshot #5 active）；`pages/admin/design/`（新頁面）讀真實已核准 Contract 展示各專案視覺方向；jonaminz 全站套用「亞麻米 Flax & Ink」（改 reservoir tokens，含修好一個關鍵 bug——Supabase Theme 系統裡有舊配色快照疊在 tokens 之上蓋掉新值，已刪除該快照 4 筆舊資料）；`pages/admin/contracts/` 改成按專案分組、摺疊歷史（含修好一個 `<details>` 展開狀態被 render() 重置的真實 bug）。全部經 Playwright 全站回歸驗證通過，細節見 `CHANGELOG.md` 同日「Platform Service 化的視覺方向」條目。**尚待 commit/push**（jonaminz 與 jonaminz-movies 兩邊）。使用者提出的「視覺方向應該存進 Theme 系統」長期方向已記錄在 `EXPERIMENTS.md` #9，未拍板不是現在做。**下一步是順序⑧手機 App 包裝**；順序⑤麵包屑維持延後不做）
+最後更新：2026-07-13（**接手任務：Movie 主題卡片真連結＋視覺架構圖書館模型盤點**——
+使用者裁決新的三層視覺架構（`DECISIONS.md` §四：公開圖書館／登入後
+管理員室／每一本書），亞麻米 Flax & Ink 重新界定成**管理員室專屬**，
+不再是全站唯一外觀（實際分流**尚未實作**，現況與最小遷移方案見
+`EXPERIMENTS.md` #10）。本輪唯一動手的功能：`/pages/admin/design/`
+的專案卡片「進入」從 disabled 假按鈕改成通用機制的真 `<a href>`——
+從生效中 Contract 的 `entries` 找入口、Worker 新增的 `origin` 欄位
+（來自 `integration-settings.json` 伺服器端登記資料，不信任 Contract
+自報或 snapshot 的 `submitted_origin`）解析成完整 URL，`jonaminz-movies`
+是第一個正式驗收案例（解析出 `https://ndmc402010104.github.io/
+jonaminz-movies/`，已對正式環境端到端驗證 HTTP 200）。`worker.js` 唯一
+改動是 `listPendingContracts` 多回傳一個欄位，向後相容，已
+`wrangler deploy`（Version ID `2d96d19e-1d51-4ac0-93cd-4b67c3b09758`）。
+順帶修正 `ARCHITECTURE.md` 兩處 2026-07-11 遺留的過期敘述（approve/reject
+保護機制、capabilities 佔位空陣列）。**Theme 系統／視覺分流大改本輪
+明確不做**，等使用者驗收本輪後裁決下一步。細節見 `CHANGELOG.md` 同日
+「Movie 主題卡片真連結＋圖書館模型盤點」條目。
+
+（以下為前一次更新內容，供歷史脈絡參考）
+**新增 `assets/img/jonaminz-wordmark.svg` 獨立文字標誌元件**：透明背景、緊密 viewBox、字標為純 path，不依賴外部字型；建議數位最小顯示寬度 160px，目前未接入頁面。另有 `assets/img/jonaminz-zen-logo.svg` 完整禪意構圖草案：依使用者提供的參考圖原創重繪，包含圓相、向量字標、竹枝與疊石；透明背景、無外部字型或點陣圖依賴，目前未接入任何頁面。**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節；第 9 項階段 A/B、前端品質重建計畫三階段皆已上線；文件真實性盤點完成。**⑦之後追加的視覺方向工作已全部完成並驗證**：Contract schema 新增 `app.visualIdentity` 自報欄位；jonaminz-movies 正式環境 Contract 帶 `visualIdentity`（酒紅 Editorial，snapshot #5 active）；`pages/admin/design/`（新頁面）讀真實已核准 Contract 展示各專案視覺方向；jonaminz 全站套用「亞麻米 Flax & Ink」（改 reservoir tokens，含修好一個關鍵 bug——Supabase Theme 系統裡有舊配色快照疊在 tokens 之上蓋掉新值，已刪除該快照 4 筆舊資料）；`pages/admin/contracts/` 改成按專案分組、摺疊歷史（含修好一個 `<details>` 展開狀態被 render() 重置的真實 bug）。全部經 Playwright 全站回歸驗證通過，細節見 `CHANGELOG.md` 同日「Platform Service 化的視覺方向」條目。使用者提出的「視覺方向應該存進 Theme 系統」長期方向已記錄在 `EXPERIMENTS.md` #9（2026-07-13 本輪已併入圖書館模型盤點，見上方），未拍板不是現在做。**下一步是順序⑧手機 App 包裝**；順序⑤麵包屑維持延後不做。⑧已於後續 session 完成，見 `CHANGELOG.md` 相關條目）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。

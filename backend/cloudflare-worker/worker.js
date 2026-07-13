@@ -13,6 +13,10 @@
 - listPendingContracts：核准後台讀取清單用，公開唯讀（跟
   listExternalAppRegistrations 同一個原則）。回傳最近 N 筆 snapshot，並附上
   每個 (project_id, environment) 目前 active 的版本供前端做 diff（S14）。
+  active 版本裡的 `origin` 欄位（implementation plan：Movie 主題卡片
+  真實連結）來自 integration-settings.json 的伺服器端登記資料，不是
+  snapshot 自己的 submitted_origin——後者是送出當下的自報值、同一專案
+  不同筆可能不一致或是 null，前端組外部連結不能信它。
 - approveContract / rejectContract：implementation plan 第 3 項的核准/否決。
   要求 payload.token 是一筆有效的 session（見 requireSession，跟
   saveThemeCssRules 同一套機制，取代了原本第 3 項寫的 Worker secret
@@ -582,15 +586,23 @@ async function listPendingContracts(env) {
   const activeRows = await activeResponse.json();
 
   // key = "<project_id>::<environment>" -> 目前 active 的那份合約內容，
-  // 讓前端可以把 pending 的內容跟這個做 diff（S14）。
+  // 讓前端可以把 pending 的內容跟這個做 diff（S14）。origin 額外從
+  // integration-settings.json（伺服器端登記資料）查出來一起附上——
+  // 前端組「進入」連結時需要一個可信任的 origin，不能拿 snapshot 自己的
+  // submitted_origin（那是送出當下的自報值，同一個專案不同筆可能不一致
+  // 甚至是 null，也不保證跟目前 active 的是同一筆），更不能讓 Contract
+  // 任意宣告的欄位當 origin 用。
   const activeByKey = {};
   activeRows.forEach(function (row) {
     const linked = row.contract_snapshots;
     if (!linked) return;
+    const projectSettings = integrationSettings.projects && integrationSettings.projects[row.project_id];
+    const envSettings = projectSettings && projectSettings.environments && projectSettings.environments[row.environment];
     activeByKey[row.project_id + "::" + row.environment] = {
       snapshotId: linked.id,
       canonicalHash: linked.canonical_hash,
-      rawContract: linked.raw_contract
+      rawContract: linked.raw_contract,
+      origin: (envSettings && envSettings.origin) || null
     };
   });
 

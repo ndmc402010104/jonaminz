@@ -15,10 +15,21 @@ title/description/visualIdentity——沒有 visualIdentity 的專案顯示
 
 jonaminz 自己不是 Contract 的登記者（它是平台本身，不用對自己送合約），
 JONAMINZ_CORE_ENTRY 是唯一寫死在這裡的一筆，形狀跟真實資料一致方便
-共用同一套渲染邏輯。
+共用同一套渲染邏輯。它沒有真實的 entries/origin 資料，所以「進入」
+永遠是 disabled 狀態——不為了畫面好看捏造連結。
 
 外部專案清單是背景資訊，不影響 loading gate：讀取失敗只顯示錯誤文字，
 不會擋住頁面本身的 all-ready（跟 pages/admin/ 的既有慣例一致）。
+
+2026-07-13 追加「進入」真連結：從 previousApproved.rawContract.entries
+找入口、previousApproved.origin（Worker 端從 integration-settings.json
+查出來的登記值，見 worker.js listPendingContracts 的說明）解析成完整
+URL。通用機制，不是只為 jonaminz-movies 寫的特例——任何專案只要
+Contract 有 entries 且平台有登記 origin，都會自動長出可點擊入口。
+entries 選擇順序：entryId==="main" 優先，沒有的話用第一個有 url 的
+合法 entry，兩者都沒有就維持不可進入（不是讓整張卡片消失）。origin
+不是前端猜的或 Contract 自己宣告的，是平台伺服器端登記資料，防止任何
+專案在 Contract 裡塞一個假 origin 就能讓自己的「進入」連去別的網域。
 */
 (function () {
   "use strict";
@@ -28,6 +39,8 @@ JONAMINZ_CORE_ENTRY 是唯一寫死在這裡的一筆，形狀跟真實資料一
   var JONAMINZ_CORE_ENTRY = {
     projectId: "jonaminz",
     isCore: true,
+    entries: [],
+    origin: null,
     app: {
       title: "Jonaminz",
       description: "平台本身選定的方向：燕麥色亞麻底＋沉墨藍，slab serif 標題帶手感，日常使用最舒服的一種。",
@@ -66,10 +79,46 @@ JONAMINZ_CORE_ENTRY 是唯一寫死在這裡的一筆，形狀跟真實資料一
       var active = row.previousApproved;
       if (!active || !active.rawContract || !active.rawContract.app) return;
 
-      projects.push({ projectId: row.projectId, isCore: false, app: active.rawContract.app });
+      projects.push({
+        projectId: row.projectId,
+        isCore: false,
+        app: active.rawContract.app,
+        entries: active.rawContract.entries || [],
+        origin: active.origin || null
+      });
     });
 
     return projects;
+  }
+
+  // entryId==="main" 優先；沒有的話用第一個有合法 url 的 entry；都沒有
+  // 就回傳 null（呼叫端維持不可進入狀態，不是讓卡片消失）。通用邏輯，
+  // 不因專案而異。
+  function pickMainEntry(entries) {
+    var list = Array.isArray(entries) ? entries : [];
+    var i;
+
+    for (i = 0; i < list.length; i += 1) {
+      if (list[i] && list[i].entryId === "main" && list[i].url) return list[i];
+    }
+    for (i = 0; i < list.length; i += 1) {
+      if (list[i] && list[i].url) return list[i];
+    }
+    return null;
+  }
+
+  // origin 只信 Worker 附帶的登記值（見 listPendingContracts 的
+  // previousApproved.origin），entry.url 可能只是相對路徑（例如
+  // "/jonaminz-movies/"）——用 URL() 建構子解析成完整網址，origin／url
+  // 任一邊缺漏或格式不合法都回傳 null，不要退回一個看起來合理但其實
+  // 沒被平台登記過的猜測值。
+  function resolveEntryHref(origin, entry) {
+    if (!origin || !entry || !entry.url) return null;
+    try {
+      return new URL(entry.url, origin).toString();
+    } catch (error) {
+      return null;
+    }
   }
 
   // 色塊背景是專案自己宣告的任意顏色，深淺不可預期，CSS 沒辦法寫死文字
@@ -108,6 +157,11 @@ JONAMINZ_CORE_ENTRY 是唯一寫死在這裡的一筆，形狀跟真實資料一
     var palette = vi.palette || NEUTRAL_PALETTE;
     var displayFont = (vi.typography && vi.typography.display) || NEUTRAL_FONT;
     var hasIdentity = !!vi.name;
+    var entry = pickMainEntry(project.entries);
+    var entryHref = resolveEntryHref(project.origin, entry);
+    var entryHtml = entryHref
+      ? '<a class="jonaminz-design-btn" href="' + escapeHtml(entryHref) + '">進入</a>'
+      : '<button class="jonaminz-design-btn" type="button" disabled>進入</button>';
 
     var cardStyle =
       "--vi-bg:" + (palette.background || NEUTRAL_PALETTE.background) + ";" +
@@ -127,7 +181,7 @@ JONAMINZ_CORE_ENTRY 是唯一寫死在這裡的一筆，形狀跟真實資料一
         '<div class="jonaminz-design-preview">' +
           '<h3 class="jonaminz-design-headline">' + escapeHtml(app.title || project.projectId) + '</h3>' +
           (app.description ? '<p class="jonaminz-design-body">' + escapeHtml(app.description) + '</p>' : "") +
-          '<button class="jonaminz-design-btn" type="button" disabled>進入</button>' +
+          entryHtml +
         '</div>' +
 
         (hasIdentity

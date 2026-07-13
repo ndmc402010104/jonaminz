@@ -84,6 +84,13 @@
   `identity.currentUser@1` 首個正式 service。
 - **唯一真實登記並跑過完整流程（submit→approve→撤回→再核准）的外部
   專案是 `jonaminz-movies`**（獨立 repo、GitHub Pages 部署）。
+- `/pages/admin/design/`（implementation plan 外、2026-07-13 新增）：
+  通用機制把「這個專案現在生效中的 Contract 有哪些 entries」轉成真的
+  可點擊入口（`<a href>`），不是只給 `jonaminz-movies` 寫的特例——任何
+  專案只要 Contract 有 `entries` 且平台 `integration-settings.json`
+  有登記 origin，都會自動長出連結；沒有的維持 disabled，不影響卡片
+  本身顯示。`listPendingContracts` 因此多回傳一個 `origin` 欄位（見
+  `FACTS.md` #34），這是本次唯一的 Worker 改動，向後相容。
 
 **尚未完成**：
 - `window.Jonaminz.*` 除了 `identity.currentUser@1` 以外，**沒有任何
@@ -114,4 +121,6 @@
 | 跨 App 身分 | iframe + postMessage 單向查詢（identity-relay） | 是否做完整 SSO |
 | 外部 App 接入 | Contract 推模式（新）＋ registry.json 拉模式（舊，並存） | v0 何時真正作廢 |
 | Auth domain | 沒有獨立網域，Worker 用 `*.workers.dev` | 是否搬 `auth.jonaminz.com`／`api.jonaminz.com` |
-| Chat/AI | 完全未實作 | 尚無時程 |
+| Chat/AI | 完全未實作 | 尚無時程（見 `DECISIONS.md` #3、#4） |
+| 視覺架構 | 全站一套「亞麻米 Flax & Ink」tokens，公開頁與登入後頁無分別；`theme_css_rules` 單一 `unique(selector,property)`，無 space 概念 | 圖書館模型（`DECISIONS.md` §四，2026-07-13）：公開圖書館／登入後管理員室／每本書三層視覺，亞麻米重新界定成管理員室專屬；最小遷移方案見 `EXPERIMENTS.md` #10，**尚未實作** |
+| Contract 卡片入口 | `/pages/admin/design/` 通用機制從生效中 Contract 的 `entries`＋平台登記 origin 長出真連結（2026-07-13） | 未變更方向 |
