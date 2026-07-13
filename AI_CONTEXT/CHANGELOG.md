@@ -20,6 +20,53 @@
 
 ---
 
+## 2026-07-13 — 首頁相片套用 RWD 判斷：小螢幕更貼邊、大螢幕滿版
+
+- **任務**：使用者要求首頁 `.hero-photo` 改用 `layout-metrics.js` 廣播的
+  RWD 判斷（不是另開一個 ad-hoc CSS 斷點），小螢幕維持現有相框感但要
+  更大、左右更貼螢幕邊緣；大螢幕改滿版全寬橫幅。這是 `layout-metrics.js`
+  自 2026-07-12 上線以來第一個真正的消費端（先前一直是「機制上線、
+  沒有頁面訂閱」狀態，見同日稍早那筆更正紀錄）。
+- **變更**：`assets/css/page-home.css` 新增兩條用
+  `html[data-jonaminz-rwd-group="small"|"large"]` attribute selector
+  驅動的 `.hero-photo` 覆寫規則，純 CSS、不用另外寫 JS 訂閱——
+  `entry-core.js` 的 shell chain 保證 `layout-metrics.js` 跑完
+  （含它同步呼叫的 `updateNow()`）才會 `markShellReady()`，loading gate
+  擋著內容不可見，所以屬性一定先於任何畫面可見前就位，不會有 FOUC。
+  small group：`width:100%`（填滿 `.hero` 可用寬度，貼齊 `.page` 的
+  padding 邊界，不是原本跟視窗寬度脫鉤的 `78vw`）。large group：用
+  `calc(100% + 64px)` 加 `margin-left/right: -32px` 抵銷 `.page` 固定的
+  32px 水平 padding，取代 `100vw` 寫法（避免捲軸寬度造成的水平溢出），
+  拿掉圓角/陰影。
+  **使用者實測回報「切到頭」，中間走過兩輪錯誤修法才找到根本解**：第一輪
+  用 `height:min(58vh,680px)`，矮胖視窗（筆電瀏覽器扣掉工具列後很常見
+  的寬高比）會把橫幅壓得比原圖（3:2）誇張很多；補 `min-height:360px`
+  安全下限＋把 `object-position` 從 `46%` 調到 `24%`，用 Playwright
+  模擬 1920×560 矮胖視窗重現問題並確認修好——但使用者在真實螢幕上仍
+  回報切到頭，代表實際視窗比模擬的更極端。第二輪把 `object-position`
+  再壓到 `12%`，結果在極端寬高比下變成「保頭就切到舉手的泡泡瞬間」，
+  vh 高度這個設計本身在夠矮胖的視窗下無論怎麼調 object-position 都會
+  在頭部／泡泡之間二選一。**根本解法**：改用固定 `aspect-ratio:3/1`
+  （+`max-height:720px` 只防超寬螢幕過高，不影響比例）取代
+  `height:min(vh,px)`，裁切比例完全不受視窗高度影響——跟這個檔案
+  2026-07-12 那次「小螢幕相框改固定 aspect-ratio，從根本解決 RWD 問題」
+  是同一個原則，只是這次才真的套用到 large group。`object-position`
+  最終定案 `30%`。
+- **狀態變化**：`layout-metrics.js` 從「機制上線但零消費端」變成有了
+  第一個真實消費者，驗證了 `data-jonaminz-rwd-group` 這個廣播管道本身
+  可用。
+- **遺留**：無。
+- **驗證**：Playwright 量測 1600×900（wide）/1024×800（desktop）/
+  768×1024（tablet）/375×812（phone-compact）四個一般斷點，皆左右貼齊
+  視窗邊緣或 `.page` padding 邊界、圓角陰影行為正確；另外用 1920×560、
+  1440×500 兩個矮胖視窗（用來重現使用者回報的問題）重測固定
+  aspect-ratio 版本，兩人頭部與舉手的泡泡瞬間同時完整在框內，高度確實
+  鎖定 3:1 比例（640px／480px，跟寬度成正比而非固定 vh）；全部案例截圖
+  皆目視確認構圖、無主控台錯誤。
+- **版本**：`v0.20.9-202607131159`。
+
+---
+
 ## 2026-07-13 — 更正：RWD 量測層的「手機自動導去內部密語登入」設計考量作廢
 
 - **任務**：使用者詢問「目前 jonaminz 是否有使用新製作的 RWD 工具進行
@@ -38,6 +85,22 @@
 - **版本**：無程式碼變更（純文件更新），`version.js` 不動。
 
 ---
+
+## 2026-07-13 — Animation-ready 書法 C／圓相元件
+
+- **任務**：接續拆分品牌圖形，繪製參考圖中包覆 J 的暖灰褐色書法 C，保留一筆刷過的粗細節奏、乾刷與飛白。
+- **變更**：新增 `assets/img/jonaminz-enso-c.svg`。以右側不對稱開口的單向弧線為骨架，分成淡墨 wash、主筆、左側/下緣加重、內外 bristle、兩層斷續 dry-brush 及起收筆纖維共 10 個完整前綴 data-part；所有 stroke path 皆有 pathLength=1。透明背景，不含 filter、點陣圖、script 或外部資源，也沒有接入 HTML/CSS。
+- **狀態變化**：512px 視覺渲染、開口比例、四周安全邊界與 XML 驗證通過；可依 data-order 分層畫出，亦可只動畫主筆後淡入乾刷細節。
+- **遺留**：最細飛白在 64px 以下可選擇隱藏；逐筆動畫需 inline SVG。若同頁 inline 同一元件多次，注入時仍應重寫每個實例內部 ID。
+- **版本**：`v0.20.8-202607131145`。
+
+## 2026-07-13 — Animation-ready 獨立竹枝元件
+
+- **任務**：接續拆分品牌圖形，繪製能與字標、疊石搭配的獨立竹枝，並預留風吹、逐葉擺動及生長動畫能力。
+- **變更**：新增 `assets/img/jonaminz-bamboo-sprig.svg`。以纖細彎曲主莖、6 段不對稱側枝與 14 片長披針形葉構成；主莖、各側枝及每片葉皆有獨立、完整前綴的 wrapper ID/data-part。葉片的美術 transform 放在內層，外層保留給動畫，另提供 data-anchor-x/y；主幹與側枝主 path 設 pathLength=1。沒有使用點陣圖、filter 或外部資源，也沒有內建動畫、接入 HTML/CSS。
+- **狀態變化**：480px 視覺渲染、XML、透明背景與冠部安全邊界檢查通過；竹葉維持約 4–5:1 長寬比，避免變成橄欖枝。可對葉片逐片 rotate/translate，也可用 stroke-dasharray/dashoffset 讓枝幹生長。
+- **遺留**：逐件動畫需要 inline SVG；一般 `<img>` 只能控制整張。若同頁 inline 同一元件多次，注入時仍應為每份實例改寫內部 ID。
+- **版本**：`v0.20.7-202607131138`。
 
 ## 2026-07-13 — 疊石紋理精細化
 

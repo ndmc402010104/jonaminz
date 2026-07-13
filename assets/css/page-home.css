@@ -111,6 +111,41 @@ body {
   object-position: center 46%;
 }
 
+/* 2026-07-13：套上 layout-metrics.js 廣播的 RWD 判斷（data-jonaminz-rwd-group，
+   entry-core.js shell chain 保證 shell ready 前就已經量測完，不會有 FOUC）。
+   小螢幕維持現有的相框感，只是加大到貼齊 .page 內距邊緣；大螢幕改滿版
+   全寬橫幅，跳出 .page 左右 padding（用固定 px 值抵銷，不用 100vw，避免
+   捲軸寬度造成的水平溢出）。 */
+html[data-jonaminz-rwd-group="small"] .hero-photo {
+  width: 100%;
+}
+
+html[data-jonaminz-rwd-group="large"] .hero-photo {
+  width: calc(100% + 64px);
+  margin-left: -32px;
+  margin-right: -32px;
+  /* 2026-07-13：原本用 height:min(58vh,680px) 隨視窗高度變化，矮胖視窗
+     （筆電瀏覽器扣掉工具列後很常見）會把橫幅壓得比原圖（3:2）誇張很多，
+     object-fit:cover 裁掉太多垂直範圍，實測會把頭切掉；就算加 min-height
+     安全下限硬撐，極端案例還是會在「保頭」跟「保手部泡泡」之間二選一。
+     改用固定 aspect-ratio，裁切比例完全不受視窗高度影響——跟這個檔案
+     稍早（見檔頭 2026-07-12 說明）小螢幕相框改固定 aspect-ratio 是同一個
+     根本解法，不用再為不同視窗形狀猜安全邊界。3:1 讓可視垂直範圍固定是
+     原圖的一半，頭部（約在原圖 25% 處）跟舉手的泡泡瞬間（約在 35-45%
+     處）同時留在框內。 */
+  aspect-ratio: 3 / 1;
+  max-height: 720px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-jonaminz-rwd-group="large"] .hero-photo img {
+  /* 滿版橫幅的寬高比跟原圖（3:2）差很多，蓋掉小螢幕相框版用的
+     46%（那個值是配 16:9 卡片調的，垂直裁切很輕微，46% 夠安全）。固定
+     3:1 之後可視範圍穩定在原圖中段偏上，30% 讓頭跟舉手泡泡都在框內。 */
+  object-position: center 30%;
+}
+
 .hero h1 {
   /* 首頁是獨立的簽名式深色設計，不跟隨 2026-07-13 起 03-base.css 給全站
      h1/h2/h3 套用的 --font-display（見該檔案說明）——這裡明確蓋回
