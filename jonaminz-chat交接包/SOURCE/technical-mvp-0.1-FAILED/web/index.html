@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jonaminz Chat Technical MVP 0.1</title>
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div>
+        <div class="eyebrow">Chat Technical MVP 0.1</div>
+        <h1 id="title">Jonathan</h1>
+        <p id="connection">尚未連線</p>
+      </div>
+      <div class="actions">
+        <button id="openPeer">開啟另一個身分</button>
+        <button id="reset">重設本機資料</button>
+      </div>
+    </header>
+
+    <section class="status-grid">
+      <article>
+        <strong id="onlineState">—</strong>
+        <span>對方狀態</span>
+      </article>
+      <article>
+        <strong id="unreadCount">0</strong>
+        <span>未讀</span>
+      </article>
+      <article>
+        <strong id="lastRead">—</strong>
+        <span>對方已讀</span>
+      </article>
+    </section>
+
+    <section class="chat">
+      <div class="typing" id="typing" hidden>對方輸入中…</div>
+      <div class="messages" id="messages"></div>
+
+      <form id="composer">
+        <input id="input" autocomplete="off" placeholder="輸入訊息">
+        <button type="submit">送出</button>
+      </form>
+    </section>
+
+    <section class="log">
+      <h2>事件紀錄</h2>
+      <pre id="events"></pre>
+    </section>
+  </main>
+
+  <script src="./config.example.js"></script>
+  <script src="./local-adapter.js"></script>
+  <script src="./worker-adapter.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

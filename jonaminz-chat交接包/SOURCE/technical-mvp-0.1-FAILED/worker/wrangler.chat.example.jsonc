@@ -1,0 +1,17 @@
+{
+  // 只示意新增段落；不要覆蓋現有 wrangler 設定。
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT_ROOMS",
+        "class_name": "ChatRoomHub"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "chat-room-hub-v1",
+      "new_sqlite_classes": ["ChatRoomHub"]
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+/*
+檔案位置：jonaminz/pages/chat/assets/css/page-chat.css
+用途：Jonaminz Chat polling MVP 的頁面樣式（Page Layer，疊在 reservoir
+六層之上）。訊息氣泡：自己是右靠＋主色，對方是左靠＋卡片色。
+*/
+
+.jonaminz-chat-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.jonaminz-chat-hero {
+  text-align: center;
+}
+
+.jonaminz-chat-title {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+}
+
+.jonaminz-chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.jonaminz-chat-empty {
+  margin: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.jonaminz-chat-bubble-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 78%;
+}
+
+.jonaminz-chat-bubble-row[data-mine="true"] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.jonaminz-chat-bubble-row[data-mine="false"] {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.jonaminz-chat-bubble {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jonaminz-chat-bubble-row[data-mine="true"] .jonaminz-chat-bubble {
+  background: var(--color-primary);
+  color: #fff;
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.jonaminz-chat-bubble-row[data-mine="false"] .jonaminz-chat-bubble {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.jonaminz-chat-meta {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.jonaminz-chat-composer {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.jonaminz-chat-composer textarea {
+  flex: 1;
+  resize: none;
+  min-height: 44px;
+  max-height: 140px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+}
+
+.jonaminz-chat-composer button {
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+
+.jonaminz-chat-composer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jonaminz-chat-status {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  min-height: 1.2em;
+}

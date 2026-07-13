@@ -116,6 +116,18 @@
     return call("logout", payload, options);
   }
 
+  function listChatMessages(payload, options) {
+    return call("listChatMessages", payload, options);
+  }
+
+  function sendChatMessage(payload, options) {
+    return call("sendChatMessage", payload, options);
+  }
+
+  function markChatRead(payload, options) {
+    return call("markChatRead", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -127,6 +139,9 @@
     getEffectiveSettings: getEffectiveSettings,
     loginWithInternalToken: loginWithInternalToken,
     getCurrentIdentity: getCurrentIdentity,
-    logout: logout
+    logout: logout,
+    listChatMessages: listChatMessages,
+    sendChatMessage: sendChatMessage,
+    markChatRead: markChatRead
   };
 })();

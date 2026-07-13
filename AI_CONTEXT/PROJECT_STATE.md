@@ -29,7 +29,7 @@ Declarative Pack Framework）模式，不是「`theme_css_rules` 加 space
 下一步排在使用者先選定「公開圖書館」視覺方向之後（圖書館模型三層
 視覺架構見 `DECISIONS.md` §四）。
 
-最新組合標誌：`assets/img/jonaminz-zen-logo.svg` 目前依使用者指示只保留「圓相＋Jonaminz 設計字標＋三股地面長筆觸」，竹枝與疊石仍未放回。圓相維持 nested box `x=51 y=41 width=365 height=390`；新設計字標改用原始稿等比配置 `x=177 y=128 width=918 height=246`、viewBox `0 0 765 205`，不再水平壓縮普通襯線字，J 的可見位置仍約落在 `x=190 / y=142–372` 並位於圓心。2026-07-13 已以 z 幾何中心 `(727.5,118.2485)` 將左上勾旋轉 180°，精確重建被竹葉覆蓋的右下勾；日後放回竹枝時應以圖層自然覆蓋完整字標，不可再從字形輪廓扣除遮擋區。組合檔使用 nested SVG 完整內嵌圓相與字標，可單檔匯出並保留內部 ID/data-part。尚未接入正式頁面。
+最新組合標誌：`assets/img/jonaminz-zen-logo.svg` 目前包含「圓相＋Jonaminz 設計字標＋乾擦地面筆觸＋四層疊石」，竹枝仍依使用者指示暫不放回。圓相維持 nested box `x=51 y=41 width=365 height=390`；字標維持 `x=177 y=128 width=918 height=246`、viewBox `0 0 765 205`，z 右下勾仍是左上勾以幾何中心 `(727.5,118.2485)` 旋轉 180°的點對稱結果。原本三條均勻 Bézier 地線已改為 `#c2af98` 不規則 compound fill：主墨帶含 5 個 evenodd 透明飛白孔，外加 6 股可獨立動畫的纖維 path，另保留 `ground-main-reveal`／`pathLength=1` mask 路徑供後續擦寫動畫。疊石已完整 inline nested SVG 於 `x=1048 y=261 width=155 height=155`，四顆石頭與自身 ground-brush 的 ID/data-part 均保留；圖層順序為地面筆觸→圓相→字標→疊石，主筆觸自然從石頭後方穿過。組合檔可單檔匯出，首頁透過 `/assets/img/jonaminz-zen-logo.svg` 使用此檔。
 
 最新設計字標：`assets/img/jonaminz-wordmark.svg` 已全面取代舊的一般粗襯線 path。新字標由使用者原始 1448×1086 品牌稿中，以 Rec.709 亮度 ≤185、RGB 色差 ≤13 的 neutral-dark mask 排除米色圓相與綠色竹枝，再移除小於 40px 的孤立元件；來源 ROI `x=200 y=205 width=765 height=205`、實際字標 bbox `(211,217)–(958,408)`。Potrace 採 threshold 128、turdSize 2、optTolerance 0.10、alphaMax 0.9，描成 765×205 純向量 compound path。保留 J 長尾、高對比髮絲、`a→m` 下方連筆與原始字距；由於來源稿的 z 右下端被竹葉遮擋，另以獨立 `jonaminz-wordmark-z-terminal` path 將左上勾按 `x'=1455-x`、`y'=236.497-y` 點對稱轉換到右下。透明背景、無外部字型／點陣圖／filter。
 
@@ -37,7 +37,7 @@ Declarative Pack Framework）模式，不是「`theme_css_rules` 加 space
 
 最新品牌元件：`assets/img/jonaminz-bamboo-sprig.svg` 是透明背景、animation-ready 的獨立竹枝；主莖、6 段側枝、14 片披針形竹葉皆為獨立 data-part。每片葉的外層 motion group 無靜態 transform，實際定位放在內層，並提供 `data-anchor-x/y` 作旋轉支點；主莖與側枝主 path 有 `pathLength="1"`，可直接做畫線生長動畫。未內建動畫、未接入頁面。
 
-最新新增：`assets/img/jonaminz-stacked-stones.svg` 是 animation-ready 的獨立四層疊石元件；四顆石頭與 `ground-brush` 各自擁有穩定且帶元件前綴的 `<g id>`，紋理、高光與裂紋跟隨各自石頭群組，未內建動畫、未接入頁面。2026-07-13 依使用者回饋完成精細紋理版：粗長龜裂改為短礦脈、髮絲紋、低對比不規則礦物斑與較細 grain，主要細節為純向量 path，不依賴加重濾鏡。要從外頁 CSS/JS 控制內部群組時必須 inline SVG（一般 `<img>` 無法選取內部 ID）。
+最新新增：`assets/img/jonaminz-stacked-stones.svg` 是 animation-ready 的獨立四層疊石元件；四顆石頭與 `ground-brush` 各自擁有穩定且帶元件前綴的 `<g id>`，紋理、高光與裂紋跟隨各自石頭群組，未內建動畫。2026-07-13 依使用者回饋完成精細紋理版：粗長龜裂改為短礦脈、髮絲紋、低對比不規則礦物斑與較細 grain，主要細節為純向量 path，不依賴加重濾鏡。元件現已完整 inline 到 `jonaminz-zen-logo.svg`，因此組合檔內仍可直接選取四顆石頭與地刷群組做動畫；獨立來源檔保持不變。
 
 最後更新：2026-07-13（**接手任務：Movie 主題卡片真連結＋視覺架構圖書館模型盤點**——
 使用者裁決新的三層視覺架構（`DECISIONS.md` §四：公開圖書館／登入後
@@ -1092,6 +1092,55 @@ jonaminz/
 - Roadmap Phase 1-5 見使用者記憶與 `docs/platform-integration-consensus.md`；
   目前處於 Phase 1 早期。
 
+### 4.1 Chat（2026-07-14 新增，demo 品質，不是完整功能）
+
+見 `jonaminz-chat交接包/`（獨立交接包，含完整規格與一次失敗的技術
+草案）。這次做的是交接包自己定義的「第一個真實里程碑」，不是完整 Chat
+System App：
+
+- 已完成：`pages/chat/`（要求登入）、Worker action
+  `listChatMessages`/`sendChatMessage`/`markChatRead`（都要求
+  `requireSession`）、`backend/supabase/chat_schema.sql`、Worker 已
+  `wrangler deploy`。
+- **`chat_schema.sql` 還沒有在正式 Supabase `jonaminz-db` 執行**——
+  這是唯一卡住「真的能傳訊息」的步驟，需要使用者手動到 Supabase SQL
+  Editor 貼上執行（Claude 沒有直接寫入 Postgres 的管道，這個專案的
+  schema 一律走這個流程，不是這次才有的限制）。跑完那份 SQL，
+  `pages/chat/` 應該就能真的雙向傳訊息。
+- 刻意用 polling（前端每 3 秒呼叫一次 `listChatMessages`）取代
+  WebSocket／Durable Object——交接包 `AGENT/WORK_PLAN.md` 自己建議先
+  用這個「方案 C」證明端到端能動，不是最終架構。
+- 沒做：typing indicator、reaction、reply、附件、Shared 收件匣、
+  Android Overlay——都在交接包的「不准做」清單裡，這次刻意不碰。
+- `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
+  `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
+  Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo
+  重新設計/實作，因為使用者當場已經明確授權「直接實做、不用問」。
+  如果之後要回頭做那份技術上失敗重現的診斷，交接包裡的步驟還在，
+  沒有被這次的做法取代或推翻。
+
+### 4.2 Travel（2026-07-14 新增，demo 品質，只做 Phase 1+2）
+
+見 `../jonaminz-travel/jonaminz-travel-handoff-v1.0/`（同層姐妹資料夾的
+交接包，含完整規格、REBUILD_PLAN.md、SALVAGE_MAP.md）。這次只做
+`REBUILD_PLAN.md` 定義的 Phase 1（Foundation）＋ Phase 2（第一條垂直
+流程）：
+
+- 已完成：`pages/travel/`（要求登入），全新重寫（沒有複製交接包
+  `REFERENCE_SOURCE/` 的 app.js），資料模型欄位沿用交接包
+  `AI_CONTEXT/DATA_MODEL.md`（Trip/Place/Day/Stop）。
+- 垂直流程「建立 Trip → 建立 Place → 建立 Day → Assign Place →
+  Move Stop → Unassign → Reload」已用 Playwright 端到端測過，包含
+  reload 後資料還在（F5 狀態正確，符合 Phase 1 驗收）、同一個 Place
+  指派後不會左右兩邊各出現一張（符合 READ_ME_FIRST.md 的「不可違反」
+  清單）。
+- 資料只存在單一裝置的瀏覽器 localStorage（`jonaminz.travel.v1`），
+  **完全沒有接 Supabase/Worker**——這是刻意的，`REBUILD_PLAN.md` 自己
+  把 Backend 排在 Phase 6，順序上本來就在後面，不是這次漏做。
+- 沒做：Book Projection（Phase 3）、Book Style（Phase 4）、Book
+  Studio（Phase 5）、Live Trip 旅途中模式（Phase 7）。這些是整個
+  Travel 願景裡最有份量的部分，這次完全沒碰，只做了地基。
+
 ## 5. 外部服務、API、部署方式
 
 | 項目 | 內容 |
@@ -1105,6 +1154,34 @@ jonaminz/
 
 **部署鏈注意**：前端改動＝git push 到 main 即上線（GitHub Pages）；Worker 改動＝
 必須另外 `wrangler deploy`，git push 不會部署 Worker。兩者是獨立動作。
+
+### 5.1 jonaminz-mobile-app（外部姊妹專案，不在這個 repo 裡）
+
+**2026-07-14 補記**：這個專案完全沒被記錄在任何 AI_CONTEXT 文件裡，導致
+換一個 session/agent 完全不知道它存在，使用者發現後要求務必補上，之後
+每次交班都要先看這一節。
+
+- 位置：跟這個 repo 同一層的姐妹資料夾 `../jonaminz-mobile-app`（也就是
+  `程式碼/jonaminz-mobile-app`，**不在** `jonaminz` repo 底下，**不是**
+  git repo，沒有版本控制）。
+- 本質：Capacitor 包的 Android 外殼 App，`capacitor.config.json` 設定
+  `server.url = "https://www.jonaminz.com"`，appId `com.jonaminz.app`，
+  等於是把正式站網頁包成原生 App（不是獨立前端專案，網頁內容全部還是
+  來自 `jonaminz` 這個 repo 部署出去的正式站）。
+- 已於 2026-07-13 早上建置完成，`android/app/build/outputs/apk/debug/
+  app-debug.apk` 已經是 build 好可以直接裝的 debug APK，不需要每次都
+  重新 `gradlew` 編譯（除非改了 `capacitor.config.json` 或原生層設定）。
+- 本機環境：Android SDK 裝在
+  `C:/Users/ndmc4/AppData/Local/Android/Sdk`（`adb.exe` 在其
+  `platform-tools/` 下，Git Bash 的 PATH 沒收錄，要打完整路徑或自己
+  export PATH）。
+- 裝到手機（無線偵錯，Android 11+）流程：手機「設定→開發人員選項→
+  無線偵錯」→「使用配對碼配對裝置」拿到 IP:Port(配對用)＋6位數碼→
+  `adb pair <ip>:<port> <code>`（配對碼跟這個 port 幾十秒就過期，要現拿
+  現用）→再用無線偵錯**主畫面**顯示的 IP:Port（跟配對用的 port 不同）
+  `adb connect <ip>:<port>`→`adb -s <ip>:<port> install -r
+  android/app/build/outputs/apk/debug/app-debug.apk`。2026-07-14 曾用
+  這個流程成功裝到使用者的 Samsung SM-F9660。
 
 ## 6. 版本與分支狀態（2026-07-12 掃描）
 

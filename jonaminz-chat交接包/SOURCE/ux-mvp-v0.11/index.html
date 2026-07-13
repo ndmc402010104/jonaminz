@@ -1,0 +1,2711 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="linen">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4efe6" />
+  <title>Jonaminz Chat + Shared MVP</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --surface: rgba(255,255,255,.76);
+      --surface-strong: #fffdf8;
+      --ink: #292822;
+      --muted: #746f65;
+      --line: rgba(56,48,38,.12);
+      --accent: #435b4b;
+      --accent-2: #9a6a4d;
+      --accent-soft: #e7eee8;
+      --danger: #a24a46;
+      --shadow: 0 20px 55px rgba(51, 42, 31, .16);
+      --radius: 22px;
+      --radius-sm: 14px;
+      --chat-w: min(430px, calc(100vw - 28px));
+      --safe-bottom: max(16px, env(safe-area-inset-bottom));
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html[data-theme="night"] {
+      --bg: #151817;
+      --surface: rgba(30,35,33,.82);
+      --surface-strong: #202522;
+      --ink: #f0eee8;
+      --muted: #aaa79f;
+      --line: rgba(255,255,255,.10);
+      --accent: #8caf98;
+      --accent-2: #d3a178;
+      --accent-soft: #24342c;
+      --danger: #e27f78;
+      --shadow: 0 24px 60px rgba(0,0,0,.45);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 32%),
+        radial-gradient(circle at 85% 8%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 28%),
+        var(--bg);
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 22px 0 120px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 12px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 10px 30px rgba(40,30,20,.08);
+    }
+
+    .brand { display:flex; align-items:center; gap:11px; min-width:0; }
+    .brand-mark {
+      width: 40px; height:40px; border-radius:50%;
+      display:grid; place-items:center;
+      border: 2px solid color-mix(in srgb, var(--accent) 80%, transparent);
+      color: var(--accent); font-weight:800;
+      position:relative;
+    }
+    .brand-mark::after {
+      content:"";
+      position:absolute; inset:7px -4px -2px 12px;
+      border-bottom:2px solid color-mix(in srgb, var(--accent-2) 70%, transparent);
+      transform:rotate(-12deg);
+    }
+    .brand h1 { margin:0; font-size:15px; letter-spacing:.04em; }
+    .brand p { margin:3px 0 0; font-size:12px; color:var(--muted); }
+
+    .topbar-actions { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .chip, .icon-btn, .soft-btn, .primary-btn {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 9px 12px;
+      transition: .18s ease;
+    }
+    .chip:hover, .icon-btn:hover, .soft-btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+    .primary-btn {
+      background: var(--accent);
+      color: white;
+      border-color: transparent;
+      font-weight: 700;
+    }
+    .primary-btn:hover { filter: brightness(1.06); transform:translateY(-1px); }
+    .icon-btn { width: 40px; height:40px; padding:0; display:grid; place-items:center; }
+    .identity-switch { display:flex; align-items:center; gap:6px; }
+    .identity-switch select {
+      color: var(--ink);
+      border:0; outline:none; background:transparent; font-weight:700;
+    }
+
+    .hero {
+      display:grid;
+      grid-template-columns: 1.35fr .65fr;
+      gap:20px;
+      padding: 72px 0 28px;
+      align-items:end;
+    }
+    .eyebrow { color:var(--accent); font-weight:800; letter-spacing:.14em; text-transform:uppercase; font-size:12px; }
+    .hero h2 {
+      font-size: clamp(42px, 7vw, 86px);
+      line-height:.98;
+      letter-spacing:-.055em;
+      margin:14px 0 18px;
+      max-width: 860px;
+    }
+    .hero p { color:var(--muted); font-size:18px; line-height:1.75; max-width:720px; }
+    .hero-card {
+      border:1px solid var(--line); border-radius:var(--radius);
+      background:var(--surface); padding:18px;
+      box-shadow: var(--shadow);
+    }
+    .hero-card strong { display:block; font-size:32px; margin-bottom:4px; }
+    .hero-card span { color:var(--muted); }
+
+    .section-head { display:flex; justify-content:space-between; align-items:end; gap:16px; margin: 48px 0 16px; }
+    .section-head h3 { margin:0; font-size:28px; letter-spacing:-.03em; }
+    .section-head p { margin:5px 0 0; color:var(--muted); }
+
+    .content-grid { display:grid; grid-template-columns: repeat(12, 1fr); gap:16px; }
+    .content-card {
+      grid-column: span 4;
+      min-height: 260px;
+      position:relative;
+      overflow:hidden;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      background:var(--surface-strong);
+      box-shadow: 0 14px 36px rgba(44,34,23,.08);
+      padding:18px;
+    }
+    .content-card.wide { grid-column:span 8; }
+    .content-card .visual {
+      height:150px; border-radius:16px;
+      display:flex; align-items:flex-end; padding:16px;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent) 78%, #fff), color-mix(in srgb, var(--accent-2) 68%, #fff));
+      color:white; font-size:24px; font-weight:800;
+      margin-bottom:15px;
+    }
+    .content-card h4 { margin:0 0 8px; font-size:20px; }
+    .content-card p { margin:0; color:var(--muted); line-height:1.65; }
+    .card-meta { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+    .tag { padding:6px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:800; }
+
+    .timeline {
+      display:grid; gap:14px;
+      margin-top: 16px;
+    }
+    .timeline-item {
+      border-left: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      padding: 4px 0 4px 18px;
+    }
+    .timeline-item small { color:var(--muted); }
+    .timeline-item h4 { margin:5px 0; }
+    .timeline-item p { margin:0; color:var(--muted); line-height:1.65; }
+
+    .chat-launcher {
+      position:fixed;
+      right:18px;
+      bottom:var(--safe-bottom);
+      z-index:80;
+      width:64px;
+      height:64px;
+      border-radius:50%;
+      border:3px solid color-mix(in srgb, var(--surface-strong) 92%, transparent);
+      color:white;
+      background:
+        radial-gradient(circle at 35% 25%, rgba(255,255,255,.28), transparent 25%),
+        linear-gradient(145deg, var(--accent-2), var(--accent));
+      box-shadow:
+        0 18px 36px rgba(26,44,34,.35),
+        0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+      display:grid;
+      place-items:center;
+      font-size:24px;
+      font-weight:900;
+      letter-spacing:-.03em;
+      transition:.2s ease;
+    }
+    .chat-launcher:hover { transform: translateY(-3px) scale(1.02); }
+    .chat-launcher.is-open {
+      transform:translateY(-1px);
+      box-shadow:
+        0 18px 36px rgba(26,44,34,.35),
+        0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+    .chat-launcher.is-open .badge { display:none; }
+    .chat-launcher .badge {
+      position:absolute; top:-3px; right:-1px;
+      min-width:22px; height:22px; padding:0 6px;
+      border-radius:999px; background:var(--danger); color:white;
+      font-size:11px; font-weight:900; display:grid; place-items:center;
+      border:2px solid var(--bg);
+    }
+
+    .chat-panel {
+      position:fixed;
+      right:14px;
+      bottom:calc(var(--safe-bottom) + 78px);
+      width:var(--chat-w);
+      height:min(730px, calc(100dvh - 110px));
+      z-index:79;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      border:1px solid var(--line);
+      border-radius:28px;
+      background:color-mix(in srgb, var(--surface-strong) 94%, transparent);
+      backdrop-filter: blur(22px);
+      box-shadow:var(--shadow);
+      transform-origin: bottom right;
+      transition: opacity .18s ease, transform .18s ease, height .22s ease, width .22s ease;
+    }
+    .chat-panel.size-half {
+      width:var(--chat-w);
+      height:min(730px, calc(100dvh - 110px));
+    }
+    .chat-panel.size-full {
+      width:min(760px, calc(100vw - 28px));
+      height:calc(100dvh - 44px);
+      bottom:22px;
+    }
+    .chat-panel[hidden] { display:flex; opacity:0; transform:scale(.93) translateY(10px); pointer-events:none; }
+
+    .chat-head {
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--line);
+      background:color-mix(in srgb, var(--surface) 88%, transparent);
+    }
+    .chat-title-row { display:flex; align-items:center; gap:10px; }
+    .avatar {
+      width:42px;
+      height:42px;
+      border-radius:50%;
+      display:grid;
+      place-items:center;
+      font-weight:900;
+      color:white;
+      background:
+        radial-gradient(circle at 32% 28%, rgba(255,255,255,.32), transparent 24%),
+        linear-gradient(145deg, var(--accent-2), var(--accent));
+      box-shadow:0 0 0 2px color-mix(in srgb, var(--surface-strong) 88%, transparent);
+      position:relative;
+      overflow:visible;
+    }
+    .avatar::after {
+      content:"";
+      position:absolute;
+      width:9px;
+      height:9px;
+      right:-1px;
+      bottom:1px;
+      border-radius:50%;
+      background:#35c66b;
+      border:2px solid var(--surface-strong);
+    }
+    .avatar.no-presence::after { display:none; }
+    .chat-title-row h3 {
+      margin:0;
+      font-size:18px;
+      letter-spacing:-.02em;
+    }
+    .chat-title-row p {
+      margin:3px 0 0;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .peer-status {
+      display:block;
+      margin:3px 0 0;
+      padding:0;
+      border:0;
+      background:transparent;
+      color:var(--muted);
+      font-size:12px;
+      text-align:left;
+    }
+    .peer-status.typing {
+      color:var(--accent);
+      font-weight:800;
+    }
+    .chat-title-row .head-actions { margin-left:auto; display:flex; gap:6px; }
+    .phone-icon-btn svg {
+      width:20px;
+      height:20px;
+      display:block;
+      fill:currentColor;
+    }
+    .panel-handle {
+      width:100%;
+      height:16px;
+      display:grid;
+      place-items:center;
+      border:0;
+      padding:0;
+      background:transparent;
+      color:var(--muted);
+    }
+    .panel-handle span {
+      display:block;
+      width:44px;
+      height:4px;
+      border-radius:999px;
+      background:color-mix(in srgb, var(--muted) 42%, transparent);
+      transition:width .16s ease, background .16s ease;
+    }
+    .panel-handle:hover span {
+      width:56px;
+      background:color-mix(in srgb, var(--accent) 58%, transparent);
+    }
+    .instance-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      margin-top:5px;
+      padding:4px 7px;
+      border-radius:999px;
+      background:var(--accent-soft);
+      color:var(--accent);
+      font-size:10px;
+      font-weight:900;
+      width:max-content;
+    }
+    .chat-title-row .icon-btn { width:34px; height:34px; }
+
+    .tabs { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:11px; }
+    .tab {
+      padding:9px 10px; border-radius:12px; border:1px solid transparent;
+      background:transparent; color:var(--muted); font-weight:800;
+    }
+    .tab.active { background:var(--accent-soft); color:var(--accent); border-color:color-mix(in srgb, var(--accent) 18%, transparent); }
+
+    .panel-body { min-height:0; flex:1; display:flex; flex-direction:column; }
+    .view { min-height:0; flex:1; display:none; }
+    .view.active { display:flex; flex-direction:column; }
+
+    .chat-summary {
+      margin:10px 12px 0;
+      padding:9px 11px;
+      border:1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+      border-radius:14px;
+      background:var(--accent-soft);
+      color:var(--accent);
+      font-size:12px;
+      font-weight:800;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .chat-summary button {
+      border:0;
+      background:transparent;
+      color:inherit;
+      font-weight:900;
+      padding:0;
+    }
+    .thread-banner {
+      display:none;
+      margin:0 0 8px;
+      padding:9px 11px;
+      border-radius:13px;
+      background:color-mix(in srgb, var(--accent-2) 12%, var(--surface-strong));
+      border:1px solid color-mix(in srgb, var(--accent-2) 24%, var(--line));
+      font-size:12px;
+      align-items:center;
+      gap:8px;
+    }
+    .thread-banner.active { display:flex; }
+    .thread-banner strong { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .thread-banner button { border:0; background:transparent; color:var(--muted); font-size:18px; }
+    .reply-label {
+      display:block;
+      font-size:10px;
+      font-weight:800;
+      opacity:.72;
+      margin-bottom:5px;
+    }
+    .messages {
+      min-height:0; flex:1; overflow:auto; padding:15px;
+      display:flex; flex-direction:column; gap:12px;
+      overscroll-behavior:contain;
+    }
+    .message {
+      display:flex;
+      gap:8px;
+      align-items:flex-end;
+      position:relative;
+    }
+    .message.mine { flex-direction:row-reverse; }
+    .message-avatar-slot {
+      width:28px;
+      flex:0 0 28px;
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+    }
+    .message-avatar {
+      width:27px;
+      height:27px;
+      border-radius:50%;
+      display:grid;
+      place-items:center;
+      font-size:11px;
+      font-weight:900;
+      color:white;
+      background:linear-gradient(145deg, var(--accent-2), var(--accent));
+      box-shadow:0 0 0 2px var(--surface-strong);
+    }
+    .message-avatar.placeholder { visibility:hidden; }
+    .bubble {
+      max-width:78%;
+      border:1px solid var(--line);
+      border-radius:20px 20px 20px 7px;
+      padding:10px 13px;
+      background:var(--surface);
+      line-height:1.5;
+      box-shadow:0 6px 16px rgba(40,30,20,.06);
+    }
+    .message.mine .bubble {
+      background:linear-gradient(145deg, var(--accent-2), var(--accent));
+      color:white;
+      border-color:transparent;
+      border-radius:20px 20px 7px 20px;
+    }
+    .read-receipt {
+      display:flex;
+      justify-content:flex-end;
+      padding-right:3px;
+      margin-top:-5px;
+    }
+    .read-receipt .message-avatar {
+      width:18px;
+      height:18px;
+      font-size:8px;
+      box-shadow:0 0 0 2px var(--surface-strong);
+    }
+    .time-divider {
+      text-align:center;
+      color:var(--muted);
+      font-size:11px;
+      margin:8px 0 2px;
+      letter-spacing:.02em;
+    }
+    .message-interaction-row {
+      display:flex;
+      align-items:center;
+      gap:5px;
+      max-width:calc(100% - 36px);
+      min-width:0;
+    }
+    .message-interaction-row.mine {
+      margin-left:auto;
+      flex-direction:row;
+    }
+    .message-content {
+      max-width:78%;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      min-width:0;
+    }
+    .message.mine .message-content { align-items:flex-end; }
+    .message-content .bubble,
+    .message-content .message-card {
+      width:auto;
+      max-width:100%;
+    }
+    .message-hover-actions {
+      display:flex;
+      gap:2px;
+      opacity:0;
+      pointer-events:none;
+      transition:.14s ease;
+    }
+    .message:hover .message-hover-actions,
+    .message:focus-within .message-hover-actions {
+      opacity:1;
+      pointer-events:auto;
+    }
+    .message-hover-actions button {
+      width:29px;
+      height:29px;
+      display:grid;
+      place-items:center;
+      padding:0;
+      border:0;
+      border-radius:50%;
+      background:transparent;
+      color:var(--muted);
+      font-size:15px;
+    }
+    .message-hover-actions button:hover {
+      background:var(--surface);
+      color:var(--ink);
+    }
+    @media (hover:none) {
+      .message-hover-actions { display:none; }
+    }
+    .reactable {
+      touch-action:pan-y;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .message-reactions {
+      display:flex;
+      gap:4px;
+      flex-wrap:wrap;
+      margin-top:-4px;
+      padding:0 5px;
+      z-index:2;
+    }
+    .message-reaction-chip {
+      min-width:27px;
+      height:22px;
+      padding:0 6px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:var(--surface-strong);
+      color:var(--ink);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:3px;
+      font-size:12px;
+      box-shadow:0 4px 10px rgba(0,0,0,.08);
+    }
+    .message-reaction-chip.mine {
+      border-color:color-mix(in srgb, var(--accent) 38%, var(--line));
+      background:var(--accent-soft);
+    }
+    .reaction-tray,
+    .message-menu {
+      position:fixed;
+      z-index:180;
+      border:1px solid var(--line);
+      background:var(--surface-strong);
+      box-shadow:var(--shadow);
+    }
+    .reaction-tray {
+      display:flex;
+      gap:5px;
+      padding:8px;
+      border-radius:999px;
+    }
+    .reaction-tray[hidden],
+    .message-menu[hidden] { display:none; }
+    .reaction-tray button {
+      width:40px;
+      height:40px;
+      border:0;
+      border-radius:50%;
+      background:transparent;
+      font-size:23px;
+      transition:.14s ease;
+    }
+    .reaction-tray button:hover,
+    .reaction-tray button.active {
+      transform:translateY(-4px) scale(1.12);
+      background:var(--accent-soft);
+    }
+    .message-menu {
+      width:170px;
+      display:grid;
+      gap:3px;
+      padding:7px;
+      border-radius:14px;
+    }
+    .message-menu button {
+      border:0;
+      border-radius:10px;
+      padding:9px 10px;
+      text-align:left;
+      background:transparent;
+      color:var(--ink);
+      font-size:11px;
+    }
+    .message-menu button:hover { background:var(--accent-soft); }
+    .unread-divider {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--danger);
+      font-size:10px;
+      font-weight:900;
+      margin:8px 0;
+    }
+    .unread-divider::before,
+    .unread-divider::after {
+      content:"";
+      height:1px;
+      flex:1;
+      background:color-mix(in srgb, var(--danger) 32%, transparent);
+    }
+    .typing-indicator {
+      display:flex;
+      gap:8px;
+      align-items:flex-end;
+    }
+    .typing-dots {
+      display:flex;
+      gap:4px;
+      padding:10px 13px;
+      border-radius:18px 18px 18px 7px;
+      background:var(--surface);
+    }
+    .typing-dots span {
+      width:6px;
+      height:6px;
+      border-radius:50%;
+      background:var(--muted);
+      animation:typing-bounce 1.1s infinite ease-in-out;
+    }
+    .typing-dots span:nth-child(2){animation-delay:.14s}
+    .typing-dots span:nth-child(3){animation-delay:.28s}
+    @keyframes typing-bounce {
+      0%,60%,100%{transform:translateY(0);opacity:.45}
+      30%{transform:translateY(-4px);opacity:1}
+    }
+    .bubble small { display:block; opacity:.68; font-size:10px; margin-top:5px; }
+    .message-card {
+      width:min(310px, 78%);
+      border:1px solid var(--line);
+      border-radius:20px;
+      overflow:hidden;
+      background:var(--surface-strong);
+      box-shadow:0 8px 22px rgba(0,0,0,.08);
+    }
+    .message.mine .message-card { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
+    .message-card img { width:100%; height:128px; object-fit:cover; display:block; }
+    .message-card .card-body { padding:11px; }
+    .message-card h4 { margin:0 0 5px; font-size:14px; }
+    .message-card p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+    .message.mine .message-card p { color:var(--muted); }
+
+    .composer {
+      border-top:1px solid var(--line);
+      padding:10px;
+      background:color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter:blur(16px);
+    }
+    .composer-thread-banner {
+      position:relative;
+      width:100%;
+      box-shadow:0 4px 14px rgba(40,30,20,.06);
+    }
+    .tool-row { display:none; }
+    .compose-row { display:flex; gap:8px; align-items:flex-end; position:relative; }
+    .plus-btn {
+      width:42px; height:42px; flex:0 0 42px;
+      border:1px solid var(--line); border-radius:14px;
+      background:var(--surface-strong); color:var(--ink);
+      font-size:23px; line-height:1;
+    }
+    .compose-menu {
+      position:absolute;
+      left:0;
+      bottom:52px;
+      width:min(290px, calc(100vw - 54px));
+      display:grid;
+      gap:6px;
+      padding:9px;
+      border:1px solid var(--line);
+      border-radius:17px;
+      background:var(--surface-strong);
+      box-shadow:var(--shadow);
+      z-index:15;
+    }
+    .compose-menu[hidden] { display:none; }
+    .compose-menu button {
+      display:flex;
+      align-items:center;
+      gap:9px;
+      width:100%;
+      text-align:left;
+      border:0;
+      border-radius:12px;
+      padding:10px;
+      background:transparent;
+      color:var(--ink);
+    }
+    .compose-menu button:hover { background:var(--accent-soft); }
+    .compose-menu .menu-primary {
+      background:var(--accent-soft);
+      color:var(--accent);
+      font-weight:900;
+    }
+    .input-shell {
+      position:relative;
+      flex:1;
+      min-width:0;
+    }
+    .input-shell textarea {
+      width:100%;
+      resize:none;
+      min-height:42px;
+      max-height:100px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:10px 42px 10px 12px;
+      background:var(--surface-strong);
+      color:var(--ink);
+      outline:none;
+    }
+    .input-shell textarea:focus {
+      border-color:color-mix(in srgb, var(--accent) 55%, var(--line));
+    }
+    .emoji-toggle,
+    .composer-action {
+      width:42px;
+      height:42px;
+      flex:0 0 42px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:var(--surface-strong);
+      color:var(--ink);
+      font-size:20px;
+      display:grid;
+      place-items:center;
+      transition:.16s ease;
+    }
+    .emoji-toggle {
+      position:absolute;
+      right:3px;
+      bottom:0;
+      width:38px;
+      height:38px;
+      border:0;
+      background:transparent;
+      color:var(--muted);
+    }
+    .composer-action {
+      border-color:transparent;
+      background:var(--accent);
+      color:white;
+      font-size:19px;
+      font-weight:900;
+    }
+    .composer-action.send-mode {
+      background:linear-gradient(145deg, var(--accent-2), var(--accent));
+    }
+    .emoji-toggle:hover,
+    .composer-action:hover { transform:translateY(-1px); }
+    .emoji-panel,
+    .sticker-panel {
+      position:absolute;
+      bottom:52px;
+      width:230px;
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:7px;
+      padding:10px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:var(--surface-strong);
+      box-shadow:var(--shadow);
+      z-index:16;
+    }
+    .emoji-panel {
+      right:0;
+    }
+    .sticker-panel {
+      left:50px;
+    }
+    .emoji-panel[hidden],
+    .sticker-panel[hidden] { display:none; }
+    .emoji-panel-hint {
+      grid-column:1 / -1;
+      color:var(--muted);
+      font-size:10px;
+      padding:1px 3px 4px;
+    }
+    .emoji-panel button,
+    .sticker-panel button {
+      height:44px;
+      border:0;
+      border-radius:12px;
+      background:var(--surface);
+      font-size:24px;
+    }
+    .emoji-panel button:hover,
+    .sticker-panel button:hover { background:var(--accent-soft); }
+
+    .shared-toolbar {
+      padding:12px; border-bottom:1px solid var(--line);
+      display:grid; gap:9px;
+      background:color-mix(in srgb, var(--surface) 90%, transparent);
+    }
+    .shared-stats {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:7px;
+    }
+    .shared-stat {
+      min-width:0;
+      padding:8px 9px;
+      border-radius:12px;
+      background:var(--surface-strong);
+      color:var(--ink);
+      border:1px solid var(--line);
+      text-align:left;
+      transition:.16s ease;
+    }
+    .shared-stat:hover { transform:translateY(-1px); }
+    .shared-stat.active {
+      background:var(--accent-soft);
+      border-color:color-mix(in srgb, var(--accent) 32%, var(--line));
+      color:var(--accent);
+      box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+    }
+    .shared-stat strong { display:block; font-size:16px; }
+    .shared-stat span { display:block; color:var(--muted); font-size:10px; margin-top:2px; }
+    .shared-stat.active span { color:inherit; opacity:.78; }
+    .shared-toolbar .row { display:flex; gap:8px; }
+    .shared-toolbar input {
+      min-width:0; flex:1; border:1px solid var(--line); border-radius:13px;
+      padding:10px 11px; background:var(--surface-strong); color:var(--ink); outline:none;
+    }
+    .shared-list {
+      min-height:0;
+      flex:1;
+      overflow:auto;
+      padding:12px;
+      display:grid;
+      gap:11px;
+      align-content:start;
+      grid-auto-rows:max-content;
+      overscroll-behavior:contain;
+    }
+    .shared-card {
+      position:relative;
+      display:grid;
+      grid-template-columns:108px minmax(0,1fr);
+      min-height:126px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      overflow:visible;
+      background:var(--surface-strong);
+      box-shadow:0 7px 20px rgba(40,30,20,.06);
+      cursor:pointer;
+      transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    }
+    .shared-card:hover {
+      transform:translateY(-1px);
+      border-color:color-mix(in srgb, var(--accent) 26%, var(--line));
+      box-shadow:0 10px 24px rgba(40,30,20,.09);
+    }
+    .unseen-dot {
+      position:absolute;
+      right:10px;
+      top:10px;
+      z-index:12;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#d94a45;
+      box-shadow:0 0 0 3px color-mix(in srgb, #d94a45 18%, transparent);
+    }
+    .unseen-dot[hidden] { display:none; }
+    .shared-preview {
+      position:relative;
+      min-height:126px;
+      padding:12px 10px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      color:white;
+      border-radius:17px 0 0 17px;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 72% 22%, rgba(255,255,255,.26), transparent 21%),
+        linear-gradient(145deg, color-mix(in srgb, var(--accent-2) 82%, #2f1c13), color-mix(in srgb, var(--accent) 86%, #111));
+    }
+    .shared-source-icon {
+      width:38px;
+      height:38px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:rgba(0,0,0,.25);
+      backdrop-filter:blur(8px);
+      font-size:18px;
+    }
+    .source-pill {
+      width:max-content;
+      max-width:100%;
+      padding:4px 7px;
+      border-radius:999px;
+      background:rgba(255,255,255,.18);
+      color:white;
+      font-size:9px;
+      font-weight:800;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .preview-domain {
+      font-size:10px;
+      font-weight:900;
+      opacity:.86;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .shared-main {
+      min-width:0;
+      padding:11px 12px 9px;
+      display:flex;
+      flex-direction:column;
+    }
+    .shared-kicker {
+      display:flex;
+      gap:5px;
+      align-items:center;
+      color:var(--muted);
+      font-size:10px;
+      padding-right:14px;
+    }
+    .shared-main h4 {
+      margin:6px 0 4px;
+      font-size:15px;
+      line-height:1.3;
+      letter-spacing:-.015em;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+    .shared-main p {
+      margin:0;
+      color:var(--muted);
+      font-size:11px;
+      line-height:1.45;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+    .shared-meta-line {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:7px;
+      min-height:20px;
+    }
+    .seen-compact {
+      display:inline-flex;
+      gap:4px;
+      align-items:center;
+      color:var(--muted);
+      font-size:9px;
+    }
+    .destination-summary {
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      min-width:0;
+      max-width:145px;
+      padding:4px 7px;
+      border-radius:999px;
+      background:var(--accent-soft);
+      color:var(--accent);
+      font-size:9px;
+      font-weight:800;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .duplicate-note {
+      color:var(--accent-2);
+      font-size:9px;
+      font-weight:900;
+    }
+    .shared-card-footer {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:auto;
+      padding-top:8px;
+    }
+    .shared-card-footer button {
+      height:29px;
+      padding:0 9px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:var(--surface);
+      color:var(--ink);
+      font-size:10px;
+      font-weight:800;
+    }
+    .shared-card-footer .send-to-btn {
+      color:var(--accent);
+      background:var(--accent-soft);
+      border-color:color-mix(in srgb, var(--accent) 20%, var(--line));
+    }
+    .shared-card-footer .more-btn {
+      width:31px;
+      padding:0;
+      margin-left:auto;
+      font-size:15px;
+    }
+    .card-menu {
+      position:absolute;
+      right:8px;
+      top:calc(100% - 8px);
+      z-index:20;
+      width:180px;
+      padding:7px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:var(--surface-strong);
+      box-shadow:var(--shadow);
+    }
+    .card-menu[hidden] { display:none; }
+    .card-menu button {
+      width:100%;
+      border:0;
+      border-radius:10px;
+      padding:9px 10px;
+      text-align:left;
+      background:transparent;
+      color:var(--ink);
+      font-size:11px;
+    }
+    .card-menu button:hover { background:var(--accent-soft); }
+
+    #destinationSearch {
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:13px;
+      padding:10px 11px;
+      background:var(--surface);
+      color:var(--ink);
+      outline:none;
+      margin-top:12px;
+    }
+    .destination-options {
+      display:grid;
+      gap:8px;
+      margin:10px 0 14px;
+      max-height:300px;
+      overflow:auto;
+    }
+    .destination-option {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      width:100%;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:15px;
+      background:var(--surface);
+      color:var(--ink);
+      text-align:left;
+    }
+    .destination-option.active {
+      background:var(--accent-soft);
+      color:var(--accent);
+      border-color:color-mix(in srgb, var(--accent) 30%, var(--line));
+    }
+    .destination-option strong { display:block; }
+    .destination-option span { margin-left:auto; font-weight:900; }
+
+    .modal {
+      position:fixed; inset:0; z-index:120;
+      display:grid; place-items:center;
+      background:rgba(10,12,11,.45); backdrop-filter:blur(8px);
+      padding:18px;
+    }
+    .modal[hidden] { display:none; }
+    .modal-card {
+      width:min(520px, 100%);
+      border:1px solid var(--line); border-radius:24px;
+      background:var(--surface-strong); color:var(--ink);
+      box-shadow:var(--shadow); padding:18px;
+    }
+    .modal-card h3 { margin:0 0 8px; }
+    .modal-card p { color:var(--muted); line-height:1.6; }
+    .provider-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+    .provider {
+      border:1px solid var(--line); border-radius:16px; padding:14px;
+      background:var(--surface); text-align:left;
+    }
+    .provider.primary { outline:2px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+    .provider strong { display:block; }
+    .provider span { color:var(--muted); font-size:12px; }
+    .modal-actions { display:flex; justify-content:flex-end; gap:8px; }
+    .call-person {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:14px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:var(--surface);
+      margin:14px 0;
+    }
+    .call-person .avatar { width:48px; height:48px; }
+    .call-person strong { display:block; }
+    .call-person span { display:block; color:var(--muted); font-size:12px; margin-top:3px; }
+    .call-status {
+      min-height:22px;
+      color:var(--accent);
+      font-weight:800;
+      margin:8px 0 0;
+    }
+    .shared-detail-cover {
+      min-height:180px;
+      border-radius:18px;
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+      color:white;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--accent-2) 85%, #2f1c13), color-mix(in srgb, var(--accent) 84%, #111));
+      margin:14px 0;
+    }
+    .shared-detail-cover small {
+      opacity:.76;
+      font-weight:800;
+      margin-bottom:6px;
+    }
+    .shared-detail-cover strong {
+      font-size:24px;
+      line-height:1.25;
+    }
+    .shared-detail-note {
+      padding:12px 14px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:var(--surface);
+      color:var(--muted);
+      line-height:1.65;
+      word-break:break-word;
+    }
+    .shared-detail-meta {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin:12px 0;
+    }
+    .shared-detail-meta div {
+      padding:10px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:var(--surface);
+    }
+    .shared-detail-meta strong {
+      display:block;
+      font-size:12px;
+      margin-bottom:3px;
+    }
+    .shared-detail-meta span {
+      color:var(--muted);
+      font-size:11px;
+    }
+    .danger-btn {
+      border:0;
+      border-radius:999px;
+      padding:10px 14px;
+      background:var(--danger);
+      color:white;
+      font-weight:800;
+    }
+
+    .toast {
+      position:fixed; left:50%; bottom:24px; transform:translate(-50%, 18px);
+      z-index:200; padding:10px 14px; border-radius:999px;
+      background:#171a18; color:white; opacity:0; pointer-events:none;
+      transition:.2s ease; font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,.25);
+    }
+    .toast.show { opacity:1; transform:translate(-50%, 0); }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns:1fr; padding-top:48px; }
+      .content-card, .content-card.wide { grid-column:span 6; }
+      .topbar { align-items:flex-start; }
+      .brand p { display:none; }
+    }
+    @media (max-width: 600px) {
+      .shell { width:min(100% - 20px, 1180px); padding-top:10px; }
+      .topbar { top:8px; border-radius:17px; }
+      .topbar-actions .chip { display:none; }
+      .hero h2 { font-size:48px; }
+      .hero p { font-size:16px; }
+      .content-card, .content-card.wide { grid-column:1 / -1; }
+      .chat-panel {
+        right:8px;
+        bottom:calc(var(--safe-bottom) + 72px);
+        width:calc(100vw - 16px);
+        border-radius:24px;
+      }
+      .chat-panel.size-half {
+        height:min(76dvh, 720px);
+      }
+      .chat-panel.size-full {
+        right:0;
+        bottom:0;
+        width:100vw;
+        height:100dvh;
+        border-radius:0;
+        border:0;
+      }
+      .chat-panel.size-full .chat-head {
+        padding-top:max(14px, env(safe-area-inset-top));
+      }
+      .chat-panel.size-full .messages {
+        padding:16px 12px 20px;
+      }
+      .chat-panel.size-full .chat-summary {
+        margin-left:10px;
+        margin-right:10px;
+      }
+      .chat-panel.size-full .composer {
+        padding-bottom:max(10px, env(safe-area-inset-bottom));
+      }
+      .chat-panel.size-full .tabs {
+        margin-top:9px;
+      }
+      .chat-panel.size-full {
+        --surface:rgba(36,36,38,.96);
+        --surface-strong:#111214;
+        --ink:#f4f4f4;
+        --muted:#a9a9ae;
+        --line:rgba(255,255,255,.08);
+        --accent:#7d5ce0;
+        --accent-2:#d64f8f;
+        --accent-soft:rgba(125,92,224,.18);
+        background:#000;
+      }
+      .chat-panel.size-full .chat-head,
+      .chat-panel.size-full .composer {
+        background:#000;
+      }
+      .chat-panel.size-full .messages {
+        background:#000;
+      }
+      .chat-launcher { width:58px; height:58px; right:12px; }
+      .provider-grid { grid-template-columns:1fr; }
+      .shared-list {
+        padding:10px;
+        gap:10px;
+      }
+      .shared-stats { grid-template-columns:repeat(2,1fr); }
+      .shared-card { grid-template-columns:96px minmax(0,1fr); min-height:122px; }
+      .shared-preview { min-height:122px; padding:10px 9px; }
+      .shared-main { padding:10px; }
+      .shared-main h4 { font-size:14px; }
+      .destination-summary { max-width:115px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell" id="pageRoot">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">J</div>
+        <div>
+          <h1>Jonaminz</h1>
+          <p>Chat Core × Shared Project MVP v0.11</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="chip identity-switch">
+          <span>目前身分</span>
+          <select id="identitySelect" aria-label="切換測試身分">
+            <option value="jonathan">Jonathan</option>
+            <option value="minz">Minz</option>
+          </select>
+        </div>
+        <button class="icon-btn" id="themeToggle" title="切換主題">◐</button>
+        <button class="soft-btn" id="resetDemo">重設 Demo</button>
+      </div>
+    </header>
+
+    <section class="hero" data-context-title="Jonaminz 首頁">
+      <div>
+        <div class="eyebrow">Digital home / living context</div>
+        <h2>聊天不必把你<br>從內容裡拉走。</h2>
+        <p>這是一個完全獨立、零後端的互動 MVP。右下角聊天是 Core；分享整理是 Shared 外部專案。你可以邊滑內容、邊聊、直接分享目前頁面，或建立一張「當下畫面」卡片。</p>
+      </div>
+      <aside class="hero-card">
+        <strong id="heroUnseen">4</strong>
+        <span>筆內容尚未兩人都看到</span>
+      </aside>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <h3>你正在瀏覽的內容</h3>
+          <p>用來模擬 Movie、Travel 與 Jonaminz 其他頁面。</p>
+        </div>
+      </div>
+
+      <div class="content-grid">
+        <article class="content-card wide" data-context-title="Movie：Perfect Days">
+          <div class="visual">Perfect Days</div>
+          <h4>把電影留在電影裡，把對話帶在身邊。</h4>
+          <p>正式版本會由 Movie repo 註冊目前內容；Chat Core 只接收 context reference，不需要理解電影資料結構。</p>
+          <div class="card-meta"><span class="tag">Movie</span><span class="tag">目前頁面可分享</span></div>
+        </article>
+        <article class="content-card" data-context-title="Travel：大阪 2026">
+          <div class="visual">Osaka 2026</div>
+          <h4>旅行中的即時討論</h4>
+          <p>可以傳送目前景點、行程卡或畫面，不必離開 Travel。</p>
+          <div class="card-meta"><span class="tag">Travel</span></div>
+        </article>
+        <article class="content-card" data-context-title="Shared：京都甜點店">
+          <div class="visual">Kyoto sweets</div>
+          <h4>分享內容會進 Shared</h4>
+          <p>URL 去重、雙方是否看到、搜尋與送往其他專案，都留在 Shared。</p>
+          <div class="card-meta"><span class="tag">Shared</span><span class="tag">URL dedupe</span></div>
+        </article>
+        <article class="content-card wide" data-context-title="Files：OneDrive 文件">
+          <div class="visual">OneDrive first</div>
+          <h4>檔案本體放 OneDrive，Supabase 只記索引。</h4>
+          <p>聊天中的 PDF、Office 文件與圖片可引用 OneDrive item。MVP 只展示選擇器流程，不會真的登入 Microsoft。</p>
+          <div class="card-meta"><span class="tag">File Core</span><span class="tag">Provider adapter</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section data-context-title="Jonaminz Core 架構摘要">
+      <div class="section-head">
+        <div>
+          <h3>這個 MVP 想驗證的不是配色</h3>
+          <p>而是 Core 與外部專案的界線是否自然。</p>
+        </div>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item"><small>Core</small><h4>Chat Service / Chat Shell / Chat SDK</h4><p>即時訊息、未讀、回覆、表情、圖片、貼圖、跨頁浮動視窗。</p></div>
+        <div class="timeline-item"><small>System App</small><h4>完整聊天中心</h4><p>歷史、搜尋、附件、貼圖與對話設定，使用同一套 Chat Service。</p></div>
+        <div class="timeline-item"><small>External Project</small><h4>Shared</h4><p>URL 去重、尚未一起看到、轉送 Movie／Travel，以及外部分享入口。</p></div>
+        <div class="timeline-item"><small>Core Capability</small><h4>Share Current Context / Capture Current View</h4><p>每個 repo 只提供 context；Chat Core 決定如何傳送。</p></div>
+      </div>
+    </section>
+
+    <section data-context-title="Chat Library 可重複使用架構">
+      <div class="section-head">
+        <div>
+          <h3>同一套工具，不同聊天室實例</h3>
+          <p>Jonaminz Couple Chat 是第一個實例；SKHPSv2 未來可以註冊自己的獨立房間。</p>
+        </div>
+      </div>
+      <div class="content-grid">
+        <article class="content-card wide">
+          <div class="visual">couple-chat</div>
+          <h4>Jonaminz Couple Chat</h4>
+          <p>兩人聊天、電話、共享內容、OneDrive 附件與跨頁浮動頭像。</p>
+          <div class="card-meta"><span class="tag">Chat Library</span><span class="tag">Current instance</span></div>
+        </article>
+        <article class="content-card">
+          <div class="visual">skhps-chat</div>
+          <h4>SKHPSv2 Chat（未來）</h4>
+          <p>可使用同一個 Chat Core，但 room、權限、資料、Theme 與功能開關完全獨立。</p>
+          <div class="card-meta"><span class="tag">Future instance</span></div>
+        </article>
+      </div>
+    </section>
+
+  </main>
+
+  <button class="chat-launcher" id="chatLauncher" aria-label="開啟或縮小與 Minz 的聊天" title="Minz">
+    <span id="launcherAvatar">M</span>
+    <span class="badge" id="launcherBadge">3</span>
+  </button>
+
+  <section class="chat-panel size-half" id="chatPanel" hidden aria-label="Jonaminz 聊天">
+    <header class="chat-head">
+      <button class="panel-handle" id="panelHandle" aria-label="切換半版或全版" title="半版／全版">
+        <span></span>
+      </button>
+      <div class="chat-title-row">
+        <div class="avatar" id="peerAvatar">M</div>
+        <div>
+          <h3 id="peerName">Minz</h3>
+          <button class="peer-status" id="peerStatus" title="MVP：點一下模擬對方輸入">最後訊息 19:10</button>
+          <span class="instance-badge">Chat Library instance · couple-chat</span>
+        </div>
+        <div class="head-actions">
+          <button class="icon-btn phone-icon-btn" id="callPeer" aria-label="撥打電話" title="直接撥打電話">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7.1 3.6 9.4 7a1.5 1.5 0 0 1-.2 1.9l-1.3 1.3a14.8 14.8 0 0 0 5.9 5.9l1.3-1.3a1.5 1.5 0 0 1 1.9-.2l3.4 2.3a1.5 1.5 0 0 1 .6 1.7l-.6 2.1a1.8 1.8 0 0 1-1.7 1.3C9.5 22 2 14.5 2 5.3A1.8 1.8 0 0 1 3.3 3.6L5.4 3a1.5 1.5 0 0 1 1.7.6Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="chat">聊天</button>
+        <button class="tab" data-tab="shared">未一起看 <span id="tabUnseen">4</span></button>
+      </div>
+    </header>
+
+    <div class="panel-body">
+      <section class="view active" data-view="chat">
+        <div class="chat-summary">
+          <span id="chatSharedSummary">還有 4 個分享尚未一起看到</span>
+          <button id="openSharedFromChat">查看</button>
+        </div>
+        <div class="messages" id="messages"></div>
+        <footer class="composer">
+          <div class="thread-banner composer-thread-banner" id="threadBanner">
+            <span id="threadLabel">正在討論</span>
+            <strong id="threadTitle"></strong>
+            <button id="clearThread" aria-label="取消討論綁定">×</button>
+          </div>
+          <div class="compose-row">
+            <button class="plus-btn" id="openComposeMenu" aria-label="更多傳送方式">＋</button>
+            <div class="compose-menu" id="composeMenu" hidden>
+              <button class="menu-primary" id="shareCurrent">🔗 <span>分享目前內容</span></button>
+              <button id="captureCurrent">▣ <span>截取目前畫面</span></button>
+              <button id="openFiles">☁ <span>從 OneDrive 選檔</span></button>
+              <button id="openStickerPanel">🎨 <span>傳送貼圖</span></button>
+            </div>
+            <div class="input-shell">
+              <textarea id="messageInput" rows="1" placeholder="傳訊息給 Minz…"></textarea>
+              <button class="emoji-toggle" id="openEmojiPanel" aria-label="插入表情符號" title="可連續插入多個表情符號">☺</button>
+              <div class="emoji-panel" id="emojiPanel" hidden>
+                <div class="emoji-panel-hint">可連續選擇</div>
+                <button data-emoji="😀">😀</button>
+                <button data-emoji="😂">😂</button>
+                <button data-emoji="🥰">🥰</button>
+                <button data-emoji="😍">😍</button>
+                <button data-emoji="🤨">🤨</button>
+                <button data-emoji="😴">😴</button>
+                <button data-emoji="😭">😭</button>
+                <button data-emoji="😡">😡</button>
+                <button data-emoji="👍">👍</button>
+                <button data-emoji="❤️">❤️</button>
+                <button data-emoji="🎉">🎉</button>
+                <button data-emoji="🐛">🐛</button>
+              </div>
+            </div>
+            <div class="sticker-panel" id="stickerPanel" hidden>
+              <button data-sticker="🪨">🪨</button>
+              <button data-sticker="🎋">🎋</button>
+              <button data-sticker="😂">😂</button>
+              <button data-sticker="🥰">🥰</button>
+              <button data-sticker="🐛">🐛</button>
+              <button data-sticker="😴">😴</button>
+              <button data-sticker="🤨">🤨</button>
+              <button data-sticker="🎉">🎉</button>
+            </div>
+            <button class="composer-action" id="composerAction" aria-label="按讚" title="點按送出；長按更換符號">👍</button>
+          </div>
+        </footer>
+      </section>
+
+      <section class="view" data-view="shared">
+        <div class="shared-toolbar">
+          <div class="shared-stats">
+            <button class="shared-stat active" data-filter="my">
+              <strong id="myUnseenCount">0</strong><span>你尚未看到</span>
+            </button>
+            <button class="shared-stat" data-filter="peer">
+              <strong id="peerUnseenCount">0</strong><span id="peerUnseenLabel">Minz 尚未看到</span>
+            </button>
+            <button class="shared-stat" data-filter="any">
+              <strong id="bothUnseenCount">0</strong><span>尚未一起看到</span>
+            </button>
+            <button class="shared-stat" data-filter="all">
+              <strong id="allSharedCount">0</strong><span>全部分享</span>
+            </button>
+          </div>
+          <div class="row">
+            <input id="urlInput" placeholder="貼上網址，測試去重…" />
+            <button class="primary-btn" id="addUrl">分享</button>
+          </div>
+          <input id="urlNote" placeholder="附言（可留空，例如：大阪可以去）" />
+        </div>
+        <div class="shared-list" id="sharedList"></div>
+      </section>
+    </div>
+  </section>
+
+  <div class="modal" id="fileModal" hidden>
+    <div class="modal-card">
+      <h3>選擇檔案來源</h3>
+      <p>正式版由 File Core 統一處理；Chat 只取得 file reference，不知道實體存在哪一個 Provider。</p>
+      <div class="provider-grid">
+        <button class="provider primary" data-provider="OneDrive">
+          <strong>OneDrive</strong>
+          <span>主要 Provider · 既有檔案與 Office 文件</span>
+        </button>
+        <button class="provider" data-provider="Google Drive">
+          <strong>Google Drive</strong>
+          <span>第二 Provider · 未來容量與共同媒體</span>
+        </button>
+      </div>
+      <div class="modal-actions">
+        <button class="soft-btn" id="closeFiles">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="message-menu" id="messageMenu" hidden>
+    <button data-message-menu-action="copy">複製訊息</button>
+    <button data-message-menu-action="markUnread">從這裡標為未讀</button>
+    <button data-message-menu-action="delete">刪除（Demo）</button>
+  </div>
+
+  <div class="reaction-tray" id="reactionTray" hidden aria-label="選擇心情">
+    <button data-reaction="👍">👍</button>
+    <button data-reaction="❤️">❤️</button>
+    <button data-reaction="😂">😂</button>
+    <button data-reaction="😮">😮</button>
+    <button data-reaction="😢">😢</button>
+    <button data-reaction="😡">😡</button>
+  </div>
+
+  <div class="modal" id="sharedDetailModal" hidden>
+    <div class="modal-card">
+      <h3>分享內容</h3>
+      <p>只有真正點進這筆分享，才會標記為「已看到」。</p>
+      <div class="shared-detail-cover">
+        <small id="detailSource">來源</small>
+        <strong id="detailTitle">標題</strong>
+      </div>
+      <div class="shared-detail-note" id="detailNote"></div>
+      <div class="shared-detail-meta">
+        <div><strong>分享者</strong><span id="detailSharers"></span></div>
+        <div><strong>分享次數</strong><span id="detailCount"></span></div>
+        <div><strong>Jonathan</strong><span id="detailJonathanSeen"></span></div>
+        <div><strong>Minz</strong><span id="detailMinzSeen"></span></div>
+      </div>
+      <div class="modal-actions">
+        <button class="soft-btn" id="detailMarkUnread">標回未看</button>
+        <button class="soft-btn" id="detailDiscuss">💬 討論</button>
+        <button class="soft-btn" id="detailSendTo">送往…</button>
+        <button class="primary-btn" id="detailOpenOriginal">開啟原始內容</button>
+        <button class="soft-btn" id="closeSharedDetail">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="destinationModal" hidden>
+    <div class="modal-card">
+      <h3>送往其他房間</h3>
+      <p>目的地由各 App 向 Chat Library 註冊；卡片不會因為專案增加而長出更多按鈕。</p>
+      <input id="destinationSearch" placeholder="搜尋房間…" />
+      <div class="destination-options" id="destinationOptions"></div>
+      <div class="modal-actions">
+        <button class="primary-btn" id="closeDestinationModal">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="callModal" hidden>
+    <div class="modal-card">
+      <h3>撥打手機電話</h3>
+      <p>正式 Android App 會透過原生能力直接撥號，不需跳到電話 App。MVP 目前只模擬通話狀態。</p>
+      <div class="call-person">
+        <div class="avatar" id="callAvatar">M</div>
+        <div>
+          <strong id="callName">Minz</strong>
+          <span>手機 · Jonaminz 聯絡人</span>
+        </div>
+      </div>
+      <div class="call-status" id="callStatus"></div>
+      <div class="modal-actions">
+        <button class="soft-btn" id="cancelCall">取消</button>
+        <button class="primary-btn" id="startCall">直接撥打</button>
+        <button class="danger-btn" id="endCall" hidden>掛斷</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (() => {
+    const KEY = "jonaminz-chat-shared-mvp-v11";
+    const defaultState = {
+      identity: "jonathan",
+      theme: "linen",
+      panelSize: "half",
+      sharedFilter: "my",
+      quickReaction: "👍",
+      messageReactions: {
+        "m1": {"jonathan":"😂"},
+        "m2": {"minz":"🥰"}
+      },
+      destinationRegistry: [
+        {"id":"movie","label":"Movie","icon":"🎬"},
+        {"id":"travel","label":"Travel","icon":"✈"}
+      ],
+      activeThread: null,
+      replyTarget: null,
+      readState: {
+        "jonathan":"m2",
+        "minz":"m2"
+      },
+      typing: {
+        "jonathan":false,
+        "minz":false
+      },
+      lastActiveAt: {
+        "jonathan":"19:10",
+        "minz":"19:10"
+      },
+      messages: [
+        {id:"m1", sender:"minz", type:"text", text:"我剛剛傳的那個影片你有看到嗎 XD", at:"19:08"},
+        {id:"m2", sender:"jonathan", type:"text", text:"這次有，之後用這個就不會被洗掉了", at:"19:09"},
+        {id:"m3", sender:"minz", type:"context", title:"京都甜點店", note:"八月有機會去嗎？", context:"Shared", at:"19:10"}
+      ],
+      shared: [
+        {
+          id:"s1", url:"https://www.instagram.com/reel/example-osaka",
+          title:"大阪深夜拉麵", source:"Instagram Reel",
+          note:"這個我們是不是互相傳過 😂",
+          sharedBy:["minz","jonathan"], seen:{jonathan:true,minz:true},
+          reactions:["😂"], destinations:["travel"], count:2, sharedAt:Date.now()-7_200_000, lastViewedAt:Date.now()-2_700_000
+        },
+        {
+          id:"s2", url:"https://www.threads.net/@demo/post/kyoto",
+          title:"京都新開甜點店", source:"Threads",
+          note:"八月可以排嗎？",
+          sharedBy:["minz"], seen:{jonathan:false,minz:true},
+          reactions:["❤️"], destinations:["travel"], count:1, sharedAt:Date.now()-6_600_000, lastViewedAt:null
+        },
+        {
+          id:"s3", url:"https://www.youtube.com/watch?v=demo-movie",
+          title:"新電影預告", source:"YouTube",
+          note:"",
+          sharedBy:["jonathan"], seen:{jonathan:true,minz:false},
+          reactions:[], destinations:["movie"], count:1, sharedAt:Date.now()-6_000_000, lastViewedAt:Date.now()-5_400_000
+        },
+        {
+          id:"s4", url:"https://example.com/home-idea",
+          title:"客廳收納靈感", source:"Web",
+          note:"這個櫃子感覺不錯",
+          sharedBy:["minz"], seen:{jonathan:false,minz:true},
+          reactions:[], destinations:[], count:1, sharedAt:Date.now()-5_400_000, lastViewedAt:null
+        },
+        {
+          id:"s5", url:"https://example.com/funny-video",
+          title:"不知道在幹嘛但很好笑", source:"Video",
+          note:"",
+          sharedBy:["jonathan"], seen:{jonathan:true,minz:false},
+          reactions:["😂"], destinations:[], count:1, sharedAt:Date.now()-4_800_000, lastViewedAt:null
+        }
+      ]
+    };
+
+    const qs = s => document.querySelector(s);
+    const qsa = s => [...document.querySelectorAll(s)];
+    const state = load();
+
+    function load() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(KEY));
+        return saved ? {...structuredClone(defaultState), ...saved} : structuredClone(defaultState);
+      } catch { return structuredClone(defaultState); }
+    }
+    function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+    function now() { return new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit",hour12:false}); }
+    function uid(prefix) { return prefix + Math.random().toString(36).slice(2,9); }
+    function peer() { return state.identity === "jonathan" ? "minz" : "jonathan"; }
+    function label(id) { return id === "jonathan" ? "Jonathan" : "Minz"; }
+    function messageIndex(messageId) {
+      return state.messages.findIndex(m => m.id === messageId);
+    }
+    function lastMessage() {
+      return state.messages.at(-1) || null;
+    }
+    function unreadMessageCount(userId) {
+      const readIndex = messageIndex(state.readState?.[userId]);
+      return state.messages.filter((m, index) => index > readIndex && m.sender !== userId).length;
+    }
+    function markMessagesRead(userId) {
+      const last = lastMessage();
+      if(!last) return;
+      state.readState ||= {};
+      state.readState[userId] = last.id;
+      state.lastActiveAt ||= {};
+      state.lastActiveAt[userId] = now();
+      save();
+      renderCounts();
+      renderMessages();
+      renderPresenceStatus();
+    }
+    function messagePreview(message) {
+      if(!message) return "";
+      if(message.type === "text" || message.type === "sticker") return message.text;
+      return message.title || message.note || "分享內容";
+    }
+    function relativeViewedLabel(timestamp) {
+      if(!timestamp) return "";
+      const diff = Math.max(0, Date.now() - Number(timestamp));
+      if(diff < 60_000) return "剛剛看過";
+      if(diff < 3_600_000) return `${Math.floor(diff/60_000)} 分鐘前看過`;
+      if(diff < 86_400_000) return `${Math.floor(diff/3_600_000)} 小時前看過`;
+      return `${Math.floor(diff/86_400_000)} 天前看過`;
+    }
+    function escapeHtml(v="") {
+      return v.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
+    }
+    function normalizeUrl(raw) {
+      try {
+        const u = new URL(raw.trim());
+        ["utm_source","utm_medium","utm_campaign","utm_term","utm_content","igsh","igshid","fbclid","gclid"].forEach(k => u.searchParams.delete(k));
+        u.hash = "";
+        u.hostname = u.hostname.toLowerCase();
+        u.pathname = u.pathname.replace(/\/+$/, "") || "/";
+        return u.toString();
+      } catch { return raw.trim(); }
+    }
+    function sourceFromUrl(url) {
+      if (/instagram\.com/i.test(url)) return "Instagram";
+      if (/threads\.net/i.test(url)) return "Threads";
+      if (/youtu\.?be/i.test(url)) return "YouTube";
+      if (/maps\.google/i.test(url)) return "Google Maps";
+      return "Web";
+    }
+    function titleFromUrl(url) {
+      try {
+        const u = new URL(url);
+        return u.hostname.replace(/^www\./,"") + u.pathname.split("/").filter(Boolean).slice(-1)[0]?.replace(/[-_]/g," ") || u.hostname;
+      } catch { return "新分享內容"; }
+    }
+    function toast(text) {
+      const el = qs("#toast");
+      el.textContent = text;
+      el.classList.add("show");
+      clearTimeout(toast.t);
+      toast.t = setTimeout(()=>el.classList.remove("show"), 1800);
+    }
+
+    function renderIdentity() {
+      qs("#identitySelect").value = state.identity;
+      const p = peer();
+      qs("#peerName").textContent = label(p);
+      qs("#peerAvatar").textContent = label(p)[0];
+      qs("#messageInput").placeholder = `傳訊息給 ${label(p)}…`;
+      document.documentElement.dataset.theme = state.theme;
+      qs("#peerUnseenLabel").textContent = `${label(p)} 尚未看到`;
+      qs("#callName").textContent = label(p);
+      qs("#callAvatar").textContent = label(p)[0];
+      qs("#launcherAvatar").textContent = label(p)[0];
+      qs("#chatLauncher").setAttribute("aria-label", `開啟或縮小與 ${label(p)} 的聊天`);
+      qs("#chatLauncher").title = label(p);
+      renderPresenceStatus();
+    }
+
+    function renderPresenceStatus() {
+      const p = peer();
+      const last = lastMessage();
+      const status = qs("#peerStatus");
+      const typing = Boolean(state.typing?.[p]);
+      status.textContent = typing
+        ? `${label(p)} 輸入中…`
+        : `最後訊息 ${last?.at || "尚無"}`;
+      status.classList.toggle("typing", typing);
+    }
+
+    function messageReactionHtml(messageId) {
+      const map = state.messageReactions?.[messageId] || {};
+      const counts = {};
+      Object.entries(map).forEach(([userId, emoji]) => {
+        if (!emoji) return;
+        counts[emoji] = (counts[emoji] || 0) + 1;
+      });
+      return Object.entries(counts).map(([emoji, count]) => {
+        const mine = map[state.identity] === emoji ? " mine" : "";
+        return `<button class="message-reaction-chip${mine}" data-reaction-message="${messageId}" title="變更心情">${emoji}${count > 1 ? `<span>${count}</span>` : ""}</button>`;
+      }).join("");
+    }
+
+    function renderMessages() {
+      const box = qs("#messages");
+      const p = peer();
+      const myReadIndex = messageIndex(state.readState?.[state.identity]);
+      const firstUnreadIndex = state.messages.findIndex((m, index) => index > myReadIndex && m.sender !== state.identity);
+      const peerReadIndex = messageIndex(state.readState?.[p]);
+      let receiptAfterIndex = -1;
+      state.messages.forEach((m, index) => {
+        if(m.sender === state.identity && index <= peerReadIndex) receiptAfterIndex = index;
+      });
+
+      const parts = [];
+      state.messages.forEach((m, index) => {
+        const prev = state.messages[index - 1];
+        const next = state.messages[index + 1];
+        const mine = m.sender === state.identity;
+        const startsNewGroup = !prev || prev.sender !== m.sender || prev.at !== m.at;
+        const endsGroup = !next || next.sender !== m.sender || next.at !== m.at;
+
+        if(index === firstUnreadIndex) {
+          parts.push(`<div class="unread-divider">未讀訊息</div>`);
+        }
+        if (startsNewGroup && (index === 0 || index === 2 || index === state.messages.length - 1)) {
+          parts.push(`<div class="time-divider">${escapeHtml(m.at)}</div>`);
+        }
+
+        const avatar = mine
+          ? ""
+          : `<div class="message-avatar-slot"><div class="message-avatar ${endsGroup ? "" : "placeholder"}">${label(m.sender)[0]}</div></div>`;
+
+        let content = "";
+        if (m.type === "sticker") {
+          content = `<div class="bubble reactable" data-message-id="${m.id}" style="font-size:34px;background:transparent;border:0;box-shadow:none;padding:4px 7px">${escapeHtml(m.text)}</div>`;
+        } else if (m.type === "text") {
+          const reply = m.replyToTitle ? `<span class="reply-label">回覆「${escapeHtml(m.replyToTitle)}」</span>` : "";
+          content = `<div class="bubble reactable" data-message-id="${m.id}">${reply}${escapeHtml(m.text)}<small>${m.at}</small></div>`;
+        } else {
+          const image = m.image ? `<img src="${m.image}" alt="">` : "";
+          content = `<div class="message-card reactable" data-message-id="${m.id}">
+            ${image}
+            <div class="card-body">
+              <h4>${escapeHtml(m.title || "分享內容")}</h4>
+              <p>${escapeHtml(m.note || m.context || "")}</p>
+              <small>${m.at}</small>
+            </div>
+          </div>`;
+        }
+
+        const hoverActions = `<div class="message-hover-actions">
+          <button data-message-action="react" data-message-id="${m.id}" title="回應">☺</button>
+          <button data-message-action="reply" data-message-id="${m.id}" title="回覆">↩</button>
+          <button data-message-action="more" data-message-id="${m.id}" title="更多">⋮</button>
+        </div>`;
+
+        const interaction = mine
+          ? `${hoverActions}<div class="message-content">${content}<div class="message-reactions">${messageReactionHtml(m.id)}</div></div>`
+          : `<div class="message-content">${content}<div class="message-reactions">${messageReactionHtml(m.id)}</div></div>${hoverActions}`;
+
+        parts.push(
+          `<div class="message${mine ? " mine" : ""}" data-message-row="${m.id}">
+            ${avatar}
+            <div class="message-interaction-row ${mine ? "mine" : ""}">
+              ${interaction}
+            </div>
+          </div>`
+        );
+
+        if(index === receiptAfterIndex) {
+          parts.push(
+            `<div class="read-receipt" title="${label(p)} 已讀到這裡">
+              <div class="message-avatar">${label(p)[0]}</div>
+            </div>`
+          );
+        }
+      });
+
+      if(state.typing?.[p]) {
+        parts.push(
+          `<div class="typing-indicator">
+            <div class="message-avatar-slot"><div class="message-avatar">${label(p)[0]}</div></div>
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+          </div>`
+        );
+      }
+
+      box.innerHTML = parts.join("");
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function unseenCount() {
+      return state.shared.filter(x => !(x.seen.jonathan && x.seen.minz)).length;
+    }
+
+    function renderCounts() {
+      const n = unseenCount();
+      const p = peer();
+      const myUnseen = state.shared.filter(x => !x.seen[state.identity]).length;
+      const peerUnseen = state.shared.filter(x => !x.seen[p]).length;
+      qs("#tabUnseen").textContent = n;
+      qs("#heroUnseen").textContent = n;
+      const unreadMessages = unreadMessageCount(state.identity);
+      qs("#launcherBadge").textContent = unreadMessages;
+      qs("#launcherBadge").hidden = unreadMessages === 0;
+      qs("#myUnseenCount").textContent = myUnseen;
+      qs("#peerUnseenCount").textContent = peerUnseen;
+      qs("#bothUnseenCount").textContent = n;
+      qs("#allSharedCount").textContent = state.shared.length;
+      qs("#peerUnseenLabel").textContent = `${label(p)} 尚未看到`;
+      qs("#chatSharedSummary").textContent = n ? `還有 ${n} 個分享尚未一起看到` : "目前分享都已一起看到";
+      qsa(".shared-stat").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.filter === (state.sharedFilter || "my"));
+      });
+    }
+
+    function filteredSharedItems() {
+      const p = peer();
+      const filter = state.sharedFilter || "my";
+      let items = state.shared.slice();
+      if (filter === "my") items = items.filter(x => !x.seen[state.identity]);
+      if (filter === "peer") items = items.filter(x => !x.seen[p]);
+      if (filter === "any") items = items.filter(x => !(x.seen.jonathan && x.seen.minz));
+
+      if(filter === "all") {
+        return items.sort((a,b) =>
+          (Number(b.lastViewedAt || 0) - Number(a.lastViewedAt || 0)) ||
+          (Number(b.sharedAt || 0) - Number(a.sharedAt || 0))
+        );
+      }
+      return items.sort((a,b) => Number(b.sharedAt || 0) - Number(a.sharedAt || 0));
+    }
+
+    function sourceIcon(source) {
+      if (/youtube|video/i.test(source)) return "▶";
+      if (/instagram/i.test(source)) return "◎";
+      if (/threads/i.test(source)) return "@";
+      return "↗";
+    }
+
+    function itemDomain(url) {
+      try { return new URL(url).hostname.replace(/^www\./, ""); }
+      catch { return "shared content"; }
+    }
+
+    function destinationLabel(id) {
+      return state.destinationRegistry.find(x => x.id === id)?.label || id;
+    }
+
+    function destinationSummary(item) {
+      if (!item.destinations.length) return "";
+      const visible = item.destinations.slice(0, 2).map(destinationLabel).join(" · ");
+      const extra = item.destinations.length > 2 ? ` +${item.destinations.length - 2}` : "";
+      return `<span class="destination-summary">已送往 ${escapeHtml(visible + extra)}</span>`;
+    }
+
+    function renderShared() {
+      const list = qs("#sharedList");
+      const items = filteredSharedItems();
+      if (!items.length) {
+        const message = state.sharedFilter === "all"
+          ? "目前沒有分享內容"
+          : "這個篩選目前沒有內容";
+        list.innerHTML = `<div style="padding:28px 16px;text-align:center;color:var(--muted)">${message}</div>`;
+        renderCounts();
+        return;
+      }
+
+      list.innerHTML = items.map(item => {
+        const duplicated = item.sharedBy.length > 1 || item.count > 1;
+        const sharer = item.sharedBy.at(-1) || item.sharedBy[0];
+        return `<article class="shared-card" data-id="${item.id}">
+          <span class="unseen-dot" ${item.seen[state.identity] ? "hidden":""} title="你尚未看到"></span>
+          <div class="shared-preview">
+            <span class="shared-source-icon">${sourceIcon(item.source)}</span>
+            <span class="source-pill">${escapeHtml(item.source)}</span>
+            <span class="preview-domain">${escapeHtml(itemDomain(item.url))}</span>
+          </div>
+          <div class="shared-main">
+            <div class="shared-kicker">
+              <span>${escapeHtml(label(sharer))} 分享</span>
+              <span>·</span>
+              <span>${item.lastViewedAt ? relativeViewedLabel(item.lastViewedAt) : (item.count > 1 ? `${item.count} 次` : "最近")}</span>
+            </div>
+            <h4>${escapeHtml(item.title)}</h4>
+            <p>${escapeHtml(item.note || item.url)}</p>
+            <div class="shared-meta-line">
+              <span class="seen-compact">J ${item.seen.jonathan ? "已看":"未看"} · M ${item.seen.minz ? "已看":"未看"}</span>
+              ${destinationSummary(item)}
+              ${duplicated ? `<span class="duplicate-note">✨ 雙方都分享過</span>` : ""}
+            </div>
+            <div class="shared-card-footer">
+              <button data-action="discuss">💬 討論</button>
+              <button data-action="more" class="more-btn" title="更多">⋯</button>
+            </div>
+          </div>
+          <div class="card-menu" hidden>
+            <button data-action="toggleSeen">${item.seen[state.identity] ? "標回未看":"標為已看到"}</button>
+            <button data-action="openOriginal">開啟原始內容</button>
+            <button data-action="archive">封存（Demo）</button>
+          </div>
+        </article>`;
+      }).join("");
+      renderCounts();
+    }
+
+    function currentContext() {
+      const y = window.scrollY + window.innerHeight * .38;
+      const candidates = qsa("[data-context-title]");
+      let best = candidates[0];
+      candidates.forEach(el => {
+        const r = el.getBoundingClientRect();
+        const pageTop = r.top + window.scrollY;
+        if (pageTop <= y) best = el;
+      });
+      return best?.dataset.contextTitle || document.title;
+    }
+
+    function sendContext(capture=false) {
+      const title = capture ? "截取目前畫面" : currentContext();
+      let image = "";
+      let note = capture ? `${currentContext()} · 捲動 ${Math.round((window.scrollY / Math.max(1, document.documentElement.scrollHeight-window.innerHeight))*100)}%` : "由目前頁面直接傳送";
+      if (capture) image = makeSnapshot(title, note);
+      state.messages.push({id:uid("m"), sender:state.identity, type:"context", title, note, context:currentContext(), image, at:now()});
+      save(); renderMessages(); openChat("chat");
+      toast(capture ? "已建立畫面截取卡片（MVP 模擬）" : "已傳送目前頁面");
+    }
+
+    function makeSnapshot(title, subtitle) {
+      const c = document.createElement("canvas");
+      c.width=900; c.height=420;
+      const x=c.getContext("2d");
+      const night = state.theme === "night";
+      x.fillStyle = night ? "#202522" : "#f4efe6";
+      x.fillRect(0,0,c.width,c.height);
+      const g=x.createLinearGradient(0,0,900,420);
+      g.addColorStop(0, night ? "#3e6650" : "#435b4b");
+      g.addColorStop(1, night ? "#815d43" : "#b38261");
+      x.fillStyle=g; x.fillRect(28,28,844,250);
+      x.fillStyle="#fff"; x.font="700 42px sans-serif"; x.fillText(title.slice(0,28),60,140);
+      x.font="24px sans-serif"; x.globalAlpha=.82; x.fillText(subtitle.slice(0,52),60,190); x.globalAlpha=1;
+      x.fillStyle = night ? "#f0eee8" : "#292822";
+      x.font="700 25px sans-serif"; x.fillText("Jonaminz · Current View",60,338);
+      x.font="19px sans-serif"; x.globalAlpha=.62; x.fillText(new Date().toLocaleString("zh-TW"),60,375);
+      return c.toDataURL("image/jpeg",.8);
+    }
+
+    function applyPanelSize() {
+      const panel = qs("#chatPanel");
+      panel.classList.remove("size-half","size-full");
+      panel.classList.add(`size-${state.panelSize || "half"}`);
+                }
+
+    let readTimer = null;
+    function scheduleMarkRead() {
+      clearTimeout(readTimer);
+      readTimer = setTimeout(() => {
+        const chatActive = document.querySelector('[data-view="chat"]').classList.contains("active");
+        if(!qs("#chatPanel").hidden && chatActive && document.hasFocus()) {
+          markMessagesRead(state.identity);
+        }
+      }, 900);
+    }
+
+    function openChat(tab="chat") {
+      applyPanelSize();
+      qs("#chatPanel").hidden = false;
+      qs("#chatLauncher").classList.add("is-open");
+      qsa(".tab").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+      qsa(".view").forEach(v=>v.classList.toggle("active", v.dataset.view===tab));
+      if(tab === "chat") scheduleMarkRead();
+    }
+
+    function collapseChat() {
+      qs("#chatPanel").hidden = true;
+      qs("#chatLauncher").classList.remove("is-open");
+      qs("#composeMenu").hidden = true;
+    }
+
+    qs("#chatLauncher").addEventListener("click",()=>{
+      if (qs("#chatPanel").hidden) openChat("chat");
+      else collapseChat();
+    });
+
+    qs("#panelHandle").addEventListener("click",()=>{
+      state.panelSize = state.panelSize === "full" ? "half" : "full";
+      save();
+      applyPanelSize();
+      toast(state.panelSize === "full" ? "已展開完整聊天室" : "已回到半版聊天");
+    });
+    qsa(".tab").forEach(b=>b.addEventListener("click",()=>openChat(b.dataset.tab)));
+    qs("#openSharedFromChat").addEventListener("click",()=>openChat("shared"));
+    qsa(".shared-stat").forEach(btn => btn.addEventListener("click", () => {
+      state.sharedFilter = btn.dataset.filter;
+      save();
+      renderShared();
+      qs("#sharedList").scrollTop = 0;
+    }));
+
+    function sendText(text) {
+      const v = text.trim();
+      if(!v) return;
+      const replyTitle = state.replyTarget
+        ? `${label(state.replyTarget.sender)}：${state.replyTarget.preview}`
+        : (state.activeThread?.title || "");
+      const id = uid("m");
+      state.messages.push({
+        id,
+        sender:state.identity,
+        type:"text",
+        text:v,
+        replyToTitle: replyTitle,
+        at:now()
+      });
+      state.readState ||= {};
+      state.readState[state.identity] = id;
+      state.typing[state.identity] = false;
+      state.replyTarget = null;
+      save();
+      renderMessages();
+      renderThread();
+      renderCounts();
+      renderPresenceStatus();
+    }
+
+    function sendSticker(emoji) {
+      const id = uid("m");
+      state.messages.push({
+        id,
+        sender:state.identity,
+        type:"sticker",
+        text:emoji,
+        replyToTitle: state.replyTarget?.preview || state.activeThread?.title || "",
+        at:now()
+      });
+      state.readState ||= {};
+      state.readState[state.identity] = id;
+      state.typing[state.identity] = false;
+      state.replyTarget = null;
+      save();
+      renderMessages();
+      renderThread();
+      renderCounts();
+      renderPresenceStatus();
+    }
+
+    function updateComposerAction() {
+      const hasText = Boolean(qs("#messageInput").value.trim());
+      const button = qs("#composerAction");
+      button.textContent = hasText ? "➤" : (state.quickReaction || "👍");
+      button.classList.toggle("send-mode", hasText);
+      button.setAttribute("aria-label", hasText ? "送出訊息" : `快速送出 ${state.quickReaction || "👍"}`);
+    }
+
+    let suppressQuickReactionClick = false;
+
+    qs("#composerAction").addEventListener("click",()=>{
+      if(suppressQuickReactionClick) {
+        suppressQuickReactionClick = false;
+        return;
+      }
+      const input = qs("#messageInput");
+      if(input.value.trim()) {
+        sendText(input.value);
+        input.value="";
+      } else {
+        sendSticker(state.quickReaction || "👍");
+      }
+      updateComposerAction();
+    });
+
+    let typingTimer = null;
+
+    function setTyping(userId, value) {
+      state.typing ||= {};
+      state.typing[userId] = value;
+      renderPresenceStatus();
+      renderMessages();
+    }
+
+    qs("#messageInput").addEventListener("input", () => {
+      updateComposerAction();
+      setTyping(state.identity, Boolean(qs("#messageInput").value.trim()));
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => setTyping(state.identity, false), 1400);
+    });
+    qs("#messageInput").addEventListener("keydown",e=>{
+      if(e.key==="Enter" && !e.shiftKey){
+        e.preventDefault();
+        if(qs("#messageInput").value.trim()) qs("#composerAction").click();
+      }
+    });
+
+    qs("#openComposeMenu").addEventListener("click",()=>{
+      qs("#composeMenu").hidden = !qs("#composeMenu").hidden;
+      qs("#emojiPanel").hidden = true;
+      qs("#stickerPanel").hidden = true;
+    });
+
+    qs("#openEmojiPanel").addEventListener("click",()=>{
+      qs("#emojiPanel").hidden = !qs("#emojiPanel").hidden;
+      qs("#composeMenu").hidden = true;
+      qs("#stickerPanel").hidden = true;
+    });
+
+    qsa("#emojiPanel [data-emoji]").forEach(button => button.addEventListener("click",()=>{
+      const input = qs("#messageInput");
+      const emoji = button.dataset.emoji;
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? start;
+      input.value = input.value.slice(0,start) + emoji + input.value.slice(end);
+      const caret = start + emoji.length;
+      input.focus();
+      input.setSelectionRange(caret, caret);
+      input.dispatchEvent(new Event("input", {bubbles:true}));
+    }));
+
+    qs("#openStickerPanel").addEventListener("click",()=>{
+      qs("#composeMenu").hidden = true;
+      qs("#emojiPanel").hidden = true;
+      qs("#stickerPanel").hidden = false;
+    });
+
+    qsa("#stickerPanel [data-sticker]").forEach(button => button.addEventListener("click",()=>{
+      sendSticker(button.dataset.sticker);
+      qs("#stickerPanel").hidden = true;
+    }));
+
+    qs("#shareCurrent").addEventListener("click",()=>{
+      sendContext(false);
+      qs("#composeMenu").hidden = true;
+    });
+    qs("#captureCurrent").addEventListener("click",()=>{
+      sendContext(true);
+      qs("#composeMenu").hidden = true;
+    });
+
+    qs("#openFiles").addEventListener("click",()=>{
+      qs("#composeMenu").hidden = true;
+      qs("#fileModal").hidden=false;
+    });
+    qs("#closeFiles").addEventListener("click",()=>qs("#fileModal").hidden=true);
+    qsa(".provider").forEach(b=>b.addEventListener("click",()=>{
+      qs("#fileModal").hidden=true;
+      const provider=b.dataset.provider;
+      state.messages.push({
+        id:uid("m"), sender:state.identity, type:"context",
+        title:`${provider} 檔案引用`, note:"MVP 模擬：正式版會傳 provider item ID，不複製檔案本體。", context:"File Core", at:now()
+      });
+      save(); renderMessages(); toast(`已加入 ${provider} 檔案卡片`);
+    }));
+
+    let reactionMode = "message";
+    let activeReactionMessageId = null;
+    let activeMessageMenuId = null;
+    let longPressTimer = null;
+    let longPressStart = null;
+    let quickPressTimer = null;
+
+    function positionNear(target, floating, preferAbove=true) {
+      floating.hidden = false;
+      floating.style.visibility = "hidden";
+      floating.style.left = "0px";
+      floating.style.top = "0px";
+      const rect = target.getBoundingClientRect();
+      const box = floating.getBoundingClientRect();
+      let left = rect.left + rect.width / 2 - box.width / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - box.width - 8));
+      let top = preferAbove ? rect.top - box.height - 8 : rect.bottom + 8;
+      if(top < 8) top = rect.bottom + 8;
+      if(top + box.height > window.innerHeight - 8) top = rect.top - box.height - 8;
+      floating.style.left = `${left}px`;
+      floating.style.top = `${Math.max(8, top)}px`;
+      floating.style.visibility = "";
+    }
+
+    function openReactionTray(mode, messageId=null, anchor=null) {
+      reactionMode = mode;
+      activeReactionMessageId = messageId;
+      const activeEmoji = mode === "quick"
+        ? (state.quickReaction || "👍")
+        : (state.messageReactions?.[messageId]?.[state.identity] || "");
+      qsa("#reactionTray [data-reaction]").forEach(button => {
+        button.classList.toggle("active", button.dataset.reaction === activeEmoji);
+      });
+      const tray = qs("#reactionTray");
+      positionNear(anchor || qs("#composerAction"), tray, true);
+    }
+
+    function closeReactionTray() {
+      qs("#reactionTray").hidden = true;
+      activeReactionMessageId = null;
+    }
+
+    function openMessageMenu(messageId, anchor) {
+      activeMessageMenuId = messageId;
+      positionNear(anchor, qs("#messageMenu"), false);
+    }
+
+    function closeMessageMenu() {
+      qs("#messageMenu").hidden = true;
+      activeMessageMenuId = null;
+    }
+
+    qsa("#reactionTray [data-reaction]").forEach(button => button.addEventListener("click",()=>{
+      const emoji = button.dataset.reaction;
+      if(reactionMode === "quick") {
+        state.quickReaction = emoji;
+        save();
+        updateComposerAction();
+        toast(`快速按讚已改成 ${emoji}`);
+      } else if(activeReactionMessageId) {
+        state.messageReactions ||= {};
+        state.messageReactions[activeReactionMessageId] ||= {};
+        const current = state.messageReactions[activeReactionMessageId][state.identity];
+        state.messageReactions[activeReactionMessageId][state.identity] = current === emoji ? "" : emoji;
+        save();
+        renderMessages();
+      }
+      closeReactionTray();
+    }));
+
+    function startLongPress(target, event) {
+      const messageId = target.dataset.messageId;
+      longPressStart = {x:event.clientX, y:event.clientY};
+      clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(()=>{
+        openReactionTray("message", messageId, target);
+      }, 520);
+    }
+
+    qs("#messages").addEventListener("pointerdown", event=>{
+      const target = event.target.closest(".reactable");
+      if(!target) return;
+      startLongPress(target, event);
+    });
+    qs("#messages").addEventListener("pointermove", event=>{
+      if(!longPressStart) return;
+      if(Math.hypot(event.clientX-longPressStart.x, event.clientY-longPressStart.y) > 10) {
+        clearTimeout(longPressTimer);
+        longPressStart = null;
+      }
+    });
+    ["pointerup","pointercancel","pointerleave"].forEach(type => {
+      qs("#messages").addEventListener(type, ()=>{
+        clearTimeout(longPressTimer);
+        longPressStart = null;
+      });
+    });
+    qs("#messages").addEventListener("contextmenu", event=>{
+      const target = event.target.closest(".reactable");
+      if(!target) return;
+      event.preventDefault();
+      openReactionTray("message", target.dataset.messageId, target);
+    });
+
+    qs("#messages").addEventListener("click", event=>{
+      const chip = event.target.closest("[data-reaction-message]");
+      if(chip) {
+        const row = chip.closest("[data-message-row]");
+        const target = row?.querySelector(".reactable") || chip;
+        openReactionTray("message", chip.dataset.reactionMessage, target);
+        return;
+      }
+
+      const action = event.target.closest("[data-message-action]");
+      if(!action) return;
+      const messageId = action.dataset.messageId;
+      const target = action.closest("[data-message-row]")?.querySelector(".reactable") || action;
+      if(action.dataset.messageAction === "react") {
+        openReactionTray("message", messageId, target);
+      }
+      if(action.dataset.messageAction === "reply") {
+        const message = state.messages.find(m => m.id === messageId);
+        state.replyTarget = {
+          id:messageId,
+          sender:message.sender,
+          preview:messagePreview(message).slice(0,42)
+        };
+        save();
+        renderThread();
+        qs("#messageInput").focus();
+      }
+      if(action.dataset.messageAction === "more") {
+        openMessageMenu(messageId, action);
+      }
+    });
+
+    qs("#messageMenu").addEventListener("click", event=>{
+      const button = event.target.closest("[data-message-menu-action]");
+      if(!button || !activeMessageMenuId) return;
+      const message = state.messages.find(m => m.id === activeMessageMenuId);
+      if(button.dataset.messageMenuAction === "copy") {
+        navigator.clipboard?.writeText(messagePreview(message));
+        toast("已複製訊息");
+      }
+      if(button.dataset.messageMenuAction === "markUnread") {
+        const index = messageIndex(activeMessageMenuId);
+        state.readState[state.identity] = index > 0 ? state.messages[index-1].id : null;
+        save();
+        renderCounts();
+        renderMessages();
+        toast("已從這裡標為未讀");
+      }
+      if(button.dataset.messageMenuAction === "delete") {
+        state.messages = state.messages.filter(m => m.id !== activeMessageMenuId);
+        save();
+        renderMessages();
+        renderCounts();
+        renderPresenceStatus();
+        toast("已刪除（Demo）");
+      }
+      closeMessageMenu();
+    });
+
+    qs("#composerAction").addEventListener("pointerdown",()=>{
+      if(qs("#messageInput").value.trim()) return;
+      clearTimeout(quickPressTimer);
+      quickPressTimer = setTimeout(()=>{
+        suppressQuickReactionClick = true;
+        openReactionTray("quick", null, qs("#composerAction"));
+      }, 520);
+    });
+    ["pointerup","pointercancel","pointerleave"].forEach(type => {
+      qs("#composerAction").addEventListener(type,()=>clearTimeout(quickPressTimer));
+    });
+    qs("#composerAction").addEventListener("contextmenu",event=>{
+      if(qs("#messageInput").value.trim()) return;
+      event.preventDefault();
+      openReactionTray("quick", null, qs("#composerAction"));
+    });
+
+    qs("#addUrl").addEventListener("click",()=>{
+      const raw=qs("#urlInput").value.trim();
+      if(!raw){ toast("請先貼上網址"); return; }
+      const url=normalizeUrl(raw);
+      let item=state.shared.find(x=>normalizeUrl(x.url)===url);
+      if(item){
+        item.count=(item.count||1)+1;
+        if(!item.sharedBy.includes(state.identity)) item.sharedBy.push(state.identity);
+        item.seen[state.identity]=true;
+        item.note=qs("#urlNote").value.trim() || item.note;
+        item.sharedAt=Date.now();
+        state.shared = [item, ...state.shared.filter(x=>x.id!==item.id)];
+        toast("偵測到相同網址：已合併並推回最上方");
+      } else {
+        item={
+          id:uid("s"), url, title:titleFromUrl(url), source:sourceFromUrl(url),
+          note:qs("#urlNote").value.trim(), sharedBy:[state.identity],
+          seen:{jonathan:state.identity==="jonathan",minz:state.identity==="minz"},
+          reactions:[], destinations:[], count:1,
+          sharedAt:Date.now(), lastViewedAt:null
+        };
+        state.shared.unshift(item);
+        toast("已加入 Shared");
+      }
+      qs("#urlInput").value=""; qs("#urlNote").value="";
+      save(); renderShared();
+    });
+
+    let activeDetailId = null;
+
+    function openSharedDetail(item) {
+      activeDetailId = item.id;
+      item.seen[state.identity] = true;
+      item.lastViewedAt = Date.now();
+      save();
+
+      qs("#detailSource").textContent = item.source;
+      qs("#detailTitle").textContent = item.title;
+      qs("#detailNote").textContent = item.note || item.url;
+      qs("#detailSharers").textContent = item.sharedBy.map(label).join("、");
+      qs("#detailCount").textContent = `${item.count || 1} 次`;
+      qs("#detailJonathanSeen").textContent = item.seen.jonathan ? "已看到" : "尚未看到";
+      qs("#detailMinzSeen").textContent = item.seen.minz ? "已看到" : "尚未看到";
+      qs("#detailMarkUnread").textContent = item.seen[state.identity] ? "標回未看" : "標為已看到";
+
+      const card = document.querySelector(`.shared-card[data-id="${item.id}"]`);
+      if (card) {
+        const dot = card.querySelector(".unseen-dot");
+        if (dot) dot.hidden = true;
+        const pills = card.querySelectorAll(".seen-pill");
+        if (state.identity === "jonathan" && pills[0]) {
+          pills[0].classList.remove("unseen");
+          pills[0].textContent = "J 已看到";
+        }
+        if (state.identity === "minz" && pills[1]) {
+          pills[1].classList.remove("unseen");
+          pills[1].textContent = "M 已看到";
+        }
+      }
+      renderCounts();
+      qs("#sharedDetailModal").hidden = false;
+    }
+
+    function closeSharedDetail() {
+      qs("#sharedDetailModal").hidden = true;
+      activeDetailId = null;
+      renderShared();
+    }
+
+    qs("#closeSharedDetail").addEventListener("click", closeSharedDetail);
+    qs("#detailOpenOriginal").addEventListener("click",()=>{
+      const item = state.shared.find(x=>x.id===activeDetailId);
+      if(item) {
+        item.seen[state.identity] = true;
+        item.lastViewedAt = Date.now();
+        save();
+        renderShared();
+        renderCounts();
+      }
+      toast("MVP：正式版會開啟原始網址");
+    });
+    qs("#detailMarkUnread").addEventListener("click",()=>{
+      const item = state.shared.find(x=>x.id===activeDetailId);
+      if(!item) return;
+      item.seen[state.identity] = !item.seen[state.identity];
+      save();
+      qs("#detailMarkUnread").textContent = item.seen[state.identity] ? "標回未看" : "標為已看到";
+      qs("#detailJonathanSeen").textContent = item.seen.jonathan ? "已看到" : "尚未看到";
+      qs("#detailMinzSeen").textContent = item.seen.minz ? "已看到" : "尚未看到";
+      renderCounts();
+    });
+    qs("#detailDiscuss").addEventListener("click",()=>{
+      const item = state.shared.find(x=>x.id===activeDetailId);
+      if(!item) return;
+      item.seen[state.identity] = true;
+      item.lastViewedAt = Date.now();
+      state.activeThread={id:item.id,title:item.title};
+      state.messages.push({
+        id:uid("m"), sender:state.identity, type:"context",
+        title:item.title, note:item.note || item.url, context:"Shared", at:now()
+      });
+      save();
+      qs("#sharedDetailModal").hidden = true;
+      renderMessages();
+      renderThread();
+      renderShared();
+      openChat("chat");
+      toast("後續訊息會綁定此分享");
+    });
+
+    let activeDestinationItemId = null;
+
+    function renderDestinationOptions() {
+      const item = state.shared.find(x => x.id === activeDestinationItemId);
+      const query = qs("#destinationSearch").value.trim().toLowerCase();
+      const destinations = state.destinationRegistry.filter(destination =>
+        destination.label.toLowerCase().includes(query) ||
+        destination.id.toLowerCase().includes(query)
+      );
+      qs("#destinationOptions").innerHTML = destinations.map(destination => {
+        const active = item?.destinations.includes(destination.id);
+        return `<button class="destination-option ${active ? "active":""}" data-destination="${destination.id}">
+          <span>${destination.icon}</span>
+          <strong>${escapeHtml(destination.label)}</strong>
+          <span>${active ? "✓":""}</span>
+        </button>`;
+      }).join("") || '<div style="padding:18px;text-align:center;color:var(--muted)">找不到房間</div>';
+    }
+
+    function openDestinationPicker(itemId) {
+      activeDestinationItemId = itemId;
+      qs("#destinationSearch").value = "";
+      renderDestinationOptions();
+      qs("#destinationModal").hidden = false;
+    }
+
+    qs("#destinationSearch").addEventListener("input", renderDestinationOptions);
+
+    qs("#destinationOptions").addEventListener("click",event=>{
+      const button = event.target.closest("[data-destination]");
+      if(!button) return;
+      const item = state.shared.find(x => x.id === activeDestinationItemId);
+      if(!item) return;
+      toggle(item.destinations, button.dataset.destination);
+      save();
+      openDestinationPicker(item.id);
+      renderShared();
+    });
+    qs("#closeDestinationModal").addEventListener("click",()=>{
+      qs("#destinationModal").hidden = true;
+      activeDestinationItemId = null;
+    });
+    qs("#detailSendTo").addEventListener("click",()=>{
+      if(activeDetailId) openDestinationPicker(activeDetailId);
+    });
+
+    qs("#sharedList").addEventListener("click",e=>{
+      const card=e.target.closest(".shared-card");
+      if(!card) return;
+      const item=state.shared.find(x=>x.id===card.dataset.id);
+      const btn=e.target.closest("button[data-action]");
+
+      if(!btn) {
+        openSharedDetail(item);
+        return;
+      }
+
+      const a=btn.dataset.action;
+
+      if(a==="more"){
+        const menu=card.querySelector(".card-menu");
+        qsa(".card-menu").forEach(m=>{ if(m!==menu) m.hidden=true; });
+        menu.hidden=!menu.hidden;
+        return;
+      }
+      if(a==="toggleSeen"){
+        item.seen[state.identity]=!item.seen[state.identity];
+      }
+      if(a==="sendTo"){
+        openDestinationPicker(item.id);
+        return;
+      }
+      if(a==="openOriginal"){
+        item.seen[state.identity]=true;
+        toast("MVP：正式版會開啟原始網址");
+      }
+      if(a==="archive"){
+        state.shared=state.shared.filter(x=>x.id!==item.id);
+        toast("已封存（Demo）");
+      }
+      if(a==="discuss"){
+        item.seen[state.identity]=true;
+        state.activeThread={id:item.id,title:item.title};
+        state.messages.push({
+          id:uid("m"), sender:state.identity, type:"context",
+          title:item.title, note:item.note || item.url, context:"Shared", at:now()
+        });
+        save();
+        renderMessages();
+        renderThread();
+        openChat("chat");
+        toast("後續訊息會綁定此分享");
+        return;
+      }
+      save();
+      renderShared();
+    });
+
+    function toggle(arr,val){
+      const i=arr.indexOf(val); if(i>=0) arr.splice(i,1); else arr.push(val);
+    }
+
+    qs("#identitySelect").addEventListener("change",e=>{
+      state.identity=e.target.value;
+      state.typing.jonathan=false;
+      state.typing.minz=false;
+      save();
+      renderAll();
+      if(!qs("#chatPanel").hidden && document.querySelector('[data-view="chat"]').classList.contains("active")) {
+        scheduleMarkRead();
+      }
+      toast(`已切換為 ${label(state.identity)}`);
+    });
+    qs("#peerStatus").addEventListener("click",()=>{
+      const p = peer();
+      setTyping(p, true);
+      setTimeout(()=>setTyping(p, false), 2600);
+    });
+
+    qs("#themeToggle").addEventListener("click",()=>{
+      state.theme=state.theme==="linen"?"night":"linen"; save(); renderIdentity();
+    });
+    document.addEventListener("click",e=>{
+      if(!e.target.closest("#openComposeMenu") && !e.target.closest("#composeMenu")) {
+        qs("#composeMenu").hidden = true;
+      }
+      if(!e.target.closest("#openEmojiPanel") && !e.target.closest("#emojiPanel")) {
+        qs("#emojiPanel").hidden = true;
+      }
+      if(!e.target.closest("#openStickerPanel") && !e.target.closest("#stickerPanel")) {
+        qs("#stickerPanel").hidden = true;
+      }
+      if(!e.target.closest("#reactionTray") && !e.target.closest(".reactable") && !e.target.closest(".message-reaction-chip") && !e.target.closest("#composerAction") && !e.target.closest("[data-message-action='react']")) {
+        closeReactionTray();
+      }
+      if(!e.target.closest("#messageMenu") && !e.target.closest("[data-message-action='more']")) {
+        closeMessageMenu();
+      }
+      if(!e.target.closest(".more-btn") && !e.target.closest(".card-menu")) {
+        qsa(".card-menu").forEach(m=>m.hidden=true);
+      }
+    });
+
+    qs("#resetDemo").addEventListener("click",()=>{
+      localStorage.removeItem(KEY);
+      location.reload();
+    });
+
+    function renderThread() {
+      const replyActive = Boolean(state.replyTarget);
+      const threadActive = Boolean(state.activeThread);
+      const active = replyActive || threadActive;
+      qs("#threadBanner").classList.toggle("active", active);
+      qs("#threadLabel").textContent = replyActive ? "正在回覆" : "正在討論";
+      qs("#threadTitle").textContent = replyActive
+        ? `${label(state.replyTarget.sender)}：${state.replyTarget.preview}`
+        : (threadActive ? state.activeThread.title : "");
+    }
+    qs("#clearThread").addEventListener("click",()=>{
+      state.activeThread=null;
+      state.replyTarget=null;
+      save();
+      renderThread();
+    });
+
+    function renderAll(){ renderIdentity(); renderMessages(); renderShared(); renderThread(); applyPanelSize(); updateComposerAction(); renderCounts(); renderPresenceStatus(); }
+    renderAll();
+  })();
+  </script>
+</body>
+</html>

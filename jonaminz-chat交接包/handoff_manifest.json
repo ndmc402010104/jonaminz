@@ -1,0 +1,36 @@
+{
+  "project": "Jonaminz Chat",
+  "date": "2026-07-14",
+  "repo": "ndmc402010104/jonaminz",
+  "ux_checkpoint": {
+    "version": "v0.11",
+    "status": "concept_accepted",
+    "path": "SOURCE/ux-mvp-v0.11"
+  },
+  "technical_checkpoint": {
+    "version": "0.1",
+    "status": "failed_unreproduced",
+    "path": "SOURCE/technical-mvp-0.1-FAILED",
+    "known_error": null
+  },
+  "next_milestone": [
+    "real identity",
+    "persistent text message",
+    "realtime delivery",
+    "unread",
+    "read receipt",
+    "typing",
+    "reaction",
+    "reconnect"
+  ],
+  "out_of_scope": [
+    "UI polish",
+    "OneDrive",
+    "Google Drive",
+    "attachments",
+    "phone",
+    "Android overlay",
+    "Shared production database",
+    "Movie/Travel integration"
+  ]
+}

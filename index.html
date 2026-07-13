@@ -24,8 +24,11 @@
   入口」按鈕，首頁只留品牌字、登入、字標、相片、兩個 name-link。
 - 2026-07-13（大廳／房間／後台三層架構定案後）：首頁（大廳）從深色改成
   淺色「米紙 Rice Paper」，文字 `<h1>jonaminz</h1>` 字標換成真的圓相
-  logo 圖檔（assets/img/jonaminz-zen-logo.svg），見
-  AI_CONTEXT/DECISIONS.md §四、assets/css/page-home.css 檔頭說明。
+  logo 圖檔，見 AI_CONTEXT/DECISIONS.md §四、assets/css/page-home.css 檔頭說明。
+- 2026-07-14：手繪 SVG 版 logo（圓相+竹枝+疊石）反覆修了很多輪質感一直
+  不理想，使用者改用外部 AI 生圖工具直接生成點陣圖（jonaminz-logo.png），
+  hero-logo 跟 favicon 都改吃這份點陣圖，原本的手繪 SVG 元件檔還留在
+  assets/img/ 裡但不再使用，除非之後決定要重新啟用。
 -->
 <html
   lang="zh-Hant"
@@ -39,11 +42,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Jonaminz</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/favicon-180.png">
 
   <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
   <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
   <link rel="preload" as="image" href="/assets/img/home-hero.jpg">
-  <link rel="preload" as="image" href="/assets/img/jonaminz-zen-logo.svg">
+  <link rel="preload" as="image" href="/assets/img/jonaminz-logo.png">
   <script src="/assets/js/entry-core.js"></script>
 </head>
 
@@ -60,7 +65,7 @@
       <div class="hero-photo">
         <img src="/assets/img/home-hero.jpg" alt="Jonathan 與 Minz">
       </div>
-      <img class="hero-logo" src="/assets/img/jonaminz-zen-logo.svg" alt="jonaminz">
+      <img class="hero-logo" src="/assets/img/jonaminz-logo.png" alt="jonaminz">
       <p>Jonathan 與 Minz 的 Digital Home。</p>
     </main>
 

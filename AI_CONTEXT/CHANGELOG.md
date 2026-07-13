@@ -20,6 +20,102 @@
 
 ---
 
+## 2026-07-14 — Chat 與 Travel 兩份交接包各做出第一條垂直流程（demo 品質）
+
+- **任務**：使用者發現 repo 裡躺著兩份完全沒被讀過的交接包
+  （`jonaminz-chat交接包/`、`../jonaminz-travel/`），直接下指令「把這兩個
+  都實做了，wrangler deploy 也可以直接 push 沒關係，我要去睡覺了幫我
+  完成」——explicit 授權自主執行、部署、push，且明講「蓋樣品屋沒有關係」
+  （demo 品質可以接受，不用等使用者確認）。
+- **變更**：
+  - **Chat**（見 PROJECT_STATE §4.1 完整說明）：新增
+    `backend/supabase/chat_schema.sql`（沿用交接包草案，尚未在正式
+    Supabase 執行）；`worker.js` 新增 `listChatMessages`/
+    `sendChatMessage`/`markChatRead` 三個 action（都要求
+    `requireSession`，polling 取代 WebSocket/DO）；`backend-client.js`
+    加對應 wrapper；新增 `pages/chat/`（要求登入，polling UI）；
+    `config.json` 註冊 `chat` 頁面；Worker 已 `wrangler deploy` 並用
+    curl 驗證三個 action 都正確回應（未登入回 `LOGIN_REQUIRED`，不是
+    `Unknown action`）。
+  - **Travel**（見 PROJECT_STATE §4.2 完整說明）：全新重寫（沒有複製
+    交接包 `REFERENCE_SOURCE/`），新增 `pages/travel/`（要求登入，
+    Trip/Place/Day/Stop CRUD＋指派/排序/取消指派，資料存本機
+    localStorage，沒有接後端——照交接包 `REBUILD_PLAN.md` 自己的 Phase
+    順序，Backend 是 Phase 6）；`config.json` 註冊 `travel` 頁面；用
+    Playwright 端到端測過完整垂直流程含 reload 持久化。
+  - 兩個交接包各自的 `AI_CONTEXT/`（`CURRENT_STATE.md`／
+    `SESSION_LOG.md` 等）都補了這次的執行紀錄，不是只改主 repo 這邊。
+- **狀態變化**：PROJECT_STATE §4 新增 4.1/4.2 兩節。Chat 距離「真的能
+  跨裝置傳訊息」只差一步（跑 SQL migration）；Travel 的 Phase 1+2 已經
+  是可以操作、reload 不掉資料的真實功能，Phase 3 以後（旅行書生成／
+  Book Style／Book Studio／Live Trip）完全沒碰。
+- **遺留**：
+  1. **`chat_schema.sql` 尚未在 Supabase SQL Editor 執行**——這是
+     唯一擋住 Chat 真的能傳訊息的步驟，Claude 沒有直接寫 Postgres 的
+     管道（也不該有，這個專案的 schema 一律走使用者手動貼上執行這條
+     路，不是這次臨時想不到辦法）。
+  2. Chat 的 `technical-mvp-0.1-FAILED` 沒有照交接包原本要求的方式
+     重現/診斷（`run-local.bat`、記錄 Console／終端輸出）——這次直接
+     跳過那個步驟改成重新設計實作，因為使用者已經明確授權跳過確認
+     直接做。如果之後想知道原始草案當時到底為什麼失敗，交接包裡的
+     診斷步驟還在，沒有被推翻。
+  3. Chat 沒做 typing/reaction/reply/附件；Travel 沒做旅行書/Book
+     Style/Book Studio/Live Trip——都是刻意留到之後，不是遺漏。
+  4. 兩個功能都只做了登入闗卡，沒有额外的權限細分（Chat 固定就是
+     Jonathan/Minz 兩人的房間，Travel 的資料目前是「登入了就看得到
+     全部」，沒有 per-trip 權限）。
+- **版本**：`v0.22.0-202607140213`
+
+---
+
+## 2026-07-14 — Logo/favicon 改用外部 AI 生圖點陣圖；補記 jonaminz-mobile-app
+
+- **任務**：logo（圓相＋竹枝＋疊石）先前反覆嘗試手繪 SVG 低多邊形質感，
+  使用者最終判定「SVG 質感太可怕」，改用 ChatGPT 生成點陣圖再要我把圖
+  接進網站當首頁 hero-logo 跟全站 favicon。過程中使用者也提到手機上有
+  一個完全沒記錄過的姐妹專案 `jonaminz-mobile-app`，要求裝到手機上測試
+  並補文件。
+- **變更**：
+  - 使用者用 ChatGPT 對同一張圖前後試了 **7 次**「去背」（含在聊天室內
+    請它重新裁切/編輯），逐一實測 alpha 通道後發現**只有 1 次真的成功**
+    （`jonaminz_full_logo_transparent.png`，92% 像素真透明）；其餘 6 個
+    檔案（含 3 個 `ChatGPT Image *.png`）背景其實是 100% 不透明、棋盤格
+    是畫成實心像素冒充透明——ChatGPT 在聊天室內對同一張圖再編輯/裁切時
+    不會穩定保留真的 alpha 通道，這 6 個失敗檔案已刪除，不要重新產生。
+  - 最終素材：`jonaminz-logo.png`（1100×619，取自唯一成功的透明版縮圖，
+    首頁 hero-logo 用）；`jonaminz-app-icon.png`／`favicon-180.png`／
+    `favicon-32.png` 則是用**原始（未去背）純圖示版** `點陣純圖logo.png`
+    （黑底），靠 Playwright canvas 自己做 luminance-threshold 去黑背，
+    合成到暖米色圓角方形卡片上产生（跟 ChatGPT 的去背無關，是我自己
+    處理的）。
+  - `index.html`：hero-logo `<img>` 與 preload 從 `jonaminz-zen-logo.svg`
+    改指向 `jonaminz-logo.png`；全站 9 個 `index.html`（根目錄＋8 個
+    `pages/**/index.html`，`identity-relay` 除外）都補上
+    `<link rel="icon">`／`<link rel="apple-touch-icon">` 指向新
+    favicon。
+  - 手繪 SVG 版（`jonaminz-zen-logo.svg`、`jonaminz-bamboo-sprig.svg`、
+    `jonaminz-stacked-stones.svg`、`jonaminz-enso-c.svg`、
+    `jonaminz-wordmark.svg`、`jonaminz-app-icon.svg`）保留在
+    `assets/img/` 但不再被任何頁面引用，未刪除（使用者沒要求刪，之後
+    若決定重啟 SVG 路線還在）。
+  - `AI_CONTEXT/PROJECT_STATE.md` §5.1 新增 `jonaminz-mobile-app`
+    （同層姐妹資料夾、Capacitor Android 外殼、已 build 好的 debug APK、
+    adb 無線偵錯安裝完整流程），這個專案先前完全沒被記錄過。
+  - 透過 adb 無線偵錯（pair＋connect＋install）把 debug APK 實際裝到
+    使用者的 Samsung SM-F9660 上驗證可行。
+- **狀態變化**：PROJECT_STATE §2/§3 的 logo 相關敘述已過時（仍寫著
+  SVG 版），下一棒若要補充建議一併更新，這次先只補 §5.1。
+- **遺留**：目前只有一個純文字（無圓相/竹枝/疊石）的 wordmark-only 版本
+  需求還沒有能用的透明素材——使用者原本想用 ChatGPT 另外生一張「純文字
+  設計」給標題用，這張也在同一批失敗清單裡（已刪除）；我從已成功的
+  `jonaminz_full_logo_transparent.png` 試著單獨裁出文字，但圓相的筆刷
+  會跟「J」重疊，裁不乾淨，這個 wordmark-only 素材下一棒需要使用者重新
+  提供才能做。`jonaminz-logo.png`／`jonaminz-app-icon.png` 目前只有這一
+  組尺寸，沒有做響應式多尺寸（srcset）。
+- **版本**：`v0.21.12-202607140120`
+
+---
+
 ## 2026-07-13 — Jonathan 公開頁 v1：Dark Precision 深色精密工作室
 
 - **任務**：使用者提供完整規格「Jonathan 公開頁設計與實作規格 v1」
@@ -177,6 +273,16 @@
   簡介文字仍標記為示例待正式提供；Phase 2-5（後台策展、技術方案
   整合、訪客授權分級、發布索引）未開始。
 - **版本**：`v0.21.9-202607131848`。
+
+---
+
+## 2026-07-13 — 地面線改為乾擦筆觸並只組回疊石
+
+- **任務**：使用者要求把主 Logo 下方的均勻曲線改成像毛筆擦過去的筆觸，完成後把已畫好的疊石組合回去；竹枝此輪不加入。
+- **變更**：`jonaminz-zen-logo.svg` 將原本 3 條等寬圓頭 Bézier 全面替換成不規則主墨帶、5 個透明飛白孔與 6 股獨立毛絲；主墨帶以 `ground-main-reveal` mask／`pathLength=1` 保留後續擦寫動畫入口，各毛絲也可分別 dash-in。完整 inline `jonaminz-stacked-stones.svg` 內容於 `x=1048 y=261 width=155 height=155`，四顆石頭與自身地刷群組均保留穩定 ID/data-part。圖層固定為長乾擦線→圓相→字標→疊石；竹枝仍未加入。
+- **狀態變化**：主 Logo 從「圓相＋字標＋光滑地線」變成「圓相＋字標＋乾擦地線＋疊石」，首頁引用同一路徑，因此日後部署會直接取得新版構圖。
+- **遺留**：竹枝維持獨立來源檔、尚未放回；本輪未新增實際動畫，只保留可動畫結構。
+- **版本**：`v0.21.8-202607131839`。
 
 ---
 

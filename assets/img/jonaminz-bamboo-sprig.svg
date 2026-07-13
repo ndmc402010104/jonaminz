@@ -1,0 +1,128 @@
+<!--
+檔案位置：jonaminz/assets/img/jonaminz-bamboo-sprig.svg
+時間戳：2026-07-13 11:38 UTC+8
+用途：Jonaminz 獨立竹枝元件；主莖與每叢竹葉皆可分別套用動畫。
+
+2026-07-13 多輪修正紀錄（由舊到新）：
+1. 加粗竹幹描邊＋節環，仍只是線條不是真的有寬度的形狀。
+2. 改用計算出的偏移曲線畫出真正有寬度、由粗到細漸縮的竹幹填色形狀
+   （centerline 沿切線垂直方向外推，見 gen-culm2.mjs／gen-culm3.mjs）。
+3. 竹葉形狀對照參考照片整個重畫成上下緣接近對稱的直長矛狀，拿掉先前
+   彎刀狀不對稱曲線；叢生方式改成長短/角度不規則的自然叢生。
+4. 使用者指出「竹子不會 S 型彎曲」——原本 3 段 bezier 銜接可能有反曲點，
+   改成單一 cubic bezier、兩個控制點都在弦的同一側，數學上保證只有一個
+   彎、不會反曲（見 gen-culm3.mjs）。
+5. 使用者指出「竹葉是從竹節長出來的」——分枝／葉叢的位置這次改成直接
+   對齊六個竹節環其中三個的精確座標，不是莖中段任意點。
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="480"
+     height="680"
+     viewBox="0 0 480 680"
+     role="img"
+     aria-labelledby="jonaminz-bamboo-sprig-title jonaminz-bamboo-sprig-desc"
+     focusable="false"
+     data-component="jonaminz-bamboo-sprig">
+  <title id="jonaminz-bamboo-sprig-title">Jonaminz 竹枝</title>
+  <desc id="jonaminz-bamboo-sprig-desc">一根單一方向彎曲（無反曲）、由粗到細漸縮、帶六個竹節環的竹幹，三個竹節上各自長出一叢自然交疊的竹葉。</desc>
+
+  <defs>
+    <linearGradient id="jonaminz-bamboo-sprig-stem-fill" x1="80" y1="620" x2="368" y2="45" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7d785f"/>
+      <stop offset="0.35" stop-color="#667054"/>
+      <stop offset="0.72" stop-color="#4d5c43"/>
+      <stop offset="1" stop-color="#33412f"/>
+    </linearGradient>
+    <linearGradient id="jonaminz-bamboo-sprig-joint-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9c8a5e"/>
+      <stop offset="1" stop-color="#6e5e3d"/>
+    </linearGradient>
+    <linearGradient id="jonaminz-bamboo-sprig-leaf-primary" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#3f4d38"/>
+      <stop offset="0.5" stop-color="#637052"/>
+      <stop offset="1" stop-color="#879077"/>
+    </linearGradient>
+    <linearGradient id="jonaminz-bamboo-sprig-leaf-muted" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#596249"/>
+      <stop offset="0.55" stop-color="#7b8365"/>
+      <stop offset="1" stop-color="#a0a58a"/>
+    </linearGradient>
+    <linearGradient id="jonaminz-bamboo-sprig-leaf-deep" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#2f3c2c"/>
+      <stop offset="0.55" stop-color="#4b5a42"/>
+      <stop offset="1" stop-color="#6f785d"/>
+    </linearGradient>
+
+    <!-- 葉片基部在 (0,0)，外層 animation wrapper 保持無 transform。
+         上下緣接近對稱的直長矛狀，末端銳利收尖。 -->
+    <path id="jonaminz-bamboo-sprig-leaf-shape" d="M0,0 C12,-4 30,-9 55,-10 C80,-11 100,-7 116,0 C100,6 78,9 52,9 C28,9 10,5 0,0 Z"/>
+    <path id="jonaminz-bamboo-sprig-leaf-vein" d="M4,0 C25,-2 55,-3 112,0"/>
+  </defs>
+
+  <!-- 主莖：單一 cubic bezier centerline（M92,622 C124.9,404.4 214.0,213.0
+       362,42），兩個控制點都在弦的同一側，只有一個彎、無反曲。真正有
+       寬度的填色竹幹輪廓 + 六個節環色塊都是沿這條 centerline 算出來的
+       （見 gen-culm3.mjs）。 -->
+  <g id="jonaminz-bamboo-sprig-stem-main" data-part="stem">
+    <g data-art="stem-main">
+      <path fill="url(#jonaminz-bamboo-sprig-stem-fill)" stroke="#33412f" stroke-width="1" stroke-opacity="0.4"
+            d="M104.8,633.2 L110.1,626.8 L115.5,620.4 L120.7,614.0 L126.0,607.5 L131.2,601.0 L136.3,594.5 L141.4,588.0 L146.4,581.4 L151.4,574.9 L156.3,568.3 L161.1,561.7 L165.9,555.0 L170.7,548.3 L175.4,541.7 L180.1,534.9 L184.7,528.2 L189.2,521.4 L193.7,514.6 L198.1,507.8 L202.5,501.0 L206.9,494.1 L211.1,487.2 L215.4,480.3 L219.6,473.4 L223.7,466.4 L227.7,459.4 L231.8,452.4 L235.7,445.4 L239.6,438.3 L243.5,431.2 L247.3,424.1 L251.1,417.0 L254.8,409.8 L258.4,402.6 L262.0,395.4 L265.5,388.2 L269.0,380.9 L272.5,373.6 L275.9,366.3 L279.2,358.9 L282.5,351.6 L285.7,344.2 L288.9,336.7 L292.0,329.3 L295.1,321.8 L298.1,314.3 L301.0,306.8 L304.0,299.2 L306.8,291.7 L309.6,284.1 L312.4,276.4 L315.1,268.8 L317.7,261.1 L320.3,253.4 L322.9,245.6 L325.4,237.9 L327.8,230.1 L330.2,222.2 L332.6,214.4 L334.9,206.5 L337.1,198.6 L339.3,190.7 L341.4,182.7 L343.5,174.7 L345.5,166.7 L347.5,158.7 L349.4,150.6 L351.3,142.5 L353.2,134.4 L354.9,126.3 L356.7,118.1 L358.3,109.9 L360.0,101.7 L361.5,93.4 L363.1,85.1 L364.5,76.8 L365.9,68.5 L367.3,60.1 L368.6,51.7 L369.9,43.3 L354.1,40.7 L352.6,49.0 L351.1,57.3 L349.6,65.5 L348.0,73.7 L346.3,81.9 L344.6,90.0 L342.9,98.1 L341.1,106.2 L339.2,114.3 L337.3,122.3 L335.4,130.3 L333.4,138.2 L331.3,146.1 L329.2,154.0 L327.1,161.9 L324.9,169.7 L322.7,177.5 L320.4,185.3 L318.0,193.0 L315.6,200.7 L313.2,208.4 L310.7,216.1 L308.1,223.7 L305.5,231.3 L302.9,238.8 L300.2,246.3 L297.4,253.8 L294.6,261.3 L291.8,268.8 L288.9,276.2 L285.9,283.5 L282.9,290.9 L279.9,298.2 L276.8,305.5 L273.6,312.8 L270.4,320.0 L267.2,327.2 L263.9,334.4 L260.5,341.5 L257.1,348.7 L253.7,355.8 L250.1,362.8 L246.6,369.8 L243.0,376.9 L239.3,383.8 L235.6,390.8 L231.9,397.7 L228.1,404.6 L224.2,411.5 L220.3,418.3 L216.3,425.1 L212.3,431.9 L208.3,438.6 L204.2,445.4 L200.0,452.1 L195.8,458.7 L191.5,465.4 L187.2,472.0 L182.9,478.6 L178.4,485.2 L174.0,491.7 L169.5,498.2 L164.9,504.7 L160.3,511.1 L155.6,517.6 L150.9,524.0 L146.1,530.4 L141.3,536.7 L136.4,543.0 L131.5,549.3 L126.5,555.6 L121.4,561.8 L116.3,568.0 L111.2,574.2 L106.0,580.4 L100.8,586.5 L95.5,592.6 L90.1,598.7 L84.7,604.8 L79.2,610.8 Z"/>
+      <!-- 竹幹右緣一道細高光，暗示圓柱面反光。 -->
+      <path fill="none" stroke="#d2cfb8" stroke-width="1.3" stroke-linecap="round" opacity="0.4"
+            d="M150.7,564.0 C185,510 215,465 238.3,428.3 C265,386 285,335 305.0,282.3 C325,230 340,175 351.0,125.4"/>
+      <!-- 六個竹節環（偏褐色塊）。 -->
+      <g fill="url(#jonaminz-bamboo-sprig-joint-fill)" opacity="0.85">
+        <path d="M158.7,566.1 L164.8,558.1 L138.8,538.6 L132.8,546.6 Z"/>
+        <path d="M213.3,484.9 L218.6,476.5 L193.6,460.8 L188.3,469.3 Z"/>
+        <path d="M256.7,407.4 L261.3,398.5 L237.4,386.1 L232.8,394.9 Z"/>
+        <path d="M296.7,319.2 L300.5,309.9 L278.1,300.7 L274.3,309.9 Z"/>
+        <path d="M326.8,235.0 L329.9,225.5 L309.2,218.8 L306.1,228.3 Z"/>
+        <path d="M352.5,139.4 L354.7,129.7 L336.1,125.3 L333.8,135.0 Z"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- 三個短分枝，起點精確對齊第 2、4、6 個竹節環的中心座標——葉叢從
+       竹節長出來，不是從節與節之間的莖身冒出。 -->
+  <g id="jonaminz-bamboo-sprig-branch-lower" data-part="branch" data-order="1">
+    <path pathLength="1" d="M203.5,472.9 C218,469 230,466 239.6,461.2"
+          fill="none" stroke="url(#jonaminz-bamboo-sprig-stem-fill)" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <g id="jonaminz-bamboo-sprig-branch-middle" data-part="branch" data-order="2">
+    <path pathLength="1" d="M287.4,309.9 C282,297 278,286 276.6,275.6"
+          fill="none" stroke="url(#jonaminz-bamboo-sprig-stem-fill)" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
+
+  <g id="jonaminz-bamboo-sprig-branch-upper" data-part="branch" data-order="3">
+    <path pathLength="1" d="M344.3,132.3 C356,124 364,117 369.6,109.6"
+          fill="none" stroke="url(#jonaminz-bamboo-sprig-stem-fill)" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- 每叢 4-5 片葉子不規則自然叢生（長短、角度都刻意不平均）。 -->
+
+  <g id="jonaminz-bamboo-sprig-node-1" data-part="leaf-cluster" data-order="1" data-anchor-x="239.6" data-anchor-y="461.2">
+    <g transform="translate(239.6 461.2) rotate(-58) scale(.44)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-deep)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#cdd0bb" stroke-width="1" opacity="0.36"/></g>
+    <g transform="translate(239.6 461.2) rotate(-36) scale(.5)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-primary)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.4"/></g>
+    <g transform="translate(239.6 461.2) rotate(-16) scale(.36)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-deep)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#cdd0bb" stroke-width="1" opacity="0.36"/></g>
+    <g transform="translate(239.6 461.2) rotate(2) scale(.42)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-muted)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.38"/></g>
+    <g transform="translate(239.6 461.2) rotate(20) scale(.26)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-muted)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.34"/></g>
+  </g>
+
+  <!-- 這叢朝左上，用「先旋轉再水平鏡射」取代旋轉超過 180 度，避免葉片
+       弧線跟著上下顛倒。 -->
+  <g id="jonaminz-bamboo-sprig-node-2" data-part="leaf-cluster" data-order="2" data-anchor-x="276.6" data-anchor-y="275.6">
+    <g transform="translate(276.6 275.6) rotate(73) scale(-.44 .44)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-deep)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#cdd0bb" stroke-width="1" opacity="0.36"/></g>
+    <g transform="translate(276.6 275.6) rotate(51) scale(-.5 .5)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-primary)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.4"/></g>
+    <g transform="translate(276.6 275.6) rotate(31) scale(-.36 .36)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-deep)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#cdd0bb" stroke-width="1" opacity="0.36"/></g>
+    <g transform="translate(276.6 275.6) rotate(13) scale(-.42 .42)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-muted)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.38"/></g>
+    <g transform="translate(276.6 275.6) rotate(-5) scale(-.26 .26)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-muted)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.34"/></g>
+  </g>
+
+  <g id="jonaminz-bamboo-sprig-node-3" data-part="leaf-cluster" data-order="3" data-anchor-x="369.6" data-anchor-y="109.6">
+    <g transform="translate(369.6 109.6) rotate(-101) scale(.36)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-muted)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.36"/></g>
+    <g transform="translate(369.6 109.6) rotate(-80) scale(.46)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-primary)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.4"/></g>
+    <g transform="translate(369.6 109.6) rotate(-60) scale(.3)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-deep)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#cdd0bb" stroke-width="1" opacity="0.36"/></g>
+    <g transform="translate(369.6 109.6) rotate(-42) scale(.34)"><use href="#jonaminz-bamboo-sprig-leaf-shape" fill="url(#jonaminz-bamboo-sprig-leaf-muted)"/><use href="#jonaminz-bamboo-sprig-leaf-vein" fill="none" stroke="#d7d7c2" stroke-width="1" opacity="0.34"/></g>
+  </g>
+</svg>

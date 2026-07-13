@@ -62,6 +62,22 @@
   `docs/platform-integration-v1-implementation-plan.md` 第 9 項的
   查證紀錄）。這三個 action 走既有的 `Access-Control-Allow-Origin: *`，
   不涉及 credentials，不用改 CORS。
+- listChatMessages / sendChatMessage / markChatRead：2026-07-14 新增，
+  Jonaminz Chat 第一個真實里程碑（見 jonaminz-chat交接包/00_START_HERE.md）：
+  Jonathan／Minz 兩個真實登入身分互傳文字、真實未讀、真實已讀。三個
+  action 都要求 `requireSession`（沒登入一律拒絕），身分不是前端自報。
+  只有一間固定聊天室（couple-chat/jonathan-minz），Worker 端直接解析
+  room id，前端不傳也不能指定房間。**刻意不做 WebSocket／Durable
+  Object**，前端用 polling（每幾秒呼叫一次 listChatMessages）取代即時
+  推播——這是交接包 WORK_PLAN.md 自己列出的「方案 C：Worker polling 作為
+  極簡 MVP」，用來先證明端到端流程能動，不是長期最終架構；之後如果需要
+  更即時的 typing/presence，再評估要不要換成方案 A（Durable Object）。
+  `sendChatMessage` 用 `clientMessageId` 做 idempotent 重試（撞到既有的
+  unique constraint 時回傳既有那筆，不當錯誤）。**這幾個 action 需要的
+  資料表（backend/supabase/chat_schema.sql）还沒有在正式 Supabase
+  `jonaminz-db` 建立**——要先手動在 Supabase SQL Editor 貼上執行那份
+  schema，這三個 action 才會真的有資料表可用（跟這個專案其他 schema 檔
+  的建立方式一致，Claude 沒有直接寫入 Postgres 的管道，也不該有）。
 - getGrantedIdentity：implementation plan 第 9 項階段 B（`identity.currentUser@1`
   capability，S30-33）。只給 `pages/identity-relay/` 呼叫，不是給外部
   專案的 SDK 直接打——token 永遠留在 jonaminz.com 自己的瀏覽器裡。用
@@ -217,6 +233,18 @@ export default {
 
       if (action === "logout") {
         return json(await logout(env, payload), 200);
+      }
+
+      if (action === "listChatMessages") {
+        return json(await listChatMessages(env, payload), 200);
+      }
+
+      if (action === "sendChatMessage") {
+        return json(await sendChatMessage(env, payload), 200);
+      }
+
+      if (action === "markChatRead") {
+        return json(await markChatRead(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -1011,6 +1039,151 @@ async function logout(env, payload) {
   const response = await fetch(url, { method: "DELETE", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+// ---------- Jonaminz Chat（第一個真實里程碑：見 jonaminz-chat交接包） ----------
+// 只有一間固定聊天室（couple-chat / jonathan-minz），所以這裡不接受前端傳
+// roomId，一律在 Worker 端解析，避免前端猜/傳錯 id。schema 見
+// backend/supabase/chat_schema.sql（要先在 Supabase SQL Editor 貼上執行，
+// 這幾個 table 才會存在）。刻意不做 WebSocket/Durable Object——用最簡單的
+// polling（前端每幾秒呼叫一次 listChatMessages）先證明「兩個真實身分互傳
+// 訊息＋已讀」這條端到端流程能動，符合交接包 WORK_PLAN.md 自己建議的
+// 「Worker polling 作為極簡 MVP」路線，不是长期最終架構。
+
+let cachedChatRoomId = null;
+
+async function resolveChatRoomId(env) {
+  if (cachedChatRoomId) return cachedChatRoomId;
+
+  const url =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/chat_rooms?instance_id=eq.couple-chat&room_key=eq.jonathan-minz&select=id&limit=1";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  if (!rows[0]) {
+    throw new Error("chat room not found — 先在 Supabase SQL Editor 執行 backend/supabase/chat_schema.sql");
+  }
+  cachedChatRoomId = rows[0].id;
+  return cachedChatRoomId;
+}
+
+async function listChatMessages(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+
+  const messagesUrl =
+    base + "/rest/v1/chat_messages?room_id=eq." + roomId +
+    "&order=created_at.asc,id.asc&limit=500" +
+    "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id";
+  const membersUrl =
+    base + "/rest/v1/chat_room_members?room_id=eq." + roomId +
+    "&select=identity,last_read_message_id,last_read_at";
+
+  const [messagesRes, membersRes] = await Promise.all([
+    fetch(messagesUrl, { method: "GET", headers: supabaseHeaders(env) }),
+    fetch(membersUrl, { method: "GET", headers: supabaseHeaders(env) })
+  ]);
+  if (!messagesRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + messagesRes.status + " " + (await messagesRes.text()));
+  }
+  if (!membersRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + membersRes.status + " " + (await membersRes.text()));
+  }
+
+  const messages = await messagesRes.json();
+  const members = await membersRes.json();
+  const readState = {};
+  members.forEach(function (m) {
+    readState[m.identity] = { lastReadMessageId: m.last_read_message_id, lastReadAt: m.last_read_at };
+  });
+
+  return { ok: true, identity: identity, roomId: roomId, messages: messages, readState: readState };
+}
+
+async function sendChatMessage(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const body = String((payload && payload.body) || "").trim();
+  if (!body) {
+    return { ok: false, code: "BODY_REQUIRED", error: "body is required" };
+  }
+  if (body.length > 4000) {
+    return { ok: false, code: "BODY_TOO_LONG", error: "body must be 4000 characters or fewer" };
+  }
+
+  const clientMessageId = String((payload && payload.clientMessageId) || "").trim() || randomToken();
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+
+  const insertUrl = base + "/rest/v1/chat_messages";
+  const response = await fetch(insertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify({
+      room_id: roomId,
+      sender_identity: identity,
+      client_message_id: clientMessageId,
+      kind: "text",
+      body: body
+    })
+  });
+
+  if (response.status === 409) {
+    // 同一個 clientMessageId 已經送過（例如前端重送）——回傳既有那筆，
+    // 不視為錯誤，讓重試天生 idempotent。
+    const existingUrl =
+      base + "/rest/v1/chat_messages?room_id=eq." + roomId +
+      "&sender_identity=eq." + identity +
+      "&client_message_id=eq." + encodeURIComponent(clientMessageId) +
+      "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id&limit=1";
+    const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
+    const rows = await existingRes.json();
+    return { ok: true, message: rows[0] || null };
+  }
+
+  if (!response.ok) {
+    throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+
+  const rows = await response.json();
+  return { ok: true, message: rows[0] || null };
+}
+
+async function markChatRead(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const messageId = String((payload && payload.messageId) || "").trim();
+  if (!messageId) {
+    return { ok: false, code: "MESSAGE_ID_REQUIRED", error: "messageId is required" };
+  }
+
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+
+  const url = base + "/rest/v1/chat_room_members?room_id=eq." + roomId + "&identity=eq." + identity;
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ last_read_message_id: messageId, last_read_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
   }
   return { ok: true };
 }

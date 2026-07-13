@@ -165,6 +165,34 @@ agent），本次盤點已處理，見 `SESSION_LOG.md` 與 `DOCUMENT_STATUS.md`
 
 ---
 
+## 11. 全站沒有真正的「無 JavaScript」降級（2026-07-13，使用者確認暫不處理）
+
+**現況**：`assets/css/jonaminz-loading.css` 的核心機制是
+`html.jonaminz-loading body { visibility:hidden; opacity:0; }`——
+`jonaminz-loading` class 寫死在每頁 HTML 起始標籤上，只有
+`entry-core.js` 判定 all-ready 後才會拿掉。沒有 JS 執行，這個 class
+永遠不會被拿掉，`body` 永遠 `visibility:hidden`，使用者只會看到
+布幕上的標題文字＋進度條動畫，永遠進不去頁面本體。
+
+**根因不只在布幕本身**：就算改掉這行讓 `body` 強制顯示，畫面仍然會壞，
+因為 (1) reservoir CSS 1-6 層／頁面自己的 CSS／Theme CSS 全部是
+`entry-core.js` 在 runtime 動態插入 `<link>` 標籤載入的，HTML 起始
+只靜態連了 `jonaminz-loading.css` 一份，沒有 JS 其餘 CSS 都不會出現；
+(2) 大部分頁面的實際內容（後台首頁的入口卡、Minz/Jonathan 頁的
+registry-driven 內容區塊）是 `app.js` 抓資料/組資料後塞進空的
+`[data-xxx-root]` 容器，沒有 JS 那些容器就是空的。這是整站從一開始
+「原生 JS、runtime 動態組裝」的架構取捨（見 `ARCHITECTURE.md` §1），
+不是任何單一頁面遺漏處理。
+
+**風險等級**：低，且經使用者確認（2026-07-13）**暫不投入處理**——
+真的要做到位需要幫全站每一頁準備一份靜態 CSS `<link>` + 靜態內容
+fallback，是牽動全站的大改，不是單頁小修；且這個網站只有兩個固定
+使用者、都是現代瀏覽器、本來就需要 JS 才能登入/拿 Contract 資料/套
+Theme，no-JS 情境從未真的被使用過。下一個 agent 不要主動去做這件事，
+除非使用者明確改變優先順序。
+
+---
+
 ## 10. `.jonaminz-admin-hero`／`.jonaminz-admin-title` 這組 class 名稱在
     admin 子頁之間看起來共用，實際上沒有共用樣式（2026-07-13 盤點發現）
 
