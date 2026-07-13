@@ -30,8 +30,12 @@
 | `AI_CONTEXT/KNOWN_ISSUES.md` | Current | Yes（本次新增） | 2026-07-12 | 本次盤點新建 |
 | `AI_CONTEXT/EXPERIMENTS.md` | Current | Yes（本次新增） | 2026-07-12 | 本次盤點新建 |
 | `AI_CONTEXT/SESSION_LOG.md` | Current | Yes（本次新增） | 2026-07-12 | 本次盤點新建 |
-| `AI_CONTEXT/CHECKPOINTS.md` | Current | Yes（本次新增） | 2026-07-12 | 本次盤點新建 |
-| `AI_CONTEXT/DOCUMENT_STATUS.md` | Current | Yes（本次新增） | 2026-07-12 | 本檔 |
+| `AI_CONTEXT/CHECKPOINTS.md` | Current | Yes（本次新增） | 2026-07-12 | 本次盤點新建，2026-07-13 追加 Project Memory checkpoint |
+| `AI_CONTEXT/DOCUMENT_STATUS.md` | Current | Yes（本次新增） | 2026-07-12 | 本檔，2026-07-13 補三份新檔案條目 |
+| `AI_CONTEXT/PENDING.md` | Current | Yes（Project Memory 工具唯一寫入對象） | 2026-07-13 | 2026-07-13 新增，由 `tools/project-memory/memory.mjs record` 寫入 |
+| `AI_CONTEXT/CONTEXT_PACK.md` | Draft（自動產物） | No（AUTO-GENERATED，內容由其餘文件確定性截取組成，不是獨立權威） | 2026-07-13 | 2026-07-13 新增，只能透過 `memory.mjs start`／`close`／`record` 重新產生，不可手動編輯 |
+| `AI_CONTEXT/README.md` | Current | Yes（AI_CONTEXT 各檔案責任分工唯一權威） | 2026-07-13 | 2026-07-13 新增 |
+| `tools/project-memory/README.md` | Current | Yes（Project Memory 工具唯一權威） | 2026-07-13 | 2026-07-13 新增，含已知限制章節 |
 
 ## 入口指引檔（三份內容等價）
 

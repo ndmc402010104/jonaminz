@@ -124,3 +124,30 @@
 | Chat/AI | 完全未實作 | 尚無時程（見 `DECISIONS.md` #3、#4） |
 | 視覺架構 | 全站一套「亞麻米 Flax & Ink」tokens，公開頁與登入後頁無分別；`theme_css_rules` 單一 `unique(selector,property)`，無 space 概念 | 圖書館模型（`DECISIONS.md` §四，2026-07-13）：公開圖書館／登入後管理員室／每本書三層視覺，亞麻米重新界定成管理員室專屬；最小遷移方案見 `EXPERIMENTS.md` #10，**尚未實作** |
 | Contract 卡片入口 | `/pages/admin/design/` 通用機制從生效中 Contract 的 `entries`＋平台登記 origin 長出真連結（2026-07-13） | 未變更方向 |
+
+## 五、Project Memory 工具（跨 session 記憶輔助，2026-07-13 新增）
+
+`tools/project-memory/`：純 Node.js built-in 的輕量 CLI（`init` /
+`start` / `record` / `close` / `check` / `status`），不是資料庫、不是
+雲端服務、不呼叫任何 LLM API。用途：agent 開工前跑 `start` 產生一份
+確定性組成的 `AI_CONTEXT/CONTEXT_PACK.md`（把 RULES／FACTS／
+DECISIONS／CURRENT_STATE／KNOWN_ISSUES／CHECKPOINTS／SESSION_LOG／
+PENDING 濃縮成一份），工作中用 `record` 把新發現寫進
+`AI_CONTEXT/PENDING.md`（未確認候選，不是正式真相），收尾用 `close`
+把本輪摘要 append 進 `SESSION_LOG.md`。
+
+**已驗證**：14 項 `node --test` 全過（見
+`tools/project-memory/test/memory.test.mjs`）；已在本 repo 真實環境
+跑過完整 `init → start → record → close → check → status` 流程一次
+（smoke test），`check` 21 項全 PASS，且確認 `FACTS.md`／
+`DECISIONS.md`／`CURRENT_STATE.md`／`KNOWN_ISSUES.md`／
+`EXPERIMENTS.md` 五份正式真相文件在整個流程中完全沒被寫入過
+（`git diff` 為空）——CLI 沒有任何指令會自動把 pending 內容升級成正式
+真相，這是刻意的設計限制，不是還沒做的功能。
+
+**已知限制**（誠實記錄，見 `tools/project-memory/README.md`「已知限制」
+一節）：這個 repo 既有的 `DECISIONS.md`／`FACTS.md` 是自由文字記述格式
+（不是 `## DEC-NNN` + `- Status: active` 這種結構化格式），Context
+Pack 的 Active Decisions 抽取邏輯目前掃不到任何結構化條目、會明確標註
+「改用文字截取」並退回確定性截斷——不是解析失敗被隱藏，是刻意的誠實
+備援。沒有多 agent 併發鎖定機制（不在 v0.1 範圍內）。

@@ -22,3 +22,25 @@
   純文件不 bump。改 Worker 要另外 `wrangler deploy`（需任務單授權，否則先問）。
 - 完工後更新 `AI_CONTEXT/PROJECT_STATE.md`、追加 `AI_CONTEXT/CHANGELOG.md`。
 - 回覆一律繁體中文。
+
+<!-- PROJECT_MEMORY_START -->
+## Project Memory Workflow
+
+Before making changes:
+
+1. Run `node tools/project-memory/memory.mjs start --agent <agent> --task "<task>"`
+2. Read `AI_CONTEXT/CONTEXT_PACK.md`
+3. Respect active decisions and known issues.
+
+During work:
+
+- Record new candidates with `memory.mjs record`.
+- Do not directly promote pending content into formal truth documents.
+
+Before finishing:
+
+1. Run relevant tests.
+2. Run `memory.mjs close`.
+3. Run `memory.mjs check`.
+4. Report changed files, validation results, pending decisions, and unresolved issues.
+<!-- PROJECT_MEMORY_END -->

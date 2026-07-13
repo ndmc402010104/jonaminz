@@ -135,6 +135,30 @@ agent），本次盤點已處理，見 `SESSION_LOG.md` 與 `DOCUMENT_STATUS.md`
   的新證據。如果 CHANGELOG 記錯了，這次盤點會原樣繼承那個錯誤——下一
   個真正動手改程式碼的 agent 仍應該在改動前用 `wrangler secret list`／
   curl 等唯讀方式重新確認關鍵狀態，不要純信文件。
-- 沒有找到任何自動化測試套件（`package.json` 裡沒有測試腳本），所有
-  「已驗證」的證據來源都是 CHANGELOG 描述的一次性 Playwright／curl／
-  直連 DB 操作紀錄，不是持續執行的 CI。
+- 主站（`assets/`／`pages/`／`backend/`）本身沒有自動化測試套件（根目錄
+  沒有 `package.json`），所有「已驗證」的證據來源都是 CHANGELOG 描述的
+  一次性 Playwright／curl／直連 DB 操作紀錄，不是持續執行的 CI。**例外
+  （2026-07-13 新增）**：`tools/project-memory/`（跨 session 記憶
+  工具，見 `CURRENT_STATE.md` §五）有獨立的 `node --test` 套件（14 項，
+  `tools/project-memory/test/memory.test.mjs`），但那是這個工具自己的
+  測試，不是主站功能的測試，不要混為一談。
+
+---
+
+## 9. Project Memory 工具的已知限制（2026-07-13，工具本身刻意的範圍限制）
+
+**現況**：`tools/project-memory/` 的 v0.1 版本有兩個刻意不處理的限制，
+見 `tools/project-memory/README.md`「已知限制」一節：
+
+1. 這個 repo 既有的 `DECISIONS.md`／`FACTS.md` 是自由文字記述格式，
+   不是工具偏好的 `## DEC-NNN` + `- Status: active` 結構化格式。
+   `CONTEXT_PACK.md` 的 Active Decisions 區塊目前掃不到任何結構化
+   條目，會明確標註「改用文字截取」並退回確定性截斷顯示——內容仍然
+   完整可讀，只是不是精準過濾出的清單，需要人自己看內文判斷哪些還
+   active。
+2. 沒有多 agent 併發鎖定：兩個 agent 同時對同一個 repo 跑
+   `memory.mjs` 可能互相覆蓋 `.project-memory/current-session.json`。
+
+**風險等級**：低——這兩點都是 v0.1 任務指示明文排除的範圍（「小型、
+確定性、可人工審核」的工具，不做多 agent 即時鎖定），不是遺漏，工具
+本身的 `check` 指令也不會誤報這兩點為錯誤。

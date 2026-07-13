@@ -7,6 +7,8 @@ Declarative Pack Framework）模式，不是「`theme_css_rules` 加 space
 下一步排在使用者先選定「公開圖書館」視覺方向之後（圖書館模型三層
 視覺架構見 `DECISIONS.md` §四）。
 
+最新組合標誌：`assets/img/jonaminz-zen-logo.svg` 目前依使用者指示暫時只保留「圓相＋Jonaminz 字標＋三股地面長筆觸」，竹枝與疊石已從組合檔移除，但兩個獨立來源元件未刪除。1200×460 版面依最新 1097×467 裁圖校正：圓相 nested box `x=51 y=41 width=365 height=390`，使可見墨跡約落在 `x=64–403 / y=61–418`；wordmark 使用 `x=183 y=132 width=930 height=250` 非等比配置，使 J 約落在 `x=190 / y=142–370` 並位於圓心；基準筆觸改從 `x=377 y=400` 起筆。組合檔仍使用 nested SVG 完整內嵌圓相與字標，可單檔匯出並保留內部 ID/data-part。尚未接入正式頁面。
+
 最新品牌元件：`assets/img/jonaminz-enso-c.svg` 是透明背景的獨立書法 C／圓相。2026-07-13 在多輪手繪 Bézier、色帶、mask/filter 方案仍被使用者判定「不像真正筆觸」後，已取得使用者重傳的 792×824 原始裁圖並全面淘汰人工幾何骨架，改以高精度 Potrace 直接描摹真實墨跡（threshold 210、turdSize 2、optTolerance 0.05、alphaMax 0.82）。目前 compound path 完整保留原圖的飛白孔洞、左側撕裂毛邊、頂部散開毛束及右側斷續淡墨，單色 `#c2af98`、純向量、無點陣圖／filter／script／外部資源；另保留獨立 `jonaminz-enso-c-gesture`／`pathLength="1"` 作後續逐筆 reveal 動畫入口。尚未接入頁面。
 
 最新品牌元件：`assets/img/jonaminz-bamboo-sprig.svg` 是透明背景、animation-ready 的獨立竹枝；主莖、6 段側枝、14 片披針形竹葉皆為獨立 data-part。每片葉的外層 motion group 無靜態 transform，實際定位放在內層，並提供 `data-anchor-x/y` 作旋轉支點；主莖與側枝主 path 有 `pathLength="1"`，可直接做畫線生長動畫。未內建動畫、未接入頁面。

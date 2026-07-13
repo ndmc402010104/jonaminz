@@ -76,3 +76,65 @@ bump `version.js`**（純文件修改不 bump），本次也確實沒有動 `ver
   `git status --porcelain`（含新增的 untracked 檔案清單）。
 - 確認滿意後要正式收下這次變更：由使用者自己執行
   `git add <檔案清單>` 與 `git commit`（本次盤點依規則不會自動執行）。
+
+---
+
+## Checkpoint: `project-memory-v0.1`（2026-07-13 建立 Project Memory 工具）
+
+**任務性質**：新增純本機工具（`tools/project-memory/`）與對應的
+`AI_CONTEXT/` 補充檔案，不修改任何正式產品功能／HTML／CSS／既有 JS
+runtime／API／Worker／Supabase schema／Contract schema／Authentication
+／Deployment 設定／業務資料——白名單範圍見任務指示原文「二、安全範圍」。
+
+**修改範圍**：
+
+- 新增：`tools/project-memory/`（`memory.mjs`、`lib/*.mjs` 五個模組、
+  `test/memory.test.mjs`、`README.md`）、`.project-memory/`
+  （`config.json`、`ledger.jsonl`、`snapshots/.gitkeep`；
+  `current-session.json`／`snapshots/` 已排除進版控）、
+  `AI_CONTEXT/PENDING.md`、`AI_CONTEXT/CONTEXT_PACK.md`（自動產物）、
+  `AI_CONTEXT/README.md`。
+- 修改（皆為既有內容之外的補充，原文一字未刪）：`.gitignore`（加
+  project-memory 相關排除規則）、`AGENTS.md`／`CLAUDE.md`（標記區塊
+  `<!-- PROJECT_MEMORY_START/END -->` 插入 Workflow 說明）、
+  `AI_CONTEXT/CHANGELOG.md`（追加一筆）、`AI_CONTEXT/CURRENT_STATE.md`
+  （新增 §五）、`AI_CONTEXT/KNOWN_ISSUES.md`（新增 #9，並修正 #8 一句
+  過期敘述——當時寫「沒有找到任何自動化測試套件」，本次新增了
+  `tools/project-memory` 自己的測試，需要區分清楚那不是主站測試）、
+  `AI_CONTEXT/PROJECT_STATE.md`（頂端摘要更新）、
+  `AI_CONTEXT/SESSION_LOG.md`（`memory.mjs close` 自動 append 的 smoke
+  test 記錄，見下方「Smoke test 副作用」）。
+
+**確認無正式產品程式碼變更**：是。`git diff --stat` 只會列出以上檔案，
+沒有任何 `assets/`／`pages/`／`backend/`（`tools/` 除外）路徑。
+
+**Smoke test 副作用（刻意保留，不是誤觸）**：任務指示的 Phase 3 smoke
+test 在真實 repo 上跑過一次完整 `init → start → record decision →
+close → check → status`，因此：
+
+- `AI_CONTEXT/PENDING.md` 有一筆 `PEND-001`（decision candidate，
+  summary「正式文件與自動紀錄分離」，Status 仍是 `pending`——**沒有**
+  被升級進 `DECISIONS.md`，也不會被自動升級。
+- `AI_CONTEXT/SESSION_LOG.md` 最上面多一筆
+  `session_20260713051704_e0823ba0` 的結構化記錄。
+- `.project-memory/ledger.jsonl`（不進版控）有 3 筆事件
+  （`session_started`／`decision_candidate`／`session_closed`）。
+
+這些都是任務指示明文要求的驗收步驟本身產生的資料，使用者驗收時如果
+不想保留這筆測試用的 pending decision，直接編輯
+`AI_CONTEXT/PENDING.md` 刪掉 `PEND-001` 那個區塊即可，不影響工具本身
+的正確性。
+
+**回退方式**：
+
+- 全部回退：`git checkout -- .gitignore AGENTS.md CLAUDE.md AI_CONTEXT/CHANGELOG.md AI_CONTEXT/CURRENT_STATE.md AI_CONTEXT/KNOWN_ISSUES.md AI_CONTEXT/PROJECT_STATE.md AI_CONTEXT/SESSION_LOG.md` 還原已追蹤檔案的修改，再
+  `rm -rf tools/project-memory .project-memory AI_CONTEXT/PENDING.md AI_CONTEXT/CONTEXT_PACK.md AI_CONTEXT/README.md` 刪除新增的檔案／目錄
+  （`tools/` 底下若還有其他工具子資料夾，只刪
+  `tools/project-memory`，不要整個 `tools/` 資料夾一起刪）。
+- 只想拿掉 smoke test 產生的那筆 pending：手動編輯
+  `AI_CONTEXT/PENDING.md` 刪除 `### PEND-001` 那個區塊即可，其餘檔案
+  不用動。
+- 確認滿意後要正式收下：`git add` 上面列出的檔案清單並 `git commit`
+  （依 RULES.md §二-2，`git push` 預設不用先問，但本次任務指示要求先
+  commit、等使用者確認後才進一步動作，所以這次連 commit 都先讓使用者
+  過目 diff 再決定）。

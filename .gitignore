@@ -11,3 +11,8 @@ node_modules/
 *secret*.txt
 .env
 .env.*
+
+# project-memory (tools/project-memory)
+.project-memory/current-session.json
+.project-memory/snapshots/
+.project-memory/ledger.jsonl
