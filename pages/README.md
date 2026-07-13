@@ -30,9 +30,13 @@
 - `pages/identity-relay/` — 跨子網域身分轉發頁（implementation plan 第 9 項
   階段 B）：不走水庫 bootstrap，供其他 `*.jonaminz.com` 專案的 SDK 透過隱藏
   iframe 查詢「目前登入的是誰」。
-- `pages/jonathan/` — Jonathan（石益昇）個人門戶頁（前端品質重建計畫階段②，
-  2026-07-12）：簡介＋專案卡片（SKHPS、jonaminz-movies，原本放在
-  `pages/admin/` 的 SKHPS 連結搬來這裡）。公開頁面，不需要登入。
+- `pages/jonathan/` — Jonathan（石益昇）公開門戶頁，2026-07-13 起改版成
+  「Dark Precision 深色精密工作室」（見 `docs/jonathan-page/README.md`）：
+  Hero 左右分欄＋純 CSS 合成的抽象「精密展示艙」＋SKHPSv2 registry-driven
+  詳細卡。公開頁面，不需要登入。
+- `pages/jonathan/about/` — Jonathan About 子頁（2026-07-13 新增）：完整
+  自我介紹（醫師身分／數位工具／3D 列印／興趣），跟 `pages/jonathan/`
+  共用 `page-jonathan.css` 的導覽/按鈕/配色，只加自己的照片＋文字版型。
 - `pages/minz/` — Minz 個人門戶頁，目前是骨架佔位頁（內容留白等本人提供
   簡介文字/照片），版型跟 `pages/jonathan/` 對稱。公開頁面，不需要登入。
 

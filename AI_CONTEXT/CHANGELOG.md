@@ -20,6 +20,64 @@
 
 ---
 
+## 2026-07-13 — Jonathan 公開頁 v1：Dark Precision 深色精密工作室
+
+- **任務**：使用者提供完整規格「Jonathan 公開頁設計與實作規格 v1」
+  （忠實保存於 `docs/jonathan-page/README.md`），要求把 Jonathan 的
+  房間從骨架佔位改成正式的公開對外入口，視覺主題「Dark Precision」。
+- **變更**：
+  - `assets/css/reservoir/02-tokens.css` 新增 Jonathan 專用色彩 token
+    （`--color-bg-jonathan` 系列共 8 個）＋`--font-jonathan-display`＋
+    4 個 `--jonathan-*` 結構/動態 token（玻璃透明度／動態時長／
+    easing／光暈強度）；`pages/admin/theme/assets/js/app.js` 的
+    `ROOT_TOKENS` 同步收錄 6 個顏色 token。
+  - `pages/jonathan/index.html`／`assets/js/app.js`／
+    `assets/css/page-jonathan.css` 整份改寫：極簡導覽（SKHPSv2／
+    About／Minz）、Hero 左右分欄（左側簡介＋兩個按鈕，右側抽象
+    「精密展示艙」）、SKHPSv2 registry-driven 詳細卡（`CONTENT_ITEMS`
+    陣列驅動，不寫死逐項 HTML）。
+  - 精密展示艙（`.jonathan-pod`）完全用 CSS conic-gradient／
+    radial-gradient／box-shadow 合成金屬環＋深色玻璃＋精密切線＋
+    呼吸光核心＋兩片抽象 UI 碎片卡，**沒有任何真實 SKHPSv2 截圖或
+    點陣圖**，碎片本身是純幾何 bar 形狀，天生滿足規格的去識別化要求。
+    環形旋轉 48 秒一圈、核心呼吸光 3.6 秒一次，皆屬「緩慢」而非機械
+    動畫；`@media (prefers-reduced-motion:reduce)` 停用兩者動畫。
+  - 新增 `pages/jonathan/about/`（走 `pages/README.md` 五步驟新增
+    頁面）：獨立 About 子頁，內容順序照規格（醫師身分→數位工具→
+    3D 列印→興趣→總結句），純文字段落非條列技能清單，共用
+    `page-jonathan.css` 的導覽/按鈕/配色，另加
+    `page-jonathan-about.css` 處理照片＋文字版型（沿用既有
+    `assets/img/jonathan-portrait.jpg` 真實照片）。`config.json` 新增
+    `jonathan-about` 頁面登錄。
+  - SKHPS 連結沿用既有 `resolveSkhpsUrl()`（本機開發連本機 dev
+    server、正式站連 `skhps.jonaminz.com`）完全沒改動邏輯。
+- **跟原規格的差異（見 `DECISIONS.md` §七完整記錄）**：(1) token 前綴
+  用 `--jonathan-*` 不是規格建議的 `--theme-*`，避免跟本 repo 既有的
+  「Theme 系統」（theme_css_rules／ADPF）專有名詞混淆；(2) SKHPSv2
+  項目只實作 `launch` action，規格範例的 `details` action（連去尚未
+  存在的專案詳細頁）本輪沒有生出對應的空連結按鈕；(3) 規格提到的
+  「Jonaminz Registry」查證後不是指根目錄 `registry.json`（那是 v0
+  外部專案自我回報機制，性質不同），`CONTENT_ITEMS` 是頁面自己的
+  策展資料，跟 Minz 頁 mock data 同一個定位。
+- **狀態變化**：`DECISIONS.md` 新增 §七（第 32-38 條，全部標記已實作）；
+  `CURRENT_STATE.md`／`PROJECT_STATE.md` 視覺架構描述更新——大廳／
+  Jonathan／Minz／後台四個視覺方向至此全部完成第一輪實作。
+- **驗證**：Playwright 桌機 1440px／窄桌機 1024px／手機 390px／
+  About 頁桌機與手機，皆 console 零錯誤；另外用
+  `context.reducedMotion` 讀 `getComputedStyle().animationName` 驗證
+  一般情況下 pod 環/核心動畫確實在跑、reduced-motion 下確實變成
+  `none`；8 頁快速回歸（home／minz／login／admin 三子頁／jonathan／
+  jonathan-about）確認 `02-tokens.css` 改動沒有波及其他頁面。
+- **遺留**：全站 no-JS 降級是既有框架限制（`entry-core.js` 本身就需要
+  JS 才能移除 loading 遮罩），不是本頁單獨問題，本輪未處理；
+  projects／collections／professional／patientGallery 這些可選分類
+  目前完全沒有資料，維持不渲染（符合規格，不是遺漏）；規格 §16
+  JSON 範例的 `visibility`／`access` 欄位形狀本輪沒有實際用在渲染
+  邏輯裡，保留在文件當未來擴充參考。
+- **版本**：`v0.21.11-202607131932`。
+
+---
+
 ## 2026-07-13 — 後台首頁改版：擺脫「置中小卡片」，往「安靜的家」方向打磨
 
 - **任務**：使用者要求 Jonaminz 登入後畫面（`/pages/admin/`）擺脫

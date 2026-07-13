@@ -1,0 +1,67 @@
+/*
+檔案位置：jonaminz/pages/jonathan/about/assets/css/page-jonathan-about.css
+用途：CSS 疊加第 7 層 - Page Layer，只給 Jonathan About 子頁用，疊加在
+pages/jonathan/assets/css/page-jonathan.css（同時載入，見 config.json
+的 jonathan-about entry.styles）之上。共用導覽/按鈕/Footer/配色 token，
+這裡只加這頁專屬的照片＋文字版型。
+*/
+
+.jonathan-about-back {
+  display: inline-block;
+  margin: var(--space-5) 0 var(--space-6);
+  font-size: 13.5px;
+  color: var(--color-text-jonathan-muted);
+  text-decoration: none;
+}
+
+.jonathan-about-back:hover,
+.jonathan-about-back:focus-visible {
+  color: var(--color-text-jonathan);
+}
+
+.jonathan-about-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--space-7);
+  align-items: start;
+  padding-bottom: var(--space-7);
+}
+
+.jonathan-about-photo {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-jonathan-border);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+}
+
+.jonathan-about-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.jonathan-about-title {
+  margin: var(--space-2) 0 var(--space-5);
+  font-family: var(--font-jonathan-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+}
+
+.jonathan-about-text {
+  margin: 0 0 var(--space-4);
+  max-width: 62ch;
+  line-height: 1.75;
+  color: var(--color-text-jonathan-muted);
+}
+
+@media (max-width: 640px) {
+  .jonathan-about-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .jonathan-about-photo {
+    max-width: 220px;
+    margin: 0 auto;
+  }
+}

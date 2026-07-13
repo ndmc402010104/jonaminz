@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/jonathan/about/index.html
+用途：Jonathan About 子頁（水庫下游頁面，複製根目錄 index.html 的
+bootstrap，只改 pageId/title/內容，載入路徑維持根目錄絕對路徑）。
+公開頁面，不需要登入，走 pages/README.md 新增頁面五步驟。
+
+2026-07-13 新增，見「Jonathan 公開頁設計與實作規格 v1」§8：首頁只留一句
+自介＋About 按鈕，完整的「平常做什麼／為什麼做」放在這裡，跟首頁共用
+Dark Precision 視覺與導覽骨架（page-jonathan.css），只是這頁多一張
+自然側照與較長的閱讀文字，不是首頁那種展示型排版。完整的醫療經歷／
+專長／病人衛教留給未來獨立的 Professional／病人專業頁，這裡不寫。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="About Jonathan"
+  data-jonaminz-page-id="jonathan-about"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>About Jonathan - Jonaminz</title>
+
+  <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
+  <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
+  <script src="/assets/js/entry-core.js"></script>
+</head>
+
+<body class="jonaminz-body">
+  <div class="jonathan-page">
+    <header class="jonathan-topbar">
+      <a class="jonathan-brand" href="/">Jonaminz</a>
+      <nav class="jonathan-nav" aria-label="主導覽">
+        <a class="jonathan-nav-link" href="/pages/jonathan/">Jonathan</a>
+        <a class="jonathan-nav-link" href="/pages/jonathan/about/" aria-current="page">About</a>
+        <a class="jonathan-nav-link" href="/pages/minz/">Minz</a>
+      </nav>
+      <span class="nav-identity" data-nav-identity></span>
+    </header>
+
+    <main class="jonathan-content">
+      <a class="jonathan-about-back" href="/pages/jonathan/">← Jonathan</a>
+
+      <section class="jonathan-about-layout">
+        <div class="jonathan-about-photo">
+          <img src="/assets/img/jonathan-portrait.jpg" alt="石益昇">
+        </div>
+        <div class="jonathan-about-body">
+          <p class="jonathan-eyebrow">About</p>
+          <h1 class="jonathan-about-title">關於 Jonathan</h1>
+          <p class="jonathan-about-text">平常主要的身分是整形外科醫師，工作重心在臨床照護與傷口處理。除了看診，也花不少時間在數位系統與工具上——SKHPSv2 就是持續在用、持續在改的其中一個。</p>
+          <p class="jonathan-about-text">動手做東西的興趣不只在螢幕裡，3D 列印與其他實體製作也是常做的事；工作之外，旅行、收藏與到處看看喜歡的小東西，是重要的放鬆方式。</p>
+          <p class="jonathan-about-text">整體來說，比起單純把一件事做完，更喜歡先把問題想清楚，再把想法真的做成能被使用的東西。</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="jonathan-footer">
+      <span class="jonathan-footer-brand">Jonaminz</span>
+      <a class="jonathan-footer-link" href="/pages/minz/">Minz</a>
+      <span class="jonathan-footer-copyright">© 2026 Jonaminz</span>
+    </footer>
+  </div>
+</body>
+</html>

@@ -94,6 +94,18 @@
         "loadingTasks": ["app-ready"]
       }
     },
+    "jonathan-about": {
+      "pageId": "jonathan-about",
+      "title": "About Jonathan",
+      "path": "/pages/jonathan/about/",
+      "group": "main",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/jonathan/assets/css/page-jonathan.css", "/pages/jonathan/about/assets/css/page-jonathan-about.css"],
+        "afterScripts": ["/pages/jonathan/about/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
     "minz": {
       "pageId": "minz",
       "title": "Minz",

@@ -340,3 +340,87 @@ Theme 系統，之後可推廣給其他 first-party app 共用同一套機制。
     agent 誤以為要一次做完全部）：重建完整技術規劃系統、技術方案的
     實際走訪操作介面、遊記 PDF 正式輸出本體、帳號註冊系統、社群互動
     （留言/討論）、公開聯絡表單。這些都不是這次裁決的一部分。
+
+---
+
+## 七、Jonathan 的房間：Jonathan 公開頁 v1（2026-07-13 使用者裁決）
+
+使用者提供完整規格「Jonathan 公開頁設計與實作規格 v1」（忠實保存於
+`docs/jonathan-page/README.md`），視覺主題定名「Dark Precision 深色
+精密工作室」，是 §四「大廳／房間／後台」裡 Jonathan 那個房間的具體
+落地方向。**實作狀態：第一版已實作**，見同日 CHANGELOG。
+
+32. **視覺主題定案：Dark Precision（深藍/灰藍主色＋墨黑/炭灰結構色＋
+    克制藍色光感）**，跟大廳米紙、Minz 手帳風都不同，第四套獨立配色。
+    **已實作**：`02-tokens.css` 新增 `--color-bg-jonathan`／
+    `--color-surface-jonathan`／`--color-surface-jonathan-elevated`／
+    `--color-text-jonathan`／`--color-jonathan-accent`／
+    `--color-jonathan-accent-2`／`--color-jonathan-border`／
+    `--color-jonathan-metal-highlight` 八個色彩 token，另加
+    `--font-jonathan-display`（現代無襯線，非全站預設 serif）與四個
+    `--jonathan-*` 結構/動態 token（玻璃透明度／動態時長／easing／
+    光暈強度）。**跟原規格的命名差異（刻意）**：規格建議
+    `--theme-*` 前綴，但「Theme」在這個 repo 已經是 theme_css_rules／
+    ADPF 那套動態套件機制的專有名詞（見 §五），改用 `--jonathan-*`
+    避免跟現有「Theme 系統」這個詞混淆，語意不變。
+
+33. **右側「精密展示艙」不得是真實 SKHPSv2 截圖，只能是抽象合成視覺，
+    UI 碎片需去識別化。** **已實作**：`.jonathan-pod` 完全用 CSS
+    conic-gradient／radial-gradient／box-shadow 合成（金屬環＋深色
+    玻璃＋精密切線＋呼吸光核心＋兩片抽象 UI 碎片卡），沒有任何真實
+    截圖或點陣圖，UI 碎片本身是純幾何色塊（細長 bar 形狀），不是擷取
+    自任何真實畫面，天生滿足去識別化要求（沒有東西需要去識別化）。
+    因為是純 CSS/HTML，沒有 Canvas／WebGL／外部圖片載入失敗的情境，
+    規格 §18「展示艙載入失敗需降級為靜態主視覺」的要求由構造方式本身
+    滿足，不需要額外的 fallback 邏輯。
+
+34. **SKHPSv2 卡片文案必須強調「這是實際使用中的系統」，不得以
+    Jonathan 的作品/代表作角度敘事。** **已實作**：卡片文案完全照規格
+    §7 建議文案，「院內授權使用」以小字低調標示，Jonathan 的開發/
+    維護角色本輪沒有寫進首頁任何地方（規格允許放 About/Credits，
+    本輪 About 頁文字也沒有特別強調這點，維持低調）。
+
+35. **內容必須 registry-driven，不得寫死逐項 HTML，且不得另立一份跟
+    Jonaminz Registry 脫節的專案清單。** **已實作，但有範圍收斂**：
+    `pages/jonathan/assets/js/app.js` 的 `CONTENT_ITEMS` 陣列驅動
+    渲染（跟 Minz 頁的 `CATEGORIES`／`LATEST` 同一個模式），目前只有
+    一筆真實項目（SKHPSv2）。**跟規格範例的差異**：規格 §16 的
+    JSON 範例裡 SKHPSv2 項目有兩個 action（`launch`／`details`），
+    本輪只實作 `launch`——`details` 對應的專案詳細頁
+    （`/jonathan/projects/skhpsv2`）目前不存在，規格本身明文禁止
+    「為尚未存在的內容建立空卡片」，所以沒有生出一個連去空頁面的
+    「了解更多」按鈕，等那個目的地真的存在再加，不是規格範例少抄。
+    另外，這裡説的「Jonaminz Registry」目前查證後**不是**指根目錄
+    `registry.json`（那是 v0 外部專案自我回報機制，跟「Jonathan 個人
+    公開頁的策展內容」是不同性質的東西，見 `ARCHITECTURE.md` §4），
+    `CONTENT_ITEMS` 是頁面自己的策展資料，跟 Minz 頁的 mock data
+    同一個定位，不是重複的專案清單。
+
+36. **About 是獨立子頁，不是首頁展開區塊；首頁只留一句自介＋按鈕。**
+    **已實作**：新增 `pages/jonathan/about/`（走 `pages/README.md`
+    五步驟新增頁面），內容順序照規格 §8（醫師身分→數位工具→3D
+    列印→興趣→總結句），純文字段落，不是條列式技能清單。
+
+37. **手機版不得直接縮小桌機展示艙，需要簡化版（更小、拿掉 UI 碎片）。**
+    **已實作**：`@media (max-width:860px)` 縮小 `.jonathan-pod` 尺寸
+    並 `display:none` 掉 `.jonathan-pod-fragment`，環/玻璃/核心保留。
+
+38. **動態需支援 `prefers-reduced-motion`，且動態本身要「緩慢」不是
+    機械感。** **已實作並驗證**：Playwright 用
+    `context.reducedMotion` 分別讀 `.jonathan-pod-ring`／
+    `.jonathan-pod-core` 的 `getComputedStyle().animationName`，
+    確認一般情況下是 `jonathan-ring-spin`／`jonathan-breathe`，
+    reduced-motion 下都變成 `none`。環形旋轉週期 48 秒、核心呼吸光
+    週期 3.6 秒，皆屬「緩慢」而非機械動畫。
+
+**已知限制（誠實記錄，本輪沒有處理）**：
+- 「無 JavaScript 情境下的降級」——本頁核心內容（Hero 文字、按鈕、
+  展示艙）確實是純 HTML/CSS、不依賴 JS 才能顯示，但**全站的 loading
+  遮罩機制本身依賴 `entry-core.js` 執行才會移除**（見
+  `ARCHITECTURE.md` §3），這是整個 jonaminz 框架的既有特性，不是
+  Jonathan 頁單獨的問題，本輪沒有（也不在範圍內）重新設計全站的
+  no-JS fallback 機制。
+- 規格 §16 JSON 範例的 `visibility`／`access` 兩個欄位這次沒有實際
+  用在渲染邏輯裡（`CONTENT_ITEMS` 目前只有一筆完全公開的項目，沒有
+  需要區分可見度/存取層級的情境），欄位形狀保留在 `docs/jonathan-page/README.md`
+  當未來擴充參考，不是遺漏。

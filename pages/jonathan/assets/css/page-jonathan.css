@@ -1,115 +1,465 @@
 /*
 檔案位置：jonaminz/pages/jonathan/assets/css/page-jonathan.css
-用途：CSS 疊加第 7 層 - Page Layer，只給 Jonathan 個人門戶頁用。疊加在
-reservoir 六層之上，只新增 .jonaminz-profile-* 這頁專屬版型，不去改
-05-components.css 本體。其他頁面不會載到這份檔案（見 config.json ->
-pages.jonathan.entry.styles）。跟 pages/minz/page-minz.css 是兩份獨立
-檔案，刻意不共用（水庫法則：頁面各自的 Page Layer 各自維護，不要為了
-兩頁版型像就抽共用檔案）。
+用途：CSS 疊加第 7 層 - Page Layer，只給 Jonathan 公開門戶頁用。
+
+2026-07-13：從共用 .jonaminz-profile-* 骨架整份改寫成「Dark Precision
+深色精密工作室」（見 docs/jonathan-page/README.md、
+AI_CONTEXT/DECISIONS.md §七）。跟 pages/minz/page-minz.css 一樣刻意
+不共用檔案（水庫法則：各頁 Page Layer 各自維護）。
+
+視覺數值全部走 assets/css/reservoir/02-tokens.css 的
+--color-*-jonathan／--jonathan-* token，這裡不寫死色碼／玻璃透明度／
+動態時長——換 Theme preset 時只需要改 token 定義，不用改這份檔案。
+
+右側「精密展示艙」（.jonathan-pod）完全是 CSS 合成的抽象視覺（環形金屬
+bezel + 深色玻璃 + 精密切線 + 呼吸光核心 + 兩片抽象 UI 碎片），沒有任何
+真實 SKHPSv2 截圖或點陣圖，天生滿足規格 §20「不得把完整 Dashboard
+截圖放進 Hero」與「UI 碎片需去識別化」的要求——這裡的碎片本來就不是
+擷取自真實畫面。
 */
 
-.jonaminz-profile-page {
-  padding: var(--space-7) 0;
-}
-
-.jonaminz-profile-container {
+.jonathan-page {
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
+  background: var(--color-bg-jonathan);
+  color: var(--color-text-jonathan);
 }
 
-.jonaminz-profile-hero {
+/* ---------- 極簡導覽 ---------- */
+
+.jonathan-topbar {
   display: flex;
   align-items: center;
-  gap: var(--space-7);
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-jonathan-border);
 }
 
-.jonaminz-profile-photo {
-  flex: 0 0 auto;
-  width: 220px;
-  aspect-ratio: 2 / 3;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-lg);
-}
-
-.jonaminz-profile-photo img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.jonaminz-profile-info {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.jonaminz-profile-name {
-  margin: var(--space-2) 0 var(--space-4);
-  font-size: var(--text-2xl);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.jonaminz-profile-bio {
-  margin: 0 0 var(--space-3);
-  max-width: 640px;
-  color: var(--color-text-muted);
-  line-height: 1.7;
-}
-
-.jonaminz-profile-section-title {
-  margin: var(--space-2) 0 var(--space-5);
-  font-size: var(--text-xl);
-}
-
-.jonaminz-profile-links {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-3);
-}
-
-.jonaminz-profile-link-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
+.jonathan-brand {
+  font-family: var(--font-jonathan-display);
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+  color: var(--color-text-jonathan);
   text-decoration: none;
-  color: inherit;
-  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.jonaminz-profile-link-card:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+.jonathan-brand:hover,
+.jonathan-brand:focus-visible {
+  color: var(--color-jonathan-accent);
 }
 
-.jonaminz-profile-link-title {
+.jonathan-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-right: auto;
+  margin-left: var(--space-6);
+}
+
+.jonathan-nav-link {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text-jonathan-muted);
+  text-decoration: none;
+  padding: 4px 2px;
+}
+
+.jonathan-nav-link:hover,
+.jonathan-nav-link:focus-visible {
+  color: var(--color-text-jonathan);
+}
+
+.nav-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 13.5px;
+}
+
+.nav-identity-greeting {
+  color: var(--color-text-jonathan-muted);
   font-weight: 600;
 }
 
-.jonaminz-profile-link-desc {
-  font-size: var(--text-xs);
-  opacity: 0.6;
+.jonathan-nav-link--button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
 }
 
-@media (max-width: 640px) {
-  .jonaminz-profile-hero {
-    flex-direction: column;
+/* ---------- 主內容容器 ---------- */
+
+.jonathan-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 var(--space-6) var(--space-7);
+}
+
+/* ---------- Hero：左右分欄 ---------- */
+
+.jonathan-hero {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  align-items: center;
+  gap: var(--space-7);
+  min-height: min(72vh, 620px);
+  padding: var(--space-6) 0;
+}
+
+.jonathan-hero-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 46ch;
+}
+
+.jonathan-eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-jonathan-accent-2);
+}
+
+.jonathan-hero-tagline {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--color-text-jonathan);
+  text-wrap: balance;
+}
+
+.jonathan-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.jonathan-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  font-size: 14.5px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.jonathan-btn--primary {
+  background: var(--color-jonathan-accent);
+  color: #f4f7fa;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-jonathan-accent) 35%, transparent);
+}
+
+.jonathan-btn--primary:hover,
+.jonathan-btn--primary:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--color-jonathan-accent) 48%, transparent);
+}
+
+.jonathan-btn--secondary {
+  background: transparent;
+  border: 1px solid var(--color-jonathan-border);
+  color: var(--color-text-jonathan);
+}
+
+.jonathan-btn--secondary:hover,
+.jonathan-btn--secondary:focus-visible {
+  border-color: var(--color-jonathan-accent-2);
+  color: var(--color-jonathan-accent-2);
+}
+
+.jonathan-btn:focus-visible {
+  outline: 2px solid var(--color-jonathan-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 精密展示艙 ---------- */
+
+.jonathan-hero-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+.jonathan-pod {
+  position: relative;
+  width: min(420px, 100%);
+  aspect-ratio: 1;
+  transition: transform 0.2s ease-out;
+}
+
+.jonathan-pod-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 210deg,
+    var(--color-jonathan-metal-highlight),
+    var(--color-surface-jonathan-elevated) 15%,
+    var(--color-jonathan-accent-2) 35%,
+    var(--color-surface-jonathan) 55%,
+    var(--color-jonathan-metal-highlight) 75%,
+    var(--color-surface-jonathan-elevated) 100%
+  );
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  animation: jonathan-ring-spin 48s linear infinite;
+}
+
+.jonathan-pod-glass {
+  position: absolute;
+  inset: 15px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--color-jonathan-accent) 28%, var(--color-bg-jonathan)), var(--color-bg-jonathan) 72%);
+  box-shadow: inset 0 0 46px rgba(0, 0, 0, 0.65), inset 0 0 2px var(--color-jonathan-metal-highlight);
+  overflow: hidden;
+}
+
+.jonathan-pod-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #fff, transparent 55%);
+  opacity: var(--jonathan-glass-opacity);
+  pointer-events: none;
+}
+
+.jonathan-pod-cutline {
+  position: absolute;
+  top: 50%;
+  left: 18%;
+  width: 64%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-jonathan-accent-2) 75%, transparent), transparent);
+}
+
+.jonathan-pod-cutline--1 {
+  transform: rotate(24deg) translateY(-42px);
+}
+
+.jonathan-pod-cutline--2 {
+  transform: rotate(-16deg) translateY(50px);
+}
+
+.jonathan-pod-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-jonathan-accent) 85%, #fff) 0%, var(--color-jonathan-accent) 55%, transparent 76%);
+  box-shadow: 0 0 34px 6px color-mix(in srgb, var(--color-jonathan-accent) 55%, transparent);
+  animation: jonathan-breathe 3600ms var(--jonathan-motion-easing) infinite;
+}
+
+.jonathan-pod-fragment {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 92px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-jonathan-border);
+  background: color-mix(in srgb, var(--color-surface-jonathan-elevated) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+}
+
+.jonathan-pod-fragment span {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-jonathan-accent-2) 55%, transparent);
+}
+
+.jonathan-pod-fragment span:nth-child(2) { width: 72%; }
+.jonathan-pod-fragment span:nth-child(3) { width: 46%; }
+
+.jonathan-pod-fragment--1 {
+  top: -4%;
+  right: -10%;
+  transform: rotate(-6deg);
+}
+
+.jonathan-pod-fragment--2 {
+  bottom: -2%;
+  left: -12%;
+  transform: rotate(5deg);
+  width: 80px;
+}
+
+@keyframes jonathan-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes jonathan-breathe {
+  0%, 100% { opacity: 0.75; box-shadow: 0 0 24px 4px color-mix(in srgb, var(--color-jonathan-accent) 40%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 40px 8px color-mix(in srgb, var(--color-jonathan-accent) 65%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jonathan-pod-ring,
+  .jonathan-pod-core {
+    animation: none;
+  }
+  .jonathan-pod {
+    transition: none;
+  }
+}
+
+/* ---------- SKHPSv2 詳細卡（registry-driven，見 app.js） ---------- */
+
+.jonathan-items {
+  padding: var(--space-6) 0 var(--space-7);
+  border-top: 1px solid var(--color-jonathan-border);
+}
+
+.jonathan-item-card {
+  max-width: 520px;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-jonathan-border);
+  background: color-mix(in srgb, var(--color-surface-jonathan) 82%, transparent);
+}
+
+.jonathan-item-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-jonathan-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.jonathan-item-summary {
+  margin: 0 0 var(--space-5);
+  color: var(--color-text-jonathan-muted);
+  line-height: 1.6;
+}
+
+.jonathan-item-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.jonathan-item-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  background: var(--color-jonathan-accent);
+  color: #f4f7fa;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.jonathan-item-btn:hover,
+.jonathan-item-btn:focus-visible {
+  background: color-mix(in srgb, var(--color-jonathan-accent) 85%, #fff);
+}
+
+.jonathan-item-access-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-jonathan-muted);
+  opacity: 0.75;
+}
+
+/* ---------- Footer ---------- */
+
+.jonathan-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--color-jonathan-border);
+  font-size: 12.5px;
+  color: var(--color-text-jonathan-muted);
+}
+
+.jonathan-footer-link {
+  color: var(--color-text-jonathan-muted);
+  text-decoration: none;
+}
+
+.jonathan-footer-link:hover,
+.jonathan-footer-link:focus-visible {
+  color: var(--color-text-jonathan);
+}
+
+.jonathan-footer-copyright {
+  margin-left: auto;
+}
+
+/* ---------- 手機：短距離捲動，展示艙縮小、拿掉碎片 ---------- */
+
+@media (max-width: 860px) {
+  .jonathan-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    gap: var(--space-6);
     text-align: center;
   }
 
-  .jonaminz-profile-photo {
-    width: 160px;
+  .jonathan-hero-left {
+    max-width: none;
+    align-items: center;
+    margin: 0 auto;
   }
 
-  .jonaminz-profile-bio {
-    margin-left: auto;
-    margin-right: auto;
+  .jonathan-hero-actions {
+    justify-content: center;
+  }
+
+  .jonathan-hero-right {
+    order: 3;
+    min-height: 0;
+  }
+
+  .jonathan-pod {
+    width: min(220px, 60vw);
+  }
+
+  .jonathan-pod-fragment {
+    display: none;
+  }
+
+  .jonathan-nav {
+    margin-left: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .jonathan-item-card {
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .jonathan-topbar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .jonathan-nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
   }
 }
