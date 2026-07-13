@@ -122,8 +122,9 @@
 | 外部 App 接入 | Contract 推模式（新）＋ registry.json 拉模式（舊，並存） | v0 何時真正作廢 |
 | Auth domain | 沒有獨立網域，Worker 用 `*.workers.dev` | 是否搬 `auth.jonaminz.com`／`api.jonaminz.com` |
 | Chat/AI | 完全未實作 | 尚無時程（見 `DECISIONS.md` #3、#4） |
-| 視覺架構 | 大廳（首頁）已改成「米紙 Rice Paper」＋真的圓相字標（`--color-bg-lobby`／`--color-text-lobby`／`--color-lobby-accent`，2026-07-13 已實作並驗證）；後台仍是「亞麻米 Flax & Ink」；Jonathan／Minz 的房間**尚未實作**；`theme_css_rules` 單一 `unique(selector,property)`，無 space 概念 | 大廳／房間／後台三層（`DECISIONS.md` §四）：Jonathan 的房間＝深夜訊號黑色系（主色未定）、Minz 未定；分流機制（讓 Theme 後台能分空間管理，不用再手動改 CSS 檔）見 `EXPERIMENTS.md` #10＋`DECISIONS.md` §五 ADPF，**尚未實作** |
+| 視覺架構 | 大廳（首頁）已改成「米紙 Rice Paper」＋真的圓相字標（`--color-bg-lobby`／`--color-text-lobby`／`--color-lobby-accent`，2026-07-13 已實作並驗證）；後台仍是「亞麻米 Flax & Ink」；Jonathan／Minz 的房間**尚未實作**；`theme_css_rules` 單一 `unique(selector,property)`，無 space 概念 | 大廳／房間／後台三層（`DECISIONS.md` §四）：Jonathan 的房間＝深夜訊號黑色系（主色未定）、Minz 的房間＝米白×墨綠×淡棕手帳風（`DECISIONS.md` §六，2026-07-13）；分流機制（讓 Theme 後台能分空間管理，不用再手動改 CSS 檔）見 `EXPERIMENTS.md` #10＋`DECISIONS.md` §五 ADPF，**尚未實作** |
 | Contract 卡片入口 | `/pages/admin/design/` 通用機制從生效中 Contract 的 `entries`＋平台登記 origin 長出真連結（2026-07-13） | 未變更方向 |
+| Minz 頁面資訊架構 | 完全未實作（含技術方案本身也還沒開始） | `DECISIONS.md` §六：registry-driven 分類、Minz 頁面只存來源引用不複製完整遊記資料、`public/shared_link/link_passcode/owners` 四級隱私、`noindex` 不當安全機制用；完整規格見 `docs/minz-page/README.md` |
 
 ## 五、Project Memory 工具（跨 session 記憶輔助，2026-07-13 新增）
 
