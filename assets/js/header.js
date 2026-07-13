@@ -18,6 +18,17 @@ fragment（#jonaminzSessionToken=...，見 worker.js handleGoogleCallback）
 沒有這個元素，如果邏輯包在「找不到就 return」的 render() 裡面，OAuth
 導回首頁時 token 永遠不會被存下來，這是本檔案第一版寫法漏掉的情況。
 
+2026-07-13：jonaminz-mobile-app（Capacitor 殼）跑 Google 登入走 Custom
+Tabs（見 pages/login/assets/js/app.js 檔頭說明），完成後 Worker 導回的
+不是網頁網址，是 App 註冊的 deep link（com.jonaminz.app://oauth-callback，
+見 android/app/src/main/AndroidManifest.xml 的 intent-filter）——這個
+URL 不會經過 WebView 的一般導頁流程，是 Capacitor 的 App 外掛
+（@capacitor/app）用 appUrlOpen 事件通知回來，captureTokenFromHash()
+讀的 window.location.hash 收不到它。listenForAppUrlOpen() 是這條路
+專用的接收端，直接從事件帶的 URL 字串抓 token、寫 localStorage，跟
+captureTokenFromHash() 共用同一個 writeToken()，不重複一套邏輯。只在
+isNativeApp() 為 true（真的跑在殼裡）才註冊監聽，一般瀏覽器不受影響。
+
 backend-client.js 平常只有需要它的頁面才會在 config.json 的 afterScripts
 載入，但這裡（shell 層，比 afterScripts 更早跑）需要它來查登入狀態，所以
 用 ensureBackendClient() 動態補載入，沒有改 entry-core.js 的載入順序或
@@ -60,6 +71,51 @@ requireLogin() 自己的註解。
     } catch (error) {
       // 同上，放棄即可。
     }
+  }
+
+  function isNativeApp() {
+    try {
+      return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function listenForAppUrlOpen() {
+    if (!isNativeApp()) return;
+    if (!window.Capacitor.Plugins || !window.Capacitor.Plugins.App) return;
+
+    window.Capacitor.Plugins.App.addListener("appUrlOpen", function (event) {
+      var url = String((event && event.url) || "");
+      var match = url.match(/[#&]jonaminzSessionToken=([^&]+)/);
+      if (!match) return;
+
+      writeToken(decodeURIComponent(match[1]));
+      // 重新整理讓 header 的「OO你好」、後台頁的 requireLogin() 重新
+      // 判斷一次登入狀態——token 是直接從 deep link 事件拿到的，不是從
+      // 網址列 fragment 讀來的，不用像 captureTokenFromHash() 那樣另外
+      // 清網址。
+      window.location.reload();
+    });
+  }
+
+  // Android 實體返回鍵預設行為是直接關掉整個 App（Capacitor 本身不會
+  // 自動把返回鍵接到 WebView 的瀏覽歷史，要自己註冊）。canGoBack 是
+  // Capacitor 用 WebView 自己的 canGoBack() 算出來的，比自己猜
+  // window.history.length 準——能往前一頁就往前一頁，真的沒有上一頁
+  // （已經在最外層，例如首頁）才整個退出 App，是 Capacitor 官方文件
+  // 建議的標準寫法。
+  function listenForBackButton() {
+    if (!isNativeApp()) return;
+    if (!window.Capacitor.Plugins || !window.Capacitor.Plugins.App) return;
+
+    window.Capacitor.Plugins.App.addListener("backButton", function (event) {
+      if (event && event.canGoBack) {
+        window.history.back();
+      } else {
+        window.Capacitor.Plugins.App.exitApp();
+      }
+    });
   }
 
   function captureTokenFromHash() {
@@ -212,6 +268,8 @@ requireLogin() 自己的註解。
   };
 
   captureTokenFromHash();
+  listenForAppUrlOpen();
+  listenForBackButton();
 
   function render() {
     var el = document.querySelector("[data-jonaminz-header]");

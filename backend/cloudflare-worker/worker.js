@@ -852,10 +852,18 @@ const GOOGLE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.dev/
 // http（本機開發不會走 https），不接受 loopback 以外的其他值走這條路。
 const OAUTH_DEFAULT_RETURN_ORIGIN = "https://www.jonaminz.com";
 const OAUTH_LOOPBACK_RETURN_ORIGIN_PATTERN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+// 2026-07-13：jonaminz-mobile-app（Capacitor 殼）用這個固定字串當 deep
+// link scheme（見 android/app/src/main/AndroidManifest.xml 的
+// intent-filter），跟 pages/login/assets/js/app.js 的 APP_OAUTH_RETURN_ORIGIN
+// 必須完全一致，兩邊各自寫死一份（不是共用模組，跨 repo 沒有共用機制）。
+// 精確字串比對，不是正規式——這個值不像 loopback 有「任何 port」的彈性
+// 需求，固定死一個值即可。
+const OAUTH_APP_RETURN_ORIGIN = "com.jonaminz.app://oauth-callback";
 
 function resolveOauthReturnOrigin(candidate) {
   candidate = String(candidate || "");
   if (candidate === OAUTH_DEFAULT_RETURN_ORIGIN) return candidate;
+  if (candidate === OAUTH_APP_RETURN_ORIGIN) return candidate;
   if (OAUTH_LOOPBACK_RETURN_ORIGIN_PATTERN.test(candidate)) return candidate;
   return OAUTH_DEFAULT_RETURN_ORIGIN;
 }
