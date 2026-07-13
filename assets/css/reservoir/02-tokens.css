@@ -16,15 +16,27 @@ AI_CONTEXT/DECISIONS.md §四），「圖書館」比喻作廢。原本的
 （尚未實作）。新增 --color-bg-lobby／--color-text-lobby／
 --color-lobby-accent 三個大廳專用 token，取代舊的 -dark 系列，見
 page-home.css。
+
+2026-07-13（Minz 的房間）：新增 --color-bg-minz／--color-text-minz／
+--color-minz-accent／--color-minz-accent-2／--color-minz-highlight
+五個 Minz 專用 token（米白×墨綠×淡棕手帳風，見
+AI_CONTEXT/DECISIONS.md §六、docs/minz-page/README.md）。米白刻意比
+大廳的米紙更淺更不飽和（兩個空間不撞色），墨綠／淡棕是主副強調色，
+highlight（淡黃）只用在郵戳/貼紙這類裝飾細節，不當主色用。
 */
 
 :root {
   /* color */
   --color-bg: #efeae0;
   --color-bg-lobby: #f6f3ec;
+  --color-bg-minz: #faf8f2;
   --color-text: #262220;
   --color-text-lobby: #221f1c;
+  --color-text-minz: #24221e;
   --color-lobby-accent: #8a7355;
+  --color-minz-accent: #4a6350;
+  --color-minz-accent-2: #a8825f;
+  --color-minz-highlight: #dba53f;
   --color-text-muted: rgba(38, 34, 32, 0.62);
   --color-primary: #1f3a5f;
   --color-primary-2: #a85c3f;

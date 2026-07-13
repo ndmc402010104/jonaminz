@@ -20,6 +20,50 @@
 
 ---
 
+## 2026-07-13 — Minz Page v0.1 Phase 1（純展示骨架）實作完成
+
+- **任務**：使用者裁決 Minz 的房間先做（見 `DECISIONS.md` §六），把
+  `docs/minz-page/README.md` 規格裡「本階段應完成」的公開頁骨架部分
+  實作出來。
+- **變更**：
+  - `assets/css/reservoir/02-tokens.css` 新增 5 個 Minz 專用 token
+    （米白×墨綠×淡棕，見 §六第 28 條）；`pages/admin/theme/assets/js/app.js`
+    的 `ROOT_TOKENS` 同步更新。
+  - `pages/minz/index.html` 從骨架佔位頁整份改寫成 Phase 1 版型：
+    自訂頂列＋桌機側欄索引＋主內容（hero／最新收藏／分類／About）＋
+    手機底部導覽，不使用共用 header/footer（跟首頁同一模式）。
+  - `pages/minz/assets/js/app.js` 改成 registry-driven 渲染：
+    `CATEGORIES`／`LATEST` 兩組 mock data（全部標「（示例）」），
+    空分類自動隱藏，不渲染「敬請期待」佔位卡片。
+  - `pages/minz/assets/css/page-minz.css` 全新手帳風樣式。過程中修正
+    兩個真實的排版問題（使用者實測發現）：(1) `.minz-item-grid` 誤用
+    `grid-template-columns: repeat(auto-fill, ...)`，3 張卡片時
+    `auto-fill` 會保留看不見的第 4 欄空位吃掉多餘寬度，卡片撐不開——
+    改 `auto-fit` 才會讓空欄收縮、卡片吃滿；(2) 桌機右側索引原本用
+    `position:fixed` 浮在版面外，跟內容欄間留一大塊死白且字很小，改成
+    `.minz-page` 兩欄 CSS Grid（`sticky` 側欄真正佔版面寬度），視覺
+    比例才正常。
+  - `docs/minz-page/README.md`：更正一處編碼還原錯誤（原始貼上規格因
+    亂碼被誤還原成「營養師」／「小模式」，使用者確認正確是「藥師」／
+    「可愛小物」），`pages/minz/index.html` 同步修正。
+  - 使用者實測發現頂列的 `.minz-brand`（"Minz" 字樣）原本只是
+    `<span>`，完全沒有回大廳的路徑——改成 `<a href="/">`，補上
+    hover/focus 樣式，Playwright 驗證點擊後確實導回首頁。
+- **狀態變化**：`DECISIONS.md` §六第 26、28 條從「完全未實作／僅方向
+  裁決」更新為已實作。`PROJECT_STATE.md` 的 Minz 頁面資訊架構列同步
+  更新。
+- **驗證**：Playwright 截圖驗證桌機 1440px／窄桌機 1024px／手機 390px
+  三種寬度，console 零 error；改動 `02-tokens.css` 與 Theme editor
+  的 `ROOT_TOKENS` 屬於共用檔案，另跑 6 頁回歸（首頁／jonathan／minz／
+  admin design／admin theme／login）確認無波及。
+- **遺留**：分類資料仍是 mock data（技術方案專案尚未開始，見 §六
+  第 27 條）；Minz 真實大頭照尚未取得，目前是文字佔位圓形；About
+  簡介文字仍標記為示例待正式提供；Phase 2-5（後台策展、技術方案
+  整合、訪客授權分級、發布索引）未開始。
+- **版本**：`v0.21.9-202607131848`。
+
+---
+
 ## 2026-07-13 — 裁決 Minz Page v0.1 資訊架構，存進 AI_CONTEXT
 
 - **任務**：使用者準備了一份完整的 Minz 個人頁面規格文件（含產品定位、

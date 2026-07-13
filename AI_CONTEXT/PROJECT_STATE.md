@@ -3,9 +3,14 @@
 **2026-07-13 最新進度**：「圖書館」比喻作廢，改成大廳／房間／後台三層
 （`DECISIONS.md` §四）。大廳（首頁）**已實作**：米紙 Rice Paper 淺色
 系＋真實圓相字標 logo，取代原本的深色簽名導覽＋文字字標，Playwright
-截圖＋6 頁回歸測試皆通過，`v0.21.7`。Jonathan 的房間（深夜訊號黑色系，
-主色未定）、Minz 的房間（未討論）尚未動工，下一步照使用者指示「一頁
-一頁做」繼續。
+截圖＋6 頁回歸測試皆通過，`v0.21.7`。Minz 的房間 **Phase 1 純展示骨架
+已實作**（`docs/minz-page/README.md`／`DECISIONS.md` §六）：米白×墨綠×
+淡棕手帳風，`pages/minz/` 三個檔案（HTML／JS registry-driven 渲染／
+CSS）改寫完成，桌機右側索引是真正的 CSS Grid 側欄，手機收合成底部
+固定導覽，Playwright 三種寬度驗證通過、6 頁回歸無波及，`v0.21.9`。
+分類資料仍是 mock data（技術方案專案尚未開始）。Jonathan 的房間（深夜
+訊號黑色系，主色未定）尚未動工，下一步照使用者指示「一頁一頁做」
+繼續。
 
 **2026-07-13 稍早裁決**：Theme 系統下一步改採 ADPF（AI-Assisted
 Declarative Pack Framework）模式，不是「`theme_css_rules` 加 space

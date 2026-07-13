@@ -294,7 +294,13 @@ Theme 系統，之後可推廣給其他 first-party app 共用同一套機制。
 26. **Minz 頁面第一階段以旅行內容為骨架，長期會擴充成完整個人生活頁；
     分類結構必須是 registry-driven，不可把分類硬編碼進頁面骨架。**
     第一階段四個分類：城堡冒險／交通震撼／好物研究／可愛收藏。
-    **實作狀態：完全未實作。**
+    **實作狀態（2026-07-13 更新）：Phase 1 純展示骨架已完成**——
+    `pages/minz/index.html`＋`pages/minz/assets/js/app.js`（`CATEGORIES`／
+    `LATEST` registry 驅動渲染，含空分類自動隱藏）＋
+    `pages/minz/assets/css/page-minz.css`，桌機右側索引改用真正的 CSS
+    Grid 側欄（`.minz-page` 兩欄 grid，非 `position:fixed` 浮動），手機
+    收合成底部固定導覽。已用 Playwright 驗證桌機/窄桌機/手機三種寬度、
+    console 零錯誤。
 
 27. **Minz 頁面跟「技術方案」（未來的 Travel 等內容管理系統，呼應
     `docs/pack-framework/README.md` §6 提到的 `travel.book-style@1`
@@ -310,7 +316,12 @@ Theme 系統，之後可推廣給其他 first-party app 共用同一套機制。
 
 28. **視覺方向：米白×墨綠×淡棕，手帳風格。** 跟大廳的米紙、Jonathan
     的深夜訊號黑色系都不同，是第三套獨立配色——三個房間／大廳彼此不
-    共用視覺，各自成立。**實作狀態：僅方向裁決，尚未動手。**
+    共用視覺，各自成立。**實作狀態（2026-07-13 更新）：已實作。**
+    `assets/css/reservoir/02-tokens.css` 新增 `--color-bg-minz`／
+    `--color-text-minz`／`--color-minz-accent`（墨綠）／
+    `--color-minz-accent-2`（淡棕）／`--color-minz-highlight`（淡黃，
+    僅用於可愛收藏分類裝飾）五個 token，`pages/admin/theme/assets/js/app.js`
+    的 `ROOT_TOKENS` 同步收錄。
 
 29. **隱私與可見度分級是實作必要項，不是事後補強：** `public`／
     `shared_link`／`link_passcode`／`owners` 四級，粒度可以細到單一

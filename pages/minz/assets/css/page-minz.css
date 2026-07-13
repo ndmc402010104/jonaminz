@@ -1,67 +1,424 @@
 /*
 檔案位置：jonaminz/pages/minz/assets/css/page-minz.css
-用途：CSS 疊加第 7 層 - Page Layer，只給 Minz 個人門戶頁用。目前是骨架
-佔位頁（內容留白等本人填），版型跟 pages/jonathan/page-jonathan.css
-對稱但刻意不共用檔案（同一份理由，見那份檔案的檔頭說明）。強調色用
---color-primary-2（Jonathan 頁用 --color-primary），呼應既有的
-Jonathan/Minz 顏色區分慣例（見 pages/admin/contracts/ 的登入身分徽章）。
+用途：CSS 疊加第 7 層 - Page Layer，只給 Minz 個人門戶頁用。
+
+2026-07-13：從骨架佔位頁（共用 .jonaminz-profile-* 類別）整份改寫成
+Minz Page v0.1 Phase 1 的手帳風格獨立版型，見 index.html 開頭說明、
+docs/minz-page/README.md、AI_CONTEXT/DECISIONS.md §六。不再跟
+pages/jonathan/page-jonathan.css 共用 .jonaminz-profile-* 類別——兩個
+房間現在是完全獨立的視覺系統（大廳／Jonathan／Minz 三個房間互不共用
+視覺，見 DECISIONS.md §四）。
+
+配色：米白（--color-bg-minz）×墨綠（--color-minz-accent）×淡棕
+（--color-minz-accent-2），淡黃 highlight（--color-minz-highlight）
+只用在可愛收藏分類，不當主色。手帳感細節（卡片輕微旋轉、圓角紙感）
+刻意收斂在小範圍，避免犧牲操作性（規格 §16 第 14 條明講不可為了
+質感犧牲操作）。
 */
 
-.jonaminz-profile-page {
-  padding: var(--space-7) 0;
+html,
+body {
+  width: 100%;
+  min-height: 100%;
 }
 
-.jonaminz-profile-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-7);
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-minz);
+  color: var(--color-text-minz);
 }
 
-.jonaminz-profile-hero {
+.minz-page {
+  min-height: 100dvh;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  grid-template-areas:
+    "topbar topbar"
+    "content sidebar"
+    "bottomnav bottomnav";
+  align-items: start;
+}
+
+.minz-topbar { grid-area: topbar; }
+.minz-content { grid-area: content; }
+.minz-bottom-nav { grid-area: bottomnav; }
+
+/* ---------- 頂部列：品牌字 + 身分登入狀態 ---------- */
+
+.minz-topbar {
   display: flex;
   align-items: center;
-  gap: var(--space-7);
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
 }
 
-.jonaminz-profile-photo-placeholder {
-  flex: 0 0 auto;
-  width: 220px;
-  aspect-ratio: 2 / 3;
-  border-radius: var(--radius-lg);
-  border: 2px dashed var(--color-border);
-  background: color-mix(in srgb, var(--color-primary-2) 6%, transparent);
+.minz-brand {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 21px;
+  color: var(--color-minz-accent);
+  text-decoration: none;
+  transition: opacity 0.15s ease;
 }
 
-.jonaminz-profile-info {
-  flex: 1 1 auto;
+.minz-brand:hover,
+.minz-brand:focus-visible {
+  opacity: 0.75;
+}
+
+.minz-topbar-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav-identity-greeting {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-text-minz) 72%, transparent);
+  font-weight: 700;
+}
+
+.nav-identity a,
+.nav-identity button {
+  padding: 8px 13px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-minz-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-minz-accent) 28%, transparent);
+  font-size: 13px;
+  color: var(--color-minz-accent);
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+/* ---------- 桌機右側手帳索引標籤 ---------- */
+/* 真正的側欄格子（見 .minz-page 的 grid-template-columns），不是浮在
+   版面外的 fixed 元素——寬度由格線分配，跟內容欄之間不會留死白。 */
+
+.minz-tab-index {
+  grid-area: sidebar;
+  position: sticky;
+  top: var(--space-6);
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-2) var(--space-4) var(--space-6) 0;
+}
+
+.minz-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--tab-accent, var(--color-minz-accent)) 30%, var(--color-border));
+  color: var(--color-text-minz);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(36, 34, 30, 0.07);
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.minz-tab:hover,
+.minz-tab:focus-visible {
+  transform: translateX(-3px);
+  background: color-mix(in srgb, var(--tab-accent, var(--color-minz-accent)) 14%, var(--color-surface));
+  box-shadow: 0 10px 22px rgba(36, 34, 30, 0.1);
+  outline: none;
+}
+
+.minz-tab:focus-visible {
+  outline: 2px solid var(--tab-accent, var(--color-minz-accent));
+  outline-offset: 2px;
+}
+
+.minz-tab .minz-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--tab-accent, var(--color-minz-accent));
+}
+
+.minz-tab--latest,
+.minz-tab--about {
+  --tab-accent: var(--color-minz-accent-2);
+}
+
+.minz-bottom-nav {
+  display: none;
+}
+
+/* ---------- 主內容 ---------- */
+
+.minz-content {
   min-width: 0;
+  padding: var(--space-4) var(--space-6) var(--space-7);
 }
 
-.jonaminz-profile-name {
-  margin: var(--space-2) 0 var(--space-4);
-  font-size: var(--text-2xl);
-  color: var(--color-primary-2);
+.minz-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-5) 0 var(--space-7);
 }
 
-.jonaminz-profile-bio {
+.minz-hero-photo-placeholder {
+  flex: 0 0 auto;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--color-minz-accent);
+  background: color-mix(in srgb, var(--color-minz-accent) 10%, var(--color-surface));
+  border: 2px solid color-mix(in srgb, var(--color-minz-accent) 24%, transparent);
+}
+
+.minz-tagline {
   margin: 0;
-  max-width: 640px;
-  color: var(--color-text-muted);
-  line-height: 1.7;
+  max-width: 46ch;
+  font-size: 16px;
+  line-height: 1.75;
+  color: color-mix(in srgb, var(--color-text-minz) 82%, transparent);
 }
 
-@media (max-width: 640px) {
-  .jonaminz-profile-hero {
+.minz-section-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-xl);
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-minz);
+}
+
+/* ---------- 最新收藏：貼紙帶 ---------- */
+
+.minz-latest {
+  padding-bottom: var(--space-6);
+}
+
+.minz-latest-strip {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-2) var(--space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.minz-sticker {
+  flex: 0 0 auto;
+  width: 132px;
+  display: grid;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--color-text-minz);
+}
+
+.minz-sticker:nth-child(odd) { transform: rotate(-1.4deg); }
+.minz-sticker:nth-child(even) { transform: rotate(1.2deg); }
+
+.minz-sticker:hover,
+.minz-sticker:focus-visible {
+  transform: rotate(0deg) translateY(-3px);
+  outline: none;
+}
+
+.minz-sticker:focus-visible .minz-sticker-cover {
+  outline: 2px solid var(--sticker-accent, var(--color-minz-accent));
+  outline-offset: 2px;
+}
+
+.minz-sticker-cover {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--sticker-accent, var(--color-minz-accent)) 16%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--sticker-accent, var(--color-minz-accent)) 30%, transparent);
+  box-shadow: 0 10px 22px rgba(36, 34, 30, 0.1);
+}
+
+.minz-sticker-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* ---------- 分類（registry-driven，見 app.js） ---------- */
+
+.minz-category {
+  padding: var(--space-6) 0;
+  border-top: 1px dashed var(--color-border);
+}
+
+.minz-category-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.minz-category-head .minz-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border-radius: 50%;
+  color: var(--category-accent, var(--color-minz-accent));
+  background: color-mix(in srgb, var(--category-accent, var(--color-minz-accent)) 14%, transparent);
+}
+
+.minz-category-title {
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-lg);
+}
+
+.minz-category-tagline {
+  margin: 0;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-text-minz) 62%, transparent);
+}
+
+.minz-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.minz-item {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.minz-item-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-3);
+  background: color-mix(in srgb, var(--category-accent, var(--color-minz-accent)) 12%, var(--color-bg-minz));
+}
+
+.minz-item-title {
+  margin: 0 0 2px;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.minz-item-place {
+  margin: 0;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text-minz) 58%, transparent);
+}
+
+/* ---------- About ---------- */
+
+.minz-about {
+  padding: var(--space-6) 0 var(--space-5);
+  border-top: 1px dashed var(--color-border);
+}
+
+.minz-about-text {
+  margin: 0;
+  max-width: 60ch;
+  line-height: 1.75;
+  color: color-mix(in srgb, var(--color-text-minz) 78%, transparent);
+}
+
+/* ---------- RWD：手機改底部固定分類列，收起桌機側邊索引 ---------- */
+
+@media (max-width: 760px) {
+  .minz-page {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "topbar"
+      "content"
+      "bottomnav";
+  }
+
+  .minz-tab-index {
+    display: none;
+  }
+
+  .minz-content {
+    padding: var(--space-4) var(--space-4) calc(var(--space-7) + 64px);
+  }
+
+  .minz-hero {
     flex-direction: column;
     text-align: center;
+    gap: var(--space-4);
   }
 
-  .jonaminz-profile-photo-placeholder {
-    width: 160px;
+  .minz-bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    justify-content: space-around;
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--color-bg-minz) 92%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--color-border);
   }
 
-  .jonaminz-profile-bio {
-    margin-left: auto;
-    margin-right: auto;
+  .minz-bottom-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: color-mix(in srgb, var(--color-text-minz) 68%, transparent);
+    text-decoration: none;
   }
+
+  .minz-bottom-nav a:focus-visible {
+    outline: 2px solid var(--color-minz-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .minz-bottom-nav .minz-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .minz-bottom-nav-dot {
+    display: block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-minz-highlight) 60%, transparent);
+  }
+}
+
+/* ---------- 圖示 ---------- */
+
+.minz-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
 }

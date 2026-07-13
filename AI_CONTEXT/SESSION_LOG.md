@@ -6,6 +6,24 @@
 
 ---
 
+## session_20260713104827_74d2f3cd — 2026-07-13T10:50:05.921Z — claude
+
+- **Task**：Minz Page v0.1 Phase 1 純展示骨架實作（HTML/JS/CSS）
+- **Done**：無
+- **Changed files**：無
+- **Validation**：無
+- **Next**：無
+- **New issues**：無
+
+## session_20260713103458_3eef8b9d — 2026-07-13T10:45:01.416Z — codex
+
+- **Task**：將主 Logo 地面線改為乾擦毛筆筆觸並只組回疊石，竹枝維持移除
+- **Done**：無
+- **Changed files**：無
+- **Validation**：無
+- **Next**：無
+- **New issues**：無
+
 ## session_20260713051704_e0823ba0 — 2026-07-13T05:17:28.200Z — claude
 
 - **Task**：Project Memory smoke test
