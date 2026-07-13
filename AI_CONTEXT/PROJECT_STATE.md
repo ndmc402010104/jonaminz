@@ -1,6 +1,13 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最新品牌元件：`assets/img/jonaminz-enso-c.svg` 是透明背景、animation-ready 的獨立書法 C／圓相。2026-07-13 依使用者提供的清晰裁圖與多輪目視回饋，已淘汰「多條等寬 Bézier 疊成工程線」的舊骨架，改用單一手工不等寬墨體：上方較薄、左側壓筆、底部拖筆、右側約 55 度失墨開口，兩端直接收成尖鋒。luminance mask 真正挖出順著運筆方向的飛白與短紙紋，外緣只用低幅度 turbulence/displacement 產生毛邊；乾刷、開口幽靈刷絲與起收筆尖鋒仍是獨立 `pathLength="1"` path，可分層動畫。高級感修正版另把正圓調成輕微偏心與底部略扁，主墨改為同色系三段微漸層加低對比紙纖維 grain，並拆短右側幽靈刷絲、降低整體墨層 opacity，避免塑膠感與 UI icon 感。透明背景、無點陣圖／script／外部資源，尚未接入頁面。
+**2026-07-13 最新裁決**：Theme 系統下一步改採 ADPF（AI-Assisted
+Declarative Pack Framework）模式，不是「`theme_css_rules` 加 space
+欄位」的小補丁——完整方向見 `AI_CONTEXT/DECISIONS.md` §五、
+`docs/pack-framework/README.md`。純方向裁決，**程式碼完全尚未動工**，
+下一步排在使用者先選定「公開圖書館」視覺方向之後（圖書館模型三層
+視覺架構見 `DECISIONS.md` §四）。
+
+最新品牌元件：`assets/img/jonaminz-enso-c.svg` 是透明背景的獨立書法 C／圓相。2026-07-13 在多輪手繪 Bézier、色帶、mask/filter 方案仍被使用者判定「不像真正筆觸」後，已取得使用者重傳的 792×824 原始裁圖並全面淘汰人工幾何骨架，改以高精度 Potrace 直接描摹真實墨跡（threshold 210、turdSize 2、optTolerance 0.05、alphaMax 0.82）。目前 compound path 完整保留原圖的飛白孔洞、左側撕裂毛邊、頂部散開毛束及右側斷續淡墨，單色 `#c2af98`、純向量、無點陣圖／filter／script／外部資源；另保留獨立 `jonaminz-enso-c-gesture`／`pathLength="1"` 作後續逐筆 reveal 動畫入口。尚未接入頁面。
 
 最新品牌元件：`assets/img/jonaminz-bamboo-sprig.svg` 是透明背景、animation-ready 的獨立竹枝；主莖、6 段側枝、14 片披針形竹葉皆為獨立 data-part。每片葉的外層 motion group 無靜態 transform，實際定位放在內層，並提供 `data-anchor-x/y` 作旋轉支點；主莖與側枝主 path 有 `pathLength="1"`，可直接做畫線生長動畫。未內建動畫、未接入頁面。
 

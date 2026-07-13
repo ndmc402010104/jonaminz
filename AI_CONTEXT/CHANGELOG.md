@@ -20,6 +20,53 @@
 
 ---
 
+## 2026-07-13 — 裁決採用 ADPF：Theme 系統改走宣告式套件（Pack）模式
+
+- **任務**：延續同日稍早的 Theme 架構盤點（`EXPERIMENTS.md` #10），
+  使用者與 ChatGPT 共同驗證了一套「AI 輔助宣告式套件框架」（ADPF）
+  提案（Prompt Builder → AI 只回傳受限 JSON Pack → 驗證 → 預覽 →
+  版本化匯入 → 套用），貼進對話請求：(1) 存進 AI 規劃文件、(2) 保留
+  「產生 Prompt、固定輸出、匯入新風格」這個核心做法、(3) 第一個落地
+  目標是 jonaminz 的 Theme。純文件任務，沒有修改任何程式碼。
+- **變更**：
+  - 新增 `docs/pack-framework/README.md`（原始 ADPF 報告書的忠實
+    重整版，原始 `.md` 附件貼上時編碼已損毀，改依使用者同時提供的
+    PDF 內容重新謄寫，內容未增刪）＋`agent-implementation-checklist.md`
+    ＋`pack-envelope.schema.json`（原始附件，逐字/逐位元組保留）。
+    §9 額外補上「在 jonaminz 的下一步」：範圍明確收斂成只做
+    `platform.theme-preset@1` 這一個 Pack Type，不做原報告列的
+    Travel/Movies/Photos/Learning/Dashboard 等未來場景。
+  - `AI_CONTEXT/DECISIONS.md` 新增 §五（第 22-25 條）：採用 ADPF 模式
+    本身已裁決；範圍收斂到只做 Theme 已裁決；AI 動態生成新 Pack 可以
+    晚一點做已裁決；「做成對外開放的圖書館工具」明確標記為使用者的
+    方向性提問，不是裁決。
+  - `AI_CONTEXT/EXPERIMENTS.md`：#9、#10 都補充「這條問題現在有答案
+    了」的更新說明，並明確標出 #10 最下方原本提出的「space 欄位小
+    補丁」7 步遷移方案**已作廢**，改看 `docs/pack-framework/README.md`
+    §9 的 6 步驟（第 1-4、6-8 點的現況分析本身仍然成立，沒有作廢）。
+    新增 #11 記錄「對外開放圖書館工具」這個未拍板的提問，說明目前
+    完全沒有具體設計、也不是這次的裁決範圍。
+- **狀態變化**：Theme 系統的下一步實作方案從「`theme_css_rules` 加
+  `space` 欄位」改成「採用 ADPF 的 Pack Registry／Binding 模型，
+  Theme 是第一個 Pack Type」——**方向已定，程式碼完全尚未動工**，公開
+  圖書館的視覺方向也還沒選定（下一步排在這之前）。
+- **遺留**：`docs/pack-framework/README.md` §9 的 6 個步驟、
+  `DECISIONS.md` §五都還沒有對應的程式碼；等使用者先選定公開圖書館
+  視覺方向，再排 Pack 模型的實作順序。
+- **版本**：無程式碼變更（純文件新增/更新），`version.js` 不動。
+
+---
+
+## 2026-07-13 — 圓相改為原始筆跡高精度向量描摹
+
+- **任務**：使用者確認先前版本雖逐步改善但仍與參考圖差距明顯、缺少真實筆觸；取得使用者重傳的 792×824 圓相裁圖後，停止用人工 Bézier／色帶模仿，直接描摹原始墨跡。
+- **變更**：從本次對話內嵌的原始 PNG 取出裁圖，測試多組 Potrace 參數後採用 threshold 210、turdSize 2、optTolerance 0.05、alphaMax 0.82。`assets/img/jonaminz-enso-c.svg` 改為 55,464 字元的完整 compound path，直接保留原圖飛白、小孔洞、毛束裂縫、左側撕裂邊緣與右側斷續細絲；背景完全透明，只使用單色 `#c2af98`。保留獨立 gesture path 作後續 reveal 動畫入口，但不以 mask 裁切靜態筆跡。
+- **狀態變化**：人工色帶、turbulence 毛邊與手畫多弧線方案全部淘汰；新元件已通過完整路徑長度、XML、透明背景與 792px／160px 渲染驗證。
+- **遺留**：仍待使用者確認實際視覺；確認後才與 `jonaminz-wordmark.svg` 組裝，不先接入正式頁面。
+- **版本**：`v0.21.1-202607131234`。
+
+---
+
 ## 2026-07-13 — Movie 主題卡片真連結＋視覺架構圖書館模型盤點
 
 - **任務**：接手兩件事。(1) 使用者裁決新的視覺架構方向——jonaminz 是

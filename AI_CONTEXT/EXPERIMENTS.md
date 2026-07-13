@@ -137,10 +137,18 @@ D 亞麻米）選定 D「亞麻米 Flax & Ink」，當天直接改寫進
 被重新界定成**管理員室專屬**、不是全站唯一外觀。這是兩個不同層次的
 問題，都還沒實作：本條（#9）問的是「Theme 值存在哪裡」（reservoir 靜態
 檔案 vs 動態 Theme 系統），圖書館模型問的是「不同空間該不該吃到同一組
-值」。兩者最終很可能匯合成同一個實作（Theme 系統存「多組具名預設集」，
-不同空間各自訂閱自己該用的那組），但這次任務按使用者指示只做盤點與
-方案提出，不動手；盤點內容見 `AI_CONTEXT/CHANGELOG.md` 2026-07-13
-「Movie 主題卡片真連結＋圖書館模型盤點」條目。
+值」。
+
+**2026-07-13 稍晚再更新，本條的問題已經有答案，不再是未拍板**：
+`DECISIONS.md` §五裁決採用 ADPF（AI-Assisted Declarative Pack
+Framework，見 `docs/pack-framework/README.md`）模式——Theme 系統的
+資料模型明確是「多組具名預設集（Pack），各空間各自 binding 一組」，
+不是本條當初列的開放問題。字體字串能不能乾淨存進機制這點也有了答案：
+不會沿用現行 `theme_css_rules` 的自由 selector/property/value，改用
+固定 schema 的具名 token（`typography.display` 是一個明確欄位，不是
+塞進某個 CSS custom property 的字串值），問題不存在了。本條連同下面
+#10 的「space 欄位小補丁」方案一併作廢，不要照舊方案實作，改看
+`docs/pack-framework/README.md` §9 與 `DECISIONS.md` §五。
 
 ---
 
@@ -160,6 +168,15 @@ D 亞麻米）選定 D「亞麻米 Flax & Ink」，當天直接改寫進
 **任務背景**：`DECISIONS.md` §四（2026-07-13）裁決了三層視覺空間，本條
 是本次任務指示要求的盤點結果——**只分析、不實作**，下一步要不要動手
 由使用者裁決。
+
+**2026-07-13 稍晚更新：第 5 點的「space 欄位小補丁」方案已作廢，改採
+ADPF 模式**（`DECISIONS.md` §五、`docs/pack-framework/README.md`）。
+第 1-4、6-8 點的現況分析（暖亞麻在哪些層、哪些 selector 共用、
+`unique(selector,property)` 為何是硬性阻礙、`theme-runtime.js` cache
+key 為何會污染、結構層 vs 視覺 tokens 的邊界、外部專案邊界如何維持）
+**事實仍然成立，繼續當現況參考**；只有第 5 點的具體遷移方案跟最下方
+「建議遷移順序」被新方案取代，實作時請看
+`docs/pack-framework/README.md` §9 的 6 步驟，不要照下面第 5 點做。
 
 **1. 現在暖亞麻在哪些層被當成全站預設？**
 `assets/css/reservoir/02-tokens.css`（CSS 疊加第 2 層，全站唯一
@@ -274,3 +291,32 @@ Reservoir 1-7 層裡「結構規則」的部分（flex/grid 排版、hover/focus
    類似的流程）。
 7. `jonathan`／`minz`／`login` 三頁的 CSS 覆寫（同 `page-home.css`
    當初蓋回 `--font-sans` 的做法）改成訂閱公開圖書館 space 的規則。
+
+**以上 7 步已作廢，見本條最上方 2026-07-13 更新**——實際要做的步驟
+改看 `docs/pack-framework/README.md` §9。
+
+---
+
+## 11. ADPF 做成對外開放的「圖書館工具」
+
+**現況**：使用者在裁決採用 ADPF（`DECISIONS.md` §五）模式時順口提出
+一個問題：這套「Prompt 生成→AI 產生受限 JSON→驗證→預覽→版本化匯入」
+的機制，有沒有機會做成一個工具，開放給 jonaminz 生態圈以外的其他人
+或專案呼叫？原話帶著「甚至更瘋狂」的語氣，明確是拋出可能性，不是下
+指示。
+
+**沒有任何具體設計**：連最基本的問題都還沒討論過——
+- 「開放給外部呼叫」是指開放原始碼讓別人自己部署一份，還是
+  jonaminz 掛一個公開 API 讓別人的專案直接打？後者牽涉到完全不同量級
+  的資安、rate limit、多租戶隔離問題，跟目前「兩人自用網站」的定位
+  差很多。
+- 如果是後者，`pack_versions`／`pack_bindings` 這些表現在的設計完全
+  沒有 tenant/organization 這個維度，Contract 系統的 S9/S33「合約不
+  含定位」原則要不要套用到這裡也沒討論過。
+- ADPF 報告書本身定位是 Jonaminz 內部可重用機制（§0 執行摘要：「可在
+  Jonaminz 各網站與 first-party external app 大量重用」），沒有討論
+  對外開放場景，這是原提案沒覆蓋到的全新範圍。
+
+**未拍板，不要在沒有真實需求前預先設計**——跟 `EXPERIMENTS.md` #7
+（各 Platform Service 的 API 簽名）同樣的原則：等真的有第一個外部
+caller 的具體情境出現，再回頭設計介面，不要先蓋一個沒人用的通用層。
