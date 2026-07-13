@@ -91,11 +91,10 @@ requireLogin() 自己的註解。
       if (!match) return;
 
       writeToken(decodeURIComponent(match[1]));
-      // 重新整理讓 header 的「OO你好」、後台頁的 requireLogin() 重新
-      // 判斷一次登入狀態——token 是直接從 deep link 事件拿到的，不是從
-      // 網址列 fragment 讀來的，不用像 captureTokenFromHash() 那樣另外
-      // 清網址。
-      window.location.reload();
+      // App 殼登入完直接跳後台首頁，不要停在登入頁的「已經登入了」畫面
+      // 再讓使用者多點一次——App 的核心用途就是後台管理，這裡跟一般
+      // 瀏覽器登入（會照 next 導回原本要去的頁面）刻意不同。
+      window.location.href = "/pages/admin/";
     });
   }
 
