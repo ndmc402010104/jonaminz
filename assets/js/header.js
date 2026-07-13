@@ -278,21 +278,67 @@ requireLogin() 自己的註解。
 
   function render() {
     var el = document.querySelector("[data-jonaminz-header]");
-    if (!el) return;
+    if (el) {
+      var siteConfig = window.JONAMINZ_SITE_CONFIG || {};
 
-    var siteConfig = window.JONAMINZ_SITE_CONFIG || {};
+      el.textContent = "";
 
-    el.textContent = "";
+      // 品牌字回首頁（原本是 <span>，點了沒反應——後台/Theme/Contracts/
+      // 登入頁沒有其他回首頁的路，只能靠瀏覽器上一頁）。
+      var title = document.createElement("a");
+      title.className = "jonaminz-header-title";
+      title.href = "/";
+      title.textContent = siteConfig.title || "Jonaminz";
+      el.appendChild(title);
 
-    // 品牌字回首頁（原本是 <span>，點了沒反應——後台/Theme/Contracts/
-    // 登入頁沒有其他回首頁的路，只能靠瀏覽器上一頁）。
-    var title = document.createElement("a");
-    title.className = "jonaminz-header-title";
-    title.href = "/";
-    title.textContent = siteConfig.title || "Jonaminz";
-    el.appendChild(title);
+      mount(el);
+    }
 
-    mount(el);
+    mountChatBubble();
+  }
+
+  // 2026-07-14：全站浮動 Chat 捷徑按鈕（右下角）。刻意寫在 header.js
+  // 而不是各頁自己的 app.js——header.js 是唯一保證每一頁都會載入的
+  // shell script（見 entry-core.js 的 loadScript 清單，不像
+  // [data-jonaminz-header] 元素只有部分頁面有），且已經有現成的
+  // readToken()/ensureBackendClient() 可以重用，不用重寫一套登入檢查。
+  // 沒登入完全不顯示；在 Chat 頁本身也不疊按鈕（沒有意義）。
+  function mountChatBubble() {
+    if (document.querySelector(".jonaminz-chat-bubble-launcher")) return;
+    if (window.location.pathname.indexOf("/pages/chat/") === 0) return;
+
+    var token = readToken();
+    if (!token) return;
+
+    ensureBackendClient()
+      .then(function () {
+        return window.JonaminzBackend.getCurrentIdentity({ token: token });
+      })
+      .then(function (response) {
+        if (!response || !response.identity) return;
+
+        var style = document.createElement("style");
+        style.textContent =
+          ".jonaminz-chat-bubble-launcher{position:fixed;right:20px;bottom:20px;" +
+          "width:52px;height:52px;border-radius:999px;background:#1f3a5f;color:#fff;" +
+          "display:flex;align-items:center;justify-content:center;text-decoration:none;" +
+          "box-shadow:0 8px 24px rgba(38,34,32,0.28);z-index:9999;}" +
+          ".jonaminz-chat-bubble-launcher:hover{background:#16283f;}";
+        document.head.appendChild(style);
+
+        var link = document.createElement("a");
+        link.href = "/pages/chat/";
+        link.className = "jonaminz-chat-bubble-launcher";
+        link.setAttribute("aria-label", "開啟 Chat");
+        link.innerHTML =
+          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+          '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.4 3.3A1 1 0 0 1 3 19.5V6a1 1 0 0 1 1-1Z" ' +
+          'stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+        document.body.appendChild(link);
+      })
+      .catch(function () {
+        // 靜默失敗即可——這只是方便的捷徑按鈕，網路異常不該影響頁面其他功能。
+      });
   }
 
   if (document.readyState === "loading") {
