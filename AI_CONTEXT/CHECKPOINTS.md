@@ -79,7 +79,54 @@ bump `version.js`**（純文件修改不 bump），本次也確實沒有動 `ver
 
 ---
 
-## Checkpoint: `project-memory-v0.1`（2026-07-13 建立 Project Memory 工具）
+## Checkpoint: `admin-home-declutter-202607`（2026-07-13，後台畫面打磨前）
+
+**任務性質**：使用者要求 Jonaminz 登入後畫面（`/pages/admin/` 系列）擺脫
+「另一個 SKHPSv2 後台」的感覺，往「兩人共用的 Digital Home／數位圖書館」
+方向打磨，同時要求 Theme tokens 化、確認內部/外部展示與 Placement
+架構現況。本 checkpoint 記錄動手改動前的狀態。
+
+**Commit 前狀態**：`main` 分支，HEAD = `ade3875`（「feat: Minz Page v0.1
+Phase 1（純展示骨架）實作完成」），已 push 到 `origin/main`，兩者同步。
+
+**工作目錄現況（非本任務造成，刻意不動）**：另一個並行 session（session
+log 記錄為 `codex`）有未 commit 的 logo 相關變更仍在工作目錄：
+`AI_CONTEXT/CHANGELOG.md`／`AI_CONTEXT/PROJECT_STATE.md` 各有一段未提交
+的 logo 敘述、`assets/img/jonaminz-zen-logo.svg` 已修改、
+`jonaminz-bamboo-sprig.svg`／`jonaminz-enso-c.svg`／
+`jonaminz-stacked-stones.svg`／`jonaminz-wordmark.svg` 四個新檔未追蹤。
+**本任務範圍完全不涉及這些檔案**，回退時不要誤刪。
+
+**診斷發現（詳見本輪回報，暫不記錄進 FACTS/DECISIONS，等使用者確認範圍
+後再視需要正式記錄）**：
+- `AI_CONTEXT/` 全文搜尋「內部展示元件／外部展示元件／Placement／釘選」
+  等關鍵字，**沒有找到任何既有的 Placement 資料模型或內部/外部展示
+  架構**——現有最接近的機制是 v0 `registry.json`（目前是空陣列）的
+  粗粒度 enabled/position/group/order，以及 ADPF（`DECISIONS.md` §五）
+  的 Theme Pack 架構（只管視覺，不管排列）。使用者說「昨晚已定案」的
+  細粒度 Placement 系統目前在本 repo 找不到對應紀錄，已透過
+  AskUserQuestion 向使用者確認來源，不自行假設存在或動手重建。
+- `pages/admin/index.html` 現況是置中單一小卡片（兩個連結：Theme／
+  Contract 核准）＋外部專案回報清單，結構偏「工具選單」而非「家」，
+  但本身資訊密度並不高；真正密集的表格/狀態/monospace 畫面在
+  `/pages/admin/contracts/`（技術管理頁，已跟日常首頁分開，這個分離
+  本身值得保留）。
+- `/pages/admin/design/`（專案視覺方向頁）已經是「內部 Core entry ＋
+  外部 Contract entries 混在同一份清單」的雛形，但卡片尺寸統一
+  （`grid-template-columns: repeat(auto-fit, minmax(360px,1fr))`），
+  是使用者明確不想要的「全部一樣尺寸的圖示＋標題＋說明＋按鈕卡片」。
+- Theme tokens 紀律大致良好：admin 系列 CSS 沒有寫死色碼（僅
+  `color:#fff` 這種固定對比色徽章文字，不受 Theme 影響，可接受）；
+  唯一的「寫死視覺值」是 `pages/admin/design/assets/js/app.js` 的
+  `JONAMINZ_CORE_ENTRY.app.visualIdentity.palette`，鏡射
+  `02-tokens.css` 目前的亞麻米數值，屬於「jonaminz 對自己視覺身分的
+  自我宣告」（因為 jonaminz 不是 Contract 登記者），不是真正意義上的
+  Theme 破窗，但若之後 tokens 換了會跟這裡不同步，值得留意。
+
+**回退方式**：本 checkpoint 之後如果對打磨結果不滿意，`git diff ade3875`
+可看到本輪之後的所有異動；`git checkout -- <檔案>` 個別還原，或
+`git reset --hard ade3875`（會連同 Codex 未 commit 的 logo 變更一起
+清掉，使用前務必先確認那些內容是否已經另外備份／不需要保留）。
 
 **任務性質**：新增純本機工具（`tools/project-memory/`）與對應的
 `AI_CONTEXT/` 補充檔案，不修改任何正式產品功能／HTML／CSS／既有 JS

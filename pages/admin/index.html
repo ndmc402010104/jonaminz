@@ -1,8 +1,16 @@
 <!DOCTYPE html>
 <!--
 檔案位置：jonaminz/pages/admin/index.html
-用途：jonaminz 後台最小入口（水庫下游頁面，複製自根目錄 index.html 的 bootstrap，
+用途：jonaminz 後台首頁（水庫下游頁面，複製自根目錄 index.html 的 bootstrap，
 只改 pageId / title / 內容，載入路徑維持根目錄絕對路徑，不用因為巢狀資料夾改路徑）。
+
+2026-07-13：從「置中單一小卡片＋兩個連結」改版成「安靜的家」版型
+（使用者要求登入後畫面擺脫 SKHPSv2 那種高密度管理工具感，見
+AI_CONTEXT/CHECKPOINTS.md「admin-home-declutter-202607」與同日
+CHANGELOG）。技術性管理內容（Theme／Contract 核准／專案視覺方向）維持
+在各自獨立頁面不搬過來，這頁只負責「登入後第一眼」的迎接與導向，
+入口尺寸刻意不一致（Contract 核准依待審數量決定是否放大），不是全部
+一樣大的圖示＋標題＋說明＋按鈕卡片。
 -->
 <html
   lang="zh-Hant"
@@ -25,18 +33,10 @@
 <body class="jonaminz-body">
   <header id="header" class="jonaminz-header" data-jonaminz-header></header>
 
-  <main class="jonaminz-page jonaminz-admin-page" data-jonaminz-main>
-    <div class="jonaminz-container jonaminz-admin-container">
-      <section class="jonaminz-admin-hero" data-app-root>
-        <!-- pages/admin/assets/js/app.js 可以接管這裡 -->
-        <p class="jonaminz-page-subtitle" data-app-status>初始化中...</p>
-      </section>
-
-      <section class="jonaminz-admin-hero jonaminz-admin-registrations">
-        <p class="jonaminz-eyebrow">External Projects</p>
-        <h2 class="jonaminz-admin-title">外部專案回報</h2>
-        <div data-admin-registrations>讀取中...</div>
-      </section>
+  <main class="jonaminz-page jonaminz-admin-home-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-admin-home-container" data-app-root>
+      <!-- pages/admin/assets/js/app.js 接管這整個容器 -->
+      <p class="jonaminz-page-subtitle">初始化中...</p>
     </div>
   </main>
 

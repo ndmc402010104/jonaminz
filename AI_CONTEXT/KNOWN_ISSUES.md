@@ -162,3 +162,35 @@ agent），本次盤點已處理，見 `SESSION_LOG.md` 與 `DOCUMENT_STATUS.md`
 **風險等級**：低——這兩點都是 v0.1 任務指示明文排除的範圍（「小型、
 確定性、可人工審核」的工具，不做多 agent 即時鎖定），不是遺漏，工具
 本身的 `check` 指令也不會誤報這兩點為錯誤。
+
+---
+
+## 10. `.jonaminz-admin-hero`／`.jonaminz-admin-title` 這組 class 名稱在
+    admin 子頁之間看起來共用，實際上沒有共用樣式（2026-07-13 盤點發現）
+
+**現況**：`pages/admin/contracts/index.html`／`pages/admin/theme/index.html`
+的 hero 標題區塊沿用了 `pages/admin/index.html`（後台首頁）當初定義的
+`.jonaminz-admin-hero`／`.jonaminz-admin-title` class 名稱，但這兩份
+CSS 屬性只存在 `pages/admin/assets/css/page-admin.css`——依 `config.json`
+的 `entry.styles` 設定，這份檔案**只有 pageId `admin` 會載到**，
+contracts／theme 頁面完全沒有對應的 CSS 規則。跟
+`pages/admin/contracts/assets/css/page-admin-contracts.css` 檔頭註解
+描述的「`.jonaminz-theme-toolbar`／`.jonaminz-theme-section` 必須在
+每個會用到的頁面各自重複定義一份」是同一種陷阱，但那次有被抓到並修
+（複製一份定義過去），這次的 `.jonaminz-admin-hero`／`.jonaminz-admin-title`
+沒有——contracts／theme 頁面上的這個標題區塊實際上只吃到全站
+`03-base.css` 給 h1 的預設字體規則，沒有卡片背景／漸層文字效果。
+
+**影響**：視覺上不算破版（純文字標題本身還算好讀），但跟原始設計意圖
+（漸層文字大標）不一致，且 2026-07-13 後台首頁改版時
+`pages/admin/assets/css/page-admin.css` 已整份重寫、拿掉了
+`.jonaminz-admin-hero`／`.jonaminz-admin-title` 的定義（改用新版
+`.jonaminz-admin-welcome`／`.jonaminz-admin-greeting`），這兩個 class
+名稱現在對 contracts／theme／design 頁面來說更是徹底找不到任何來源
+定義了（本來就沒真的共用到，拿掉舊定義沒有讓情況變得更差）。
+
+**風險等級**：低，純樣式一致性問題，不影響功能。下一個要動 contracts／
+theme／design 頁面標題視覺的人，如果想要漸層大標效果，需要在對應的
+`page-admin-contracts.css`／`page-admin-theme.css`／
+`page-admin-design.css` 各自補一份定義，不能假設 class 名稱一樣就會
+自動套用。

@@ -20,6 +20,64 @@
 
 ---
 
+## 2026-07-13 — 後台首頁改版：擺脫「置中小卡片」，往「安靜的家」方向打磨
+
+- **任務**：使用者要求 Jonaminz 登入後畫面（`/pages/admin/`）擺脫
+  「另一個 SKHPSv2 後台」的感覺，往兩人共用的 Digital Home／數位圖書館
+  方向打磨。使用者指示先做診斷（為什麼像 SKHPSv2、既有成果要保留什麼、
+  Theme tokens 有沒有寫死、內部/外部展示與 Placement 架構是否已存在），
+  再動手做最小範圍的畫面打磨，本輪只處理後台首頁這一個畫面（其餘管理
+  子頁維持不動）。
+- **診斷發現**：
+  - 全 repo 搜尋「內部/外部展示元件」「Placement」「釘選」等關鍵字，
+    `AI_CONTEXT` 與 git log 都找不到對應的既有架構或資料模型——使用者
+    澄清所謂「昨晚已定案」實際上是指 ADPF（`DECISIONS.md` §五，今天
+    稍早才裁決的 Theme Pack 架構），不是另一套獨立的 Placement 系統；
+    細粒度的 Placement（每個展示元件獨立控制顯示/排序/區域/釘選）目前
+    確實不存在，本輪也沒有動手蓋，維持使用者自己指示的優先順序
+    （先打磨畫面→再 Theme Studio→才接 Placement）。
+  - `pages/admin/index.html` 舊版是置中單一小卡片＋兩個連結
+    （Theme／Contract 核准），結構偏「工具選單」；真正資訊密度高的
+    畫面在 `/pages/admin/contracts/`（monospace 狀態列/diff），這個
+    分離本身是好的，保留不動。
+  - `/pages/admin/design/`（專案視覺方向頁，內部 Core entry ＋外部
+    Contract entries 混在同一份清單）是既有可以保留、延伸的雛形，但
+    卡片尺寸統一，且**完全沒有任何頁面連過去**（孤兒頁面，本次一併
+    修掉）。
+  - Theme tokens 紀律良好，唯一的「自我宣告寫死值」是
+    `pages/admin/design/assets/js/app.js` 的 `JONAMINZ_CORE_ENTRY`
+    鏡射 `02-tokens.css` 目前的亞麻米數值（因為 jonaminz 不是 Contract
+    登記者），本輪未處理，記錄在案。
+  - 另發現 `.jonaminz-admin-hero`／`.jonaminz-admin-title` 這組
+    class 名稱在 contracts／theme 頁面上並沒有真的共用到樣式（見
+    `KNOWN_ISSUES.md` #10），純文件記錄，本輪未修。
+- **變更**：
+  - `pages/admin/index.html`：拿掉置中 flex box 版型，改成靠上、
+    留白的容器；`data-app-root` 直接接管整個內容區。
+  - `pages/admin/assets/css/page-admin.css`：整份重寫。迎接區（身分
+    徽章＋問候語，不是卡片）＋入口區（CSS Grid，Contract 核准依待審
+    數量動態放大成「需要注意」樣式，其餘時候跟其他入口同一尺寸，不是
+    統一格柵）＋外部專案回報改成安靜清單（拿掉外框卡片）。
+  - `pages/admin/assets/js/app.js`：`render()` 改產生新版 DOM 結構；
+    新增「專案視覺方向」入口連去 `/pages/admin/design/`（補上孤兒頁面
+    的連結）；`renderPendingStatus()` 在有待審時動態幫 Contract 核准
+    卡片加上 `--attention` class 與待審數量徽章。
+- **狀態變化**：`AI_CONTEXT/CURRENT_STATE.md` §四對照表「視覺架構」列
+  新增後台首頁改版狀態；`KNOWN_ISSUES.md` 新增 #10。
+- **驗證**：Playwright 三情境（桌機有待審／桌機無待審／手機有待審，
+  皆用 `page.route` 模擬 Worker `/api/action` 回應＋
+  `localStorage` 塞假 session token 繞過真的登入），確認 Contract
+  核准卡片會依待審數量正確放大/維持一般尺寸，console 零錯誤；另跑
+  home／jonathan／minz／login／admin-contracts／admin-theme／
+  admin-design 七頁快速回歸，確認沒有被本次改動波及。
+- **遺留**：只完成後台首頁這一個畫面，`/pages/admin/design/`
+  卡片尺寸統一的問題本輪沒有動（下一步待使用者裁決）；
+  「後台」這個標題字樣本身還是偏工具感（例如改成問候語風格的標題），
+  本輪為求範圍最小沒有動文案，只動結構與尺寸層級。
+- **版本**：`v0.21.10-202607131911`。
+
+---
+
 ## 2026-07-13 — Minz Page v0.1 Phase 1（純展示骨架）實作完成
 
 - **任務**：使用者裁決 Minz 的房間先做（見 `DECISIONS.md` §六），把
