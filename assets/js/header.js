@@ -94,7 +94,13 @@ requireLogin() 自己的註解。
       // App 殼登入完直接跳後台首頁，不要停在登入頁的「已經登入了」畫面
       // 再讓使用者多點一次——App 的核心用途就是後台管理，這裡跟一般
       // 瀏覽器登入（會照 next 導回原本要去的頁面）刻意不同。
-      window.location.href = "/pages/admin/";
+      // replace 不是 href：deep link 觸發時 WebView 還停在登入頁（點
+      // 「用 Google 登入」之後 Custom Tab 疊在上面，底下的 WebView 從
+      // 沒真的離開過那頁），用 href 會在瀏覽紀錄多疊一筆，按返回鍵會
+      // 回到登入表單頁的殘影（token 已經存在，顯示「已經登入了」，不是
+      // 使用者預期的上一頁）。replace 直接取代掉登入頁那筆，返回鍵才會
+      // 正確回到登入頁「之前」的那一頁。
+      window.location.replace("/pages/admin/");
     });
   }
 

@@ -183,7 +183,10 @@ link 收到 token 之後怎麼接回網站的 localStorage，見 assets/js/heade
             throw new Error("登入失敗");
           }
           writeToken(response.token);
-          window.location.href = getNextUrl();
+          // replace 不是 href：登入表單這頁不該留在瀏覽紀錄裡，不然按
+          // 上一頁會回到「已經登入了」那個殘影畫面，不是使用者真正想
+          // 回去的地方（2026-07-13 使用者實測 App 殼的返回鍵時發現）。
+          window.location.replace(getNextUrl());
         })
         .catch(function (error) {
           errorEl.textContent = "登入失敗：" + (error && error.message ? error.message : String(error));
