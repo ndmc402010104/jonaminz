@@ -122,7 +122,7 @@
 | 外部 App 接入 | Contract 推模式（新）＋ registry.json 拉模式（舊，並存） | v0 何時真正作廢 |
 | Auth domain | 沒有獨立網域，Worker 用 `*.workers.dev` | 是否搬 `auth.jonaminz.com`／`api.jonaminz.com` |
 | Chat/AI | 完全未實作 | 尚無時程（見 `DECISIONS.md` #3、#4） |
-| 視覺架構 | 全站一套「亞麻米 Flax & Ink」tokens，公開頁與登入後頁無分別；`theme_css_rules` 單一 `unique(selector,property)`，無 space 概念 | 圖書館模型（`DECISIONS.md` §四，2026-07-13）：公開圖書館／登入後管理員室／每本書三層視覺，亞麻米重新界定成管理員室專屬；最小遷移方案見 `EXPERIMENTS.md` #10，**尚未實作** |
+| 視覺架構 | 全站一套「亞麻米 Flax & Ink」tokens，公開頁與登入後頁無分別；`theme_css_rules` 單一 `unique(selector,property)`，無 space 概念 | 大廳／房間／後台三層（`DECISIONS.md` §四，2026-07-13，「圖書館模型」用詞已作廢）：大廳（首頁）＝米紙、Jonathan 的房間＝深夜訊號黑色系（主色未定）、Minz 未定、後台維持亞麻米；分流機制見 `EXPERIMENTS.md` #10＋`DECISIONS.md` §五 ADPF，**尚未實作** |
 | Contract 卡片入口 | `/pages/admin/design/` 通用機制從生效中 Contract 的 `entries`＋平台登記 origin 長出真連結（2026-07-13） | 未變更方向 |
 
 ## 五、Project Memory 工具（跨 session 記憶輔助，2026-07-13 新增）
