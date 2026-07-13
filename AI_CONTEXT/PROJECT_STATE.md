@@ -1,6 +1,8 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-最後更新：2026-07-13（**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節；第 9 項階段 A/B、前端品質重建計畫三階段皆已上線；文件真實性盤點完成。**⑦之後追加的視覺方向工作已全部完成並驗證**：Contract schema 新增 `app.visualIdentity` 自報欄位；jonaminz-movies 正式環境 Contract 帶 `visualIdentity`（酒紅 Editorial，snapshot #5 active）；`pages/admin/design/`（新頁面）讀真實已核准 Contract 展示各專案視覺方向；jonaminz 全站套用「亞麻米 Flax & Ink」（改 reservoir tokens，含修好一個關鍵 bug——Supabase Theme 系統裡有舊配色快照疊在 tokens 之上蓋掉新值，已刪除該快照 4 筆舊資料）；`pages/admin/contracts/` 改成按專案分組、摺疊歷史（含修好一個 `<details>` 展開狀態被 render() 重置的真實 bug）。全部經 Playwright 全站回歸驗證通過，細節見 `CHANGELOG.md` 同日「Platform Service 化的視覺方向」條目。**尚待 commit/push**（jonaminz 與 jonaminz-movies 兩邊）。使用者提出的「視覺方向應該存進 Theme 系統」長期方向已記錄在 `EXPERIMENTS.md` #9，未拍板不是現在做。**下一步是順序⑧手機 App 包裝**；順序⑤麵包屑維持延後不做）
+最新新增：`assets/img/jonaminz-stacked-stones.svg` 是 animation-ready 的獨立四層疊石元件；四顆石頭與 `ground-brush` 各自擁有穩定且帶元件前綴的 `<g id>`，紋理、高光與裂紋跟隨各自石頭群組，未內建動畫、未接入頁面。2026-07-13 依使用者回饋完成精細紋理版：粗長龜裂改為短礦脈、髮絲紋、低對比不規則礦物斑與較細 grain，主要細節為純向量 path，不依賴加重濾鏡。要從外頁 CSS/JS 控制內部群組時必須 inline SVG（一般 `<img>` 無法選取內部 ID）。
+
+最後更新：2026-07-13（**新增 `assets/img/jonaminz-wordmark.svg` 獨立文字標誌元件**：透明背景、緊密 viewBox、字標為純 path，不依賴外部字型；建議數位最小顯示寬度 160px，目前未接入頁面。另有 `assets/img/jonaminz-zen-logo.svg` 完整禪意構圖草案：依使用者提供的參考圖原創重繪，包含圓相、向量字標、竹枝與疊石；透明背景、無外部字型或點陣圖依賴，目前未接入任何頁面。**`docs/roadmap-202607.md` 順序①-⑦全部完成、驗證並 push**——接手前先看那份文件了解每項細節；第 9 項階段 A/B、前端品質重建計畫三階段皆已上線；文件真實性盤點完成。**⑦之後追加的視覺方向工作已全部完成並驗證**：Contract schema 新增 `app.visualIdentity` 自報欄位；jonaminz-movies 正式環境 Contract 帶 `visualIdentity`（酒紅 Editorial，snapshot #5 active）；`pages/admin/design/`（新頁面）讀真實已核准 Contract 展示各專案視覺方向；jonaminz 全站套用「亞麻米 Flax & Ink」（改 reservoir tokens，含修好一個關鍵 bug——Supabase Theme 系統裡有舊配色快照疊在 tokens 之上蓋掉新值，已刪除該快照 4 筆舊資料）；`pages/admin/contracts/` 改成按專案分組、摺疊歷史（含修好一個 `<details>` 展開狀態被 render() 重置的真實 bug）。全部經 Playwright 全站回歸驗證通過，細節見 `CHANGELOG.md` 同日「Platform Service 化的視覺方向」條目。**尚待 commit/push**（jonaminz 與 jonaminz-movies 兩邊）。使用者提出的「視覺方向應該存進 Theme 系統」長期方向已記錄在 `EXPERIMENTS.md` #9，未拍板不是現在做。**下一步是順序⑧手機 App 包裝**；順序⑤麵包屑維持延後不做）
 維護規則：任何 agent 完成會改變「已完成/未完成」狀態的任務後，必須更新本檔並在
 `CHANGELOG.md` 追加一筆。標記慣例：`UNKNOWN`＝掃描不到、`INFERRED`＝由程式碼推論、
 `NEEDS_CONFIRMATION`＝需使用者確認。
@@ -354,13 +356,15 @@ jonaminz/
     全站 5 頁 regression 零錯誤，`window.JonaminzLayoutMetrics` 都
     正確掛上。
   - **這次沒做（刻意，YAGNI）**：目前 jonaminz 沒有任何頁面/CSS 真的
-    訂閱這個訊號——這次只是把機制蓋好、開始廣播，跟 identity
-    capability 當初「機制先上線、沒有專案被授權」同樣的做法。等
-    Jonathan/Minz 門戶頁做出來、頁面深度真的增加，或麵包屑
-    （順序⑤）需要 header 高度時才會有真正的消費者。使用者提過的
-    「手機自動導去內部密語登入」（見 `docs/roadmap-202607.md` 順序③
-    段落的設計考量）也還沒做，需要用到這裡的 `rwdGroup`/`rwdMode`
-    判斷，但屬於登入頁的邏輯，不是這個量測層本身的事，之後再接。
+    訂閱這個訊號（2026-07-13 複查仍然成立）——這次只是把機制蓋好、
+    開始廣播，跟 identity capability 當初「機制先上線、沒有專案被
+    授權」同樣的做法。等 Jonathan/Minz 門戶頁深度真的增加，或麵包屑
+    （順序⑤）需要 header 高度時才會有真正的消費者。使用者原本提過的
+    「手機自動導去內部密語登入」設計考量**已作廢**（2026-07-13）：
+    當初是想繞開手機用區網 IP 測試時 Google OAuth 白名單不認 LAN IP
+    的問題，現在改用 `jonaminz-mobile-app`（Capacitor＋Custom
+    Tabs＋deep link）解決，跟 RWD 判斷無關，見
+    `docs/roadmap-202607.md` 順序③段落同日更新。
     skhpsv2 自己遷移過去用 jonaminz 提供的版本，待另開新 prompt。
 - **讀條演算法拉高層級（2026-07-12，`docs/roadmap-202607.md` 順序②）：
   完成並已上線。** 把 SKHPSV2 `loading-gate.js` 的「Runway Chase」平滑

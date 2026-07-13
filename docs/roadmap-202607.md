@@ -47,24 +47,34 @@ jonaminz（重寫、去 SKHPS 命名，不是直接複製檔案），取代 `ent
 
 見 `AI_CONTEXT/CHANGELOG.md` 同日「待辦總表順序③」條目。已套進
 jonaminz 自己（`assets/js/layout-metrics.js`，entry-core.js shell 鏈
-載入）。目前沒有頁面訂閱，機制先上線；下方「手機自動導去內部密語
-登入」的設計考量仍待實作，之後接手機登入判斷邏輯時要用到這裡的
-`rwdGroup`/`rwdMode`。
+載入）。**2026-07-13 查證：目前沒有任何頁面/CSS 訂閱這個機制**
+（`subscribe()` API 跟 `data-jonaminz-*` attribute 都沒有消費端）——純
+粹是「機制先上線，沒人接」的狀態，跟同批的 identity capability 是
+同一種模式。下方「手機自動導去內部密語登入」那個設計考量**已經不需要
+了**，見下方 2026-07-13 更新。
 
 把 `layout-metrics.js` 的量測邏輯（layoutWidth/Height、orientation、RWD
 mode/group、header/footer 邊界、可用內容區）搬進 jonaminz，補上
 `config.json` 裡 `layout.rwd.groups` 現在有宣告但沒有 JS 真的在用的洞。
 一樣先套進 jonaminz 自己，skhpsv2 遷移待另外交辦。
 
-**順手要一併考慮的設計點（2026-07-12 使用者提出）**：手機用區網 IP
-（例如 `192.168.1.101:5500`）測本機開發時，Google OAuth 的
-`ALLOWED_OAUTH_RETURN_ORIGINS`／loopback 白名單機制不會放行（區網 IP
-跟 loopback 不是同一個安全等級，見 `AI_CONTEXT/CHANGELOG.md` 對應日期
-條目），使用者裁決先不處理、等這個 RWD/裝置辨識系統做出來後，考慮
-在登入頁「偵測到是手機裝置就自動導去內部密語登入、跳過 Google
-OAuth」——手機用戶反正也比較常用密語登入，這樣可以順帶繞開 LAN IP
-導頁的問題，不用真的放行區網 IP 白名單。這不是這個 RWD 量測層本身的
-需求，是它做出來之後可以順便解決的一個週邊問題，動手時記得考慮進去。
+**~~順手要一併考慮的設計點（2026-07-12 使用者提出）~~（2026-07-13
+作廢，見下方）**：手機用區網 IP（例如 `192.168.1.101:5500`）測本機開發
+時，Google OAuth 的 `ALLOWED_OAUTH_RETURN_ORIGINS`／loopback 白名單機制
+不會放行（區網 IP 跟 loopback 不是同一個安全等級，見
+`AI_CONTEXT/CHANGELOG.md` 對應日期條目），當初設想等 RWD/裝置辨識系統
+做出來後，在登入頁「偵測到是手機裝置就自動導去內部密語登入、跳過
+Google OAuth」來繞開這個問題。
+
+**2026-07-13 更新：這個週邊問題已經用另一條路徑解決，不需要 RWD 這個
+方案了。** 手機測試改走 `jonaminz-mobile-app`（Capacitor 殼＋Chrome
+Custom Tabs＋`com.jonaminz.app://oauth-callback` deep link，見同日
+CHANGELOG「App 殼 Google 登入」相關條目），這條路完全不依賴
+`ALLOWED_OAUTH_RETURN_ORIGINS` 認不認得手機當下的 LAN IP，Google OAuth
+在真機上已經實測成功。至於「手機瀏覽器（不是 App）直接開 LAN IP 網址」
+這個更窄的情境，目前沒有實際需求，先不做——RWD 量測層維持「機制上線、
+沒有消費端」的狀態即可，未來如果真的有新的理由要用到 `rwdGroup`/
+`rwdMode`（例如 breadcrumb 元件），再另外評估。
 
 ---
 
