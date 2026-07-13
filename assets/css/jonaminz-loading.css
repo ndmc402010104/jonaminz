@@ -16,10 +16,15 @@ entry-core.js 判定 all-ready 之前一律蓋住，取代舊版純 visibility:h
   標題文字，::after 用 hard-stop linear-gradient 同時畫出進度條的
   「已完成」與「軌道」兩段，不用額外的第三個元素）。
 - 進度百分比由 entry-core.js 寫入 --jonaminz-loading-progress（0-100）。
-- 配色沿用 --color-bg-dark / --color-text-dark / --color-primary
-  （assets/css/reservoir/02-tokens.css），跟首頁深色相片版型同色系，
-  避免亮→暗閃爍；admin/login 系頁面是淺色版，布幕→揭幕會有一次短暫的
-  深→淺切換，可接受（比死白畫面好，且時間很短）。
+- 配色沿用 --color-bg / --color-text / --color-primary
+  （assets/css/reservoir/02-tokens.css）。2026-07-13 大廳／房間／後台
+  三層架構定案前，這裡沿用的是 --color-bg-dark／--color-text-dark，
+  因為當時首頁（唯一的深色頁）是最重要的頁面；定案後首頁（大廳）改走
+  淺色「米紙」，深色系只留給 Jonathan 未來的房間（單一頁面、尚未
+  實作），所以改沿用一般淺色 token——多數頁面（大廳/後台/登入）現在
+  布幕→揭幕零閃爍，代價是 Jonathan 的房面之後會有一次淺→深切換，
+  比之前反過來（多數頁面深→淺）划算，等 Jonathan 頁面真的做出來再
+  評估要不要特別處理。
 - 這個檔案在 02-tokens.css 之前就先載入了（bootstrap 階段），
   var(--color-primary, #1f3a5f) 的字面 fallback 值不是裝飾、是真的會
   在 tokens CSS 抵達前那一小段時間生效——2026-07-13 套用亞麻米方向時
@@ -30,8 +35,8 @@ entry-core.js 判定 all-ready 之前一律蓋住，取代舊版純 visibility:h
 html.jonaminz-loading {
   overflow: hidden;
   scrollbar-width: none;
-  background: #101310;
-  background: var(--color-bg-dark, #101310);
+  background: #efeae0;
+  background: var(--color-bg, #efeae0);
 }
 
 html.jonaminz-loading::-webkit-scrollbar {
@@ -59,8 +64,8 @@ html.jonaminz-loading::before {
   z-index: 99999;
   transform: translate(-50%, -50%);
   max-width: calc(100vw - 48px);
-  color: #f7f0e5;
-  color: var(--color-text-dark, #f7f0e5);
+  color: #262220;
+  color: var(--color-text, #262220);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   font-size: 21px;
   font-weight: 650;
@@ -91,15 +96,15 @@ html.jonaminz-loading::after {
     to right,
     #1f3a5f 0%,
     #1f3a5f calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
-    rgba(247, 240, 229, .18) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
-    rgba(247, 240, 229, .18) 100%
+    rgba(38, 34, 32, .18) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
+    rgba(38, 34, 32, .18) 100%
   );
   background: linear-gradient(
     to right,
     var(--color-primary, #1f3a5f) 0%,
     var(--color-primary, #1f3a5f) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
-    color-mix(in srgb, var(--color-text-dark, #f7f0e5) 18%, transparent) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
-    color-mix(in srgb, var(--color-text-dark, #f7f0e5) 18%, transparent) 100%
+    color-mix(in srgb, var(--color-text, #262220) 18%, transparent) calc(max(0, min(100, var(--jonaminz-loading-progress, 5))) * 1%),
+    color-mix(in srgb, var(--color-text, #262220) 18%, transparent) 100%
   );
   transition: background 180ms ease-out;
 }

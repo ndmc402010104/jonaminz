@@ -221,10 +221,19 @@ tokens 分流——仍然成立，只是分空間的方式從「公開圖書館 
 
 - **大廳（jonaminz 首頁）＝「米紙 Rice Paper」**：底色 `#f6f3ec`、
   文字 `#221f1c`、主色（暖褐）`#8a7355`，搭配真的圓相字標
-  `assets/img/jonaminz-zen-logo.svg`（另一個 session 正在做，2026-07-13
-  16:15 版只有圓相＋字標，竹枝／疊石已移除——套用前要跟負責那份的一方
-  確認是不是最終版）。**實作狀態：僅方向裁決，尚未動手改
-  `page-home.css`／`02-tokens.css`。**
+  `assets/img/jonaminz-zen-logo.svg`（另一個 session 正在做，套用時是
+  2026-07-13 16:15 版，只有圓相＋字標，竹枝／疊石已移除——如果那份檔案
+  之後改版加回竹枝／疊石，首頁的 `<img>` 引用同一個檔名會自動吃到新版，
+  不用另外通知）。**實作狀態：已實作並通過 Playwright 視覺驗證**
+  （2026-07-13）：`02-tokens.css` 新增 `--color-bg-lobby`／
+  `--color-text-lobby`／`--color-lobby-accent`（取代原本的 `-dark`
+  系列）；`page-home.css`／`index.html` 改用新 token，`<h1>jonaminz</h1>`
+  換成 `<img class="hero-logo" src="/assets/img/jonaminz-zen-logo.svg">`；
+  `jonaminz-loading.css` 的布幕預設色跟著從深色改回一般淺色 token
+  （因為現在多數頁面是淺色，深色只剩 Jonathan 一頁）；
+  `pages/admin/theme/assets/js/app.js` 的 Token 編輯器選單同步改名。
+  桌機／手機截圖確認、6 頁回歸測試零 console error、Theme 後台確認
+  新 token 名稱正確顯示。
 - **Jonathan 的房間 ＝「深夜訊號」黑色系**：暖近黑底 `#17130f`、
   暖米白文字 `#f2e9d8`；主色（琥珀／松石／石墨藍／陶土四選一）**尚未
   選定**，等實際做 Jonathan 頁面時再定。選這個方向的理由：Jonathan

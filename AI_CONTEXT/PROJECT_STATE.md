@@ -1,13 +1,22 @@
 # PROJECT_STATE — jonaminz 專案現況
 
-**2026-07-13 最新裁決**：Theme 系統下一步改採 ADPF（AI-Assisted
+**2026-07-13 最新進度**：「圖書館」比喻作廢，改成大廳／房間／後台三層
+（`DECISIONS.md` §四）。大廳（首頁）**已實作**：米紙 Rice Paper 淺色
+系＋真實圓相字標 logo，取代原本的深色簽名導覽＋文字字標，Playwright
+截圖＋6 頁回歸測試皆通過，`v0.21.7`。Jonathan 的房間（深夜訊號黑色系，
+主色未定）、Minz 的房間（未討論）尚未動工，下一步照使用者指示「一頁
+一頁做」繼續。
+
+**2026-07-13 稍早裁決**：Theme 系統下一步改採 ADPF（AI-Assisted
 Declarative Pack Framework）模式，不是「`theme_css_rules` 加 space
 欄位」的小補丁——完整方向見 `AI_CONTEXT/DECISIONS.md` §五、
 `docs/pack-framework/README.md`。純方向裁決，**程式碼完全尚未動工**，
 下一步排在使用者先選定「公開圖書館」視覺方向之後（圖書館模型三層
 視覺架構見 `DECISIONS.md` §四）。
 
-最新組合標誌：`assets/img/jonaminz-zen-logo.svg` 目前依使用者指示暫時只保留「圓相＋Jonaminz 字標＋三股地面長筆觸」，竹枝與疊石已從組合檔移除，但兩個獨立來源元件未刪除。1200×460 版面依最新 1097×467 裁圖校正：圓相 nested box `x=51 y=41 width=365 height=390`，使可見墨跡約落在 `x=64–403 / y=61–418`；wordmark 使用 `x=183 y=132 width=930 height=250` 非等比配置，使 J 約落在 `x=190 / y=142–370` 並位於圓心；基準筆觸改從 `x=377 y=400` 起筆。組合檔仍使用 nested SVG 完整內嵌圓相與字標，可單檔匯出並保留內部 ID/data-part。尚未接入正式頁面。
+最新組合標誌：`assets/img/jonaminz-zen-logo.svg` 目前依使用者指示只保留「圓相＋Jonaminz 設計字標＋三股地面長筆觸」，竹枝與疊石仍未放回。圓相維持 nested box `x=51 y=41 width=365 height=390`；新設計字標改用原始稿等比配置 `x=177 y=128 width=918 height=246`、viewBox `0 0 765 205`，不再水平壓縮普通襯線字，J 的可見位置仍約落在 `x=190 / y=142–372` 並位於圓心。2026-07-13 已以 z 幾何中心 `(727.5,118.2485)` 將左上勾旋轉 180°，精確重建被竹葉覆蓋的右下勾；日後放回竹枝時應以圖層自然覆蓋完整字標，不可再從字形輪廓扣除遮擋區。組合檔使用 nested SVG 完整內嵌圓相與字標，可單檔匯出並保留內部 ID/data-part。尚未接入正式頁面。
+
+最新設計字標：`assets/img/jonaminz-wordmark.svg` 已全面取代舊的一般粗襯線 path。新字標由使用者原始 1448×1086 品牌稿中，以 Rec.709 亮度 ≤185、RGB 色差 ≤13 的 neutral-dark mask 排除米色圓相與綠色竹枝，再移除小於 40px 的孤立元件；來源 ROI `x=200 y=205 width=765 height=205`、實際字標 bbox `(211,217)–(958,408)`。Potrace 採 threshold 128、turdSize 2、optTolerance 0.10、alphaMax 0.9，描成 765×205 純向量 compound path。保留 J 長尾、高對比髮絲、`a→m` 下方連筆與原始字距；由於來源稿的 z 右下端被竹葉遮擋，另以獨立 `jonaminz-wordmark-z-terminal` path 將左上勾按 `x'=1455-x`、`y'=236.497-y` 點對稱轉換到右下。透明背景、無外部字型／點陣圖／filter。
 
 最新品牌元件：`assets/img/jonaminz-enso-c.svg` 是透明背景的獨立書法 C／圓相。2026-07-13 在多輪手繪 Bézier、色帶、mask/filter 方案仍被使用者判定「不像真正筆觸」後，已取得使用者重傳的 792×824 原始裁圖並全面淘汰人工幾何骨架，改以高精度 Potrace 直接描摹真實墨跡（threshold 210、turdSize 2、optTolerance 0.05、alphaMax 0.82）。目前 compound path 完整保留原圖的飛白孔洞、左側撕裂毛邊、頂部散開毛束及右側斷續淡墨，單色 `#c2af98`、純向量、無點陣圖／filter／script／外部資源；另保留獨立 `jonaminz-enso-c-gesture`／`pathLength="1"` 作後續逐筆 reveal 動畫入口。尚未接入頁面。
 

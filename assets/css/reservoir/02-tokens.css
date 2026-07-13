@@ -5,19 +5,26 @@
 
 2026-07-13：套用「亞麻米 Flax & Ink」視覺方向（使用者從四個提案方向裡選定，
 見 pages/admin/design/ 的「專案視覺方向」頁）。從通用 SaaS 靛紫配色改成
-暖色調亞麻底＋沉墨藍/赭紅，標題加 serif 字體帶手感——這是 jonaminz 平台
-自己的識別，外部專案（例如 jonaminz-movies 的酒紅 Editorial）各自宣告
-自己的調性，不用跟這裡統一，見 docs/contract-schema 的 visualIdentity 欄位。
---color-bg-dark／--color-text-dark 刻意不動：那是首頁簽名式導覽版型專用
-的深色背景，跟這裡的「一般頁面預設淺色」是兩件事，見 page-home.css。
+暖色調亞麻底＋沉墨藍/赭紅，標題加 serif 字體帶手感——這是後台（管理員室）
+的識別，外部專案（例如 jonaminz-movies 的酒紅 Editorial）各自宣告自己的
+調性，不用跟這裡統一，見 docs/contract-schema 的 visualIdentity 欄位。
+
+2026-07-13（同日稍晚）：大廳／個別房間／後台三層視覺架構定案（見
+AI_CONTEXT/DECISIONS.md §四），「圖書館」比喻作廢。原本的
+--color-bg-dark／--color-text-dark（首頁專用深色）已經不成立——首頁
+（大廳）改走淺色「米紙 Rice Paper」，深色系留給 Jonathan 的個別房間
+（尚未實作）。新增 --color-bg-lobby／--color-text-lobby／
+--color-lobby-accent 三個大廳專用 token，取代舊的 -dark 系列，見
+page-home.css。
 */
 
 :root {
   /* color */
   --color-bg: #efeae0;
-  --color-bg-dark: #101310;
+  --color-bg-lobby: #f6f3ec;
   --color-text: #262220;
-  --color-text-dark: #f7f0e5;
+  --color-text-lobby: #221f1c;
+  --color-lobby-accent: #8a7355;
   --color-text-muted: rgba(38, 34, 32, 0.62);
   --color-primary: #1f3a5f;
   --color-primary-2: #a85c3f;

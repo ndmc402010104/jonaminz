@@ -20,6 +20,49 @@
 
 ---
 
+## 2026-07-13 — 大廳（首頁）套用「米紙 Rice Paper」＋真實圓相字標
+
+- **任務**：延續同日稍早的大廳視覺方向裁決，實際動手把首頁從深色簽名
+  導覽版型改成「米紙」淺色版，套用另一個 session 正在做的圓相字標
+  logo，取代原本的文字 `<h1>jonaminz</h1>`。使用者要求「一頁一頁做」，
+  這是第一頁（大廳）。
+- **變更**：
+  - `assets/css/reservoir/02-tokens.css`：新增 `--color-bg-lobby`
+    (`#f6f3ec`)／`--color-text-lobby` (`#221f1c`)／`--color-lobby-accent`
+    (`#8a7355`)，取代原本首頁專用的 `--color-bg-dark`／
+    `--color-text-dark`（這兩個 token 名稱不再準確——首頁不再是深色，
+    深色系保留給 Jonathan 未來的房間）。
+  - `assets/css/page-home.css`：全部改用新 token；沿用本專案既有的
+    `color-mix(in srgb, var(--token) N%, transparent)` 寫法取代原本
+    寫死的 `rgba(247,240,229,...)` 系列；`.hero h1` 規則刪除，改成
+    `.hero-logo`（給 `<img>` 用）；`.line` 分隔線與 `.name-link:hover`
+    改用新的 `--color-lobby-accent` 當強調色。
+  - `index.html`：`<h1>jonaminz</h1>` 換成
+    `<img class="hero-logo" src="/assets/img/jonaminz-zen-logo.svg">`，
+    新增對應的 `<link rel="preload">`。
+  - `assets/css/jonaminz-loading.css`：布幕（loading gate）預設配色從
+    `-dark` 系列改回一般淺色 token（`--color-bg`／`--color-text`）——
+    現在多數頁面是淺色（大廳／後台／登入），深色只剩 Jonathan 一頁，
+    跟之前反過來，划算。
+  - `pages/admin/theme/assets/js/app.js`：Token 編輯器的清單同步改名
+    （`Background（深色）`→`Background（大廳）`等），避免後台顯示
+    指向不存在 token 的選項。
+- **狀態變化**：`DECISIONS.md` §四「大廳＝米紙」從「僅方向裁決」變成
+  **已實作**。Jonathan／Minz 的房間仍未實作。
+- **遺留**：Jonathan 的房間（深夜訊號黑色系，主色未定）、Minz 的房間
+  （完全未討論）尚未動工；ADPF Theme 分流機制（讓後台能真的分空間管理
+  這些 token，不用手動改 CSS 檔）也還沒做，見 `DECISIONS.md` §五。
+  `jonaminz-zen-logo.svg` 由另一個 session 維護，目前版本沒有竹枝／
+  疊石，之後若改版加回來，首頁引用同一個檔名會自動吃到新版。
+- **驗證**：Playwright 對正式頁面截圖確認桌機（1600×1000）／手機
+  （390×844）配色與 logo 渲染正確（`.hero-logo` 有實際尺寸、舊
+  `<h1>` 確認已移除）；6 頁回歸測試（首頁／登入／後台三頁／design 頁）
+  零 console error、loading gate 正常；Theme 後台截圖確認新 token
+  名稱正確顯示、頁尾版本號正確。
+- **版本**：`v0.21.7-202607131637`。
+
+---
+
 ## 2026-07-13 — 大廳／個別房間視覺方向裁決：「圖書館」比喻作廢
 
 - **任務**：延續同日「圖書館模型」裁決，使用者實際看過展示 artifact 後

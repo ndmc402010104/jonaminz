@@ -15,13 +15,17 @@
 - 頁面本身不直接載 assets/js/app.js、header.js、footer.js、reservoir CSS。
 - JONAMINZ_ENTRY_VERSION 只是前端資源 cache buster，不是業務版本。
 - 這份首頁設計是簽名式導覽（signature navigation）版型：小尺寸相片框（非
-  全螢幕背景）＋標題置中＋兩人各自的 name-link。2026-07-12 改版：原本是
+  全螢幕背景）＋字標置中＋兩人各自的 name-link。2026-07-12 改版：原本是
   全螢幕相片當背景疊文字，橫向構圖的照片在窄螢幕下無論怎麼調
   background-position 都會裁掉其中一人，改成固定 aspect-ratio 的小相片框
   （<img> + object-fit:cover），裁切比例不隨螢幕寬度改變，從根本解決
   RWD 問題，不用再為不同斷點手動調裁切點。同時拿掉右上角跟 Jonathan/Minz
   重複的導覽按鈕（已經有下面的 name-link 可以點）跟沒有實際用途的「共用
-  入口」按鈕，首頁只留品牌字、登入、標題、相片、兩個 name-link。
+  入口」按鈕，首頁只留品牌字、登入、字標、相片、兩個 name-link。
+- 2026-07-13（大廳／房間／後台三層架構定案後）：首頁（大廳）從深色改成
+  淺色「米紙 Rice Paper」，文字 `<h1>jonaminz</h1>` 字標換成真的圓相
+  logo 圖檔（assets/img/jonaminz-zen-logo.svg），見
+  AI_CONTEXT/DECISIONS.md §四、assets/css/page-home.css 檔頭說明。
 -->
 <html
   lang="zh-Hant"
@@ -39,6 +43,7 @@
   <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
   <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
   <link rel="preload" as="image" href="/assets/img/home-hero.jpg">
+  <link rel="preload" as="image" href="/assets/img/jonaminz-zen-logo.svg">
   <script src="/assets/js/entry-core.js"></script>
 </head>
 
@@ -55,7 +60,7 @@
       <div class="hero-photo">
         <img src="/assets/img/home-hero.jpg" alt="Jonathan 與 Minz">
       </div>
-      <h1>jonaminz</h1>
+      <img class="hero-logo" src="/assets/img/jonaminz-zen-logo.svg" alt="jonaminz">
       <p>Jonathan 與 Minz 的 Digital Home。</p>
     </main>
 
