@@ -21,8 +21,18 @@ CSS 決定（vw/dvh 相對單位，交給宿主自己的瀏覽器引擎算，不
 mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 小工具一樣的理由：這批 shell script/SDK 注入器彼此獨立，不互相依賴）。
 
-沒登入時要不要嵌 iframe：交給 embed 頁自己判斷（沒 token 就整頁透明
-空白），這裡只做一個粗篩（有 token 才嵌）省掉多數未登入頁面的 iframe
+2026-07-14（同日第二次修正）：使用者在真實 Android 裝置上回報「圓形外
+面卡一個方框」，且比早上那次（以為是 box-shadow 被裁到、加大邊距）
+還嚴重——真正原因是 iframe 內部的透明背景在那台裝置的瀏覽器/WebView
+上不可靠，不是邊距大小問題。改成**不依賴 iframe 內部透明**：
+`border-radius`／`box-shadow` 直接套在這裡建立的 `<iframe>` 元素本身
+（收合態裁成圓形、展開態裁成圓角矩形）——這是瀏覽器對「一般元素」的
+裁形狀與陰影繪製能力，跟這個元素裡面的文件透不透明完全無關，遠比
+「指望 iframe 內容透明疊在頁面上」更穩固。embed 頁那邊對應改成兩個
+視圖（收合/展開）都完整填滿 100%、不留任何透明空白，見該檔案檔頭。
+
+沒登入時要不要嵌 iframe：交給 embed 頁自己判斷（沒 token 兩個視圖都
+不顯示），這裡只做一個粗篩（有 token 才嵌）省掉多數未登入頁面的 iframe
 載入成本——兩邊判斷標準一樣，粗篩漏了也只是多載一個空白 iframe，
 不會出現壞掉的按鈕。
 */
@@ -44,18 +54,18 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 
     var style = document.createElement("style");
     style.textContent =
-      "." + FRAME_CLASS + "{position:fixed;right:0;bottom:0;border:0;" +
-      "background:transparent;z-index:9999;transition:width .22s ease,height .22s ease;}" +
-      "." + FRAME_CLASS + ".state-collapsed{width:100px;height:140px;}" +
-      "." + FRAME_CLASS + ".state-half{width:min(460px,calc(100vw - 20px));height:min(880px,calc(100dvh - 20px));}" +
-      "." + FRAME_CLASS + ".state-full{width:min(780px,calc(100vw - 20px));height:calc(100dvh - 20px);}";
+      "." + FRAME_CLASS + "{position:fixed;right:14px;bottom:14px;border:0;" +
+      "z-index:9999;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +
+      "transition:width .22s ease,height .22s ease,border-radius .22s ease;}" +
+      "." + FRAME_CLASS + ".state-collapsed{width:64px;height:64px;border-radius:50%;}" +
+      "." + FRAME_CLASS + ".state-half{width:min(430px,calc(100vw - 28px));height:min(720px,calc(100dvh - 60px));border-radius:20px;}" +
+      "." + FRAME_CLASS + ".state-full{width:min(760px,calc(100vw - 28px));height:calc(100dvh - 40px);border-radius:20px;}";
     document.head.appendChild(style);
 
     var iframe = document.createElement("iframe");
     iframe.className = FRAME_CLASS + " state-collapsed";
     iframe.src = EMBED_PATH;
     iframe.title = "Chat";
-    iframe.setAttribute("allowtransparency", "true");
 
     window.addEventListener("message", function (event) {
       if (event.origin !== window.location.origin) return;

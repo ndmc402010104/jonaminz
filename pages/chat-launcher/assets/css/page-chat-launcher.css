@@ -9,84 +9,97 @@ entry-core.js 全套 bootstrap，只用 <link> 引入 assets/css/reservoir/
 的視覺（浮動卡片 vs 整頁排版）本來就該不同，只共用 token 名稱跟
 chat-thread.js 產生的 class 名稱約定。
 
-2026-07-14（P2，同時修正一個真的存在的 bug）：舊版（今早 SDK 化那次）的
-浮動大頭貼容器只有 76x76px，按鈕本體 56px 圓形置中在裡面，只留 6-14px
-邊距——但按鈕的 box-shadow 是 `0 8px 24px`，實際需要的透明淨空是上/左/右
-約 24px、下方約 32px（8px 位移＋24px 模糊半徑）。邊距不夠，陰影會被
-iframe 自己的邊界硬生生切斷，肉眼看起來就是「圓形外面卡著一個方形
-邊框」——不是背景不透明，是陰影被裁到只剩方形的那一小塊。這次把容器
-放大到 148x148px、按鈕內縮 32-36px，四邊淨空都超過陰影需要的空間，
-從根本解決，不是壓縮陰影將就舊尺寸。
+2026-07-14（同日第二次修正，真正解決透明度 bug）：第一版（今早）以為是
+box-shadow 被 iframe 邊界裁到，加大容器邊距解決；使用者在真實 Android
+裝置上回報「還是有方框、更怪」——真正原因是 iframe 內部的透明背景在
+那台裝置上不可靠，任何本來該透明的區域都畫成不透明白色，跟邊距大小
+無關。修法：**這份 CSS 不再留任何「本來想讓宿主頁面透出來」的空白
+區域**——收合視圖／展開視圖現在都是完整填滿 100% 的不透明內容，圓角
+跟陰影全部交給宿主端（assets/js/chat-launcher.js／sdk-src/sdk.js）
+對 <iframe> 元素本身做——那是瀏覽器對「一般元素」的裁形狀能力，跟這
+份文件裡面透不透明無關，不會受這台裝置的怪異行為影響。
 */
 
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   height: 100%;
-  background: transparent;
+  width: 100%;
+  overflow: hidden;
 }
 body {
   font-family: var(--font-sans);
   color: var(--color-text);
-  overflow: hidden;
+  background: var(--color-surface); /* 整個 iframe 現在永遠不透明，形狀由宿主的 border-radius 裁 */
 }
 button, textarea { font: inherit; }
 
-/* ---- 外層：由下往上疊，launcher 永遠在最底，panel 在它上面 ---- */
-
-.jcl-shell {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: flex-end;
-  height: 100%;
+.jcl-view {
   width: 100%;
-  gap: var(--space-3);
-  padding: 0;
+  height: 100%;
+  display: none;
+}
+.jcl-view:not([hidden]) { display: flex; }
+
+/* ---- 收合視圖：大頭貼填滿整個 iframe（宿主端裁成圓形） ---- */
+
+.jcl-collapsed {
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
 }
 
-/* ---- 永遠存在的浮動大頭貼（收合態下唯一可見的東西） ---- */
-
-.jcl-launcher {
+.jcl-avatar-btn {
   position: relative;
-  flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
-  margin: 40px 36px 40px 0; /* 見檔頭說明：四邊淨空都超過陰影(24~32px)需要的空間 */
-  border-radius: 50%;
   border: none;
   display: none;
   align-items: center;
   justify-content: center;
   font-weight: 900;
-  font-size: 19px;
   color: #fff;
-  background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
-  box-shadow: 0 8px 24px rgba(38, 34, 32, 0.28);
-  transition: transform 0.16s ease;
   cursor: pointer;
 }
-.jcl-launcher.is-visible { display: flex; }
-.jcl-launcher:hover { transform: translateY(-2px); }
+.jcl-avatar-btn.is-visible { display: flex; }
+
+.jcl-avatar-btn--big {
+  width: 100%;
+  height: 100%;
+  font-size: 22px;
+  background: transparent; /* 用 .jcl-collapsed 的背景，不要疊兩層漸層 */
+}
+
+.jcl-avatar-btn--mini {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 14px;
+  background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
+  box-shadow: 0 4px 12px rgba(38, 34, 32, 0.22);
+  z-index: 5;
+}
 
 .jcl-presence {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  right: 2px;
-  bottom: 3px;
+  width: 13px;
+  height: 13px;
+  right: 4px;
+  bottom: 5px;
   border-radius: 50%;
   background: #35c66b;
-  border: 2px solid #fff;
+  border: 2px solid var(--color-primary);
   opacity: 0;
   transition: opacity 0.16s ease;
 }
-.jcl-launcher.is-online .jcl-presence { opacity: 1; }
+.jcl-avatar-btn--mini .jcl-presence { width: 9px; height: 9px; right: 1px; bottom: 1px; border-width: 1.5px; }
+.jcl-avatar-btn.is-online .jcl-presence { opacity: 1; }
 
 .jcl-badge {
   position: absolute;
-  top: -3px;
-  right: -3px;
+  top: 2px;
+  right: 2px;
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
@@ -98,26 +111,18 @@ button, textarea { font: inherit; }
   display: none;
   align-items: center;
   justify-content: center;
-  border: 2px solid #fff;
+  border: 2px solid var(--color-primary);
 }
-.jcl-launcher.has-unread .jcl-badge { display: flex; }
+.jcl-avatar-btn--mini .jcl-badge { min-width: 15px; height: 15px; font-size: 8px; top: -2px; right: -2px; border-width: 1.5px; }
+.jcl-avatar-btn.has-unread .jcl-badge { display: flex; }
 
-/* ---- 面板本體：half/full 態才顯示 ---- */
+/* ---- 展開視圖：面板填滿整個 iframe（宿主端裁成圓角矩形） ---- */
 
-.jcl-panel {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  margin: 16px 16px 0;
-  display: flex;
+.jcl-expanded {
+  position: relative;
   flex-direction: column;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
 }
-.jcl-panel[hidden] { display: none; }
 
 .jcl-handle {
   flex: 0 0 auto;
@@ -158,7 +163,7 @@ button, textarea { font: inherit; }
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-7) var(--space-3) var(--space-4); /* 右邊多留給角落的迷你大頭貼 */
   border-bottom: 1px solid var(--color-border);
   flex: 0 0 auto;
 }
@@ -352,7 +357,7 @@ button, textarea { font: inherit; }
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-md);
-  z-index: 5;
+  z-index: 6;
 }
 .jonaminz-chat-emoji-panel[hidden] { display: none; }
 .jonaminz-chat-emoji-panel button { height: 34px; border: none; border-radius: var(--radius-sm); background: var(--color-bg-lobby); font-size: 17px; cursor: pointer; }
