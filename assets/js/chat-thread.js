@@ -795,6 +795,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<button type="button" data-save-phone>儲存</button>' +
         "</div>" +
         '<button type="button" class="jonaminz-chat-settings-call-btn" data-call-btn>📞 撥打給對方</button>' +
+        '<p class="jonaminz-chat-settings-note" data-call-status></p>' +
         '<button type="button" class="jonaminz-chat-settings-push-btn" data-push-toggle>開啟推播通知</button>' +
         '<p class="jonaminz-chat-settings-note" data-push-status></p>' +
         "</div>" +
@@ -874,6 +875,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.myPhoneInput = root.querySelector("[data-my-phone]");
       els.savePhoneBtn = root.querySelector("[data-save-phone]");
       els.callBtn = root.querySelector("[data-call-btn]");
+      els.callStatus = root.querySelector("[data-call-status]");
       els.pushToggleBtn = root.querySelector("[data-push-toggle]");
       els.pushStatus = root.querySelector("[data-push-status]");
 
@@ -1284,6 +1286,23 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (opening) {
             if (els.myPhoneInput) els.myPhoneInput.value = myPhoneNumber;
             refreshPushStatus();
+            // 2026-07-14（真機回報修正）：聯絡電話原本只在 mount 時抓一次
+            // ——對方在那之後才存號碼的話，這邊永遠是舊的空值，按撥打
+            // 就靜靜地沒反應。改成每次打開設定面板都重新抓一次，順便把
+            // 「對方還沒設定號碼」的提示顯示在面板裡看得到的位置（原本
+            // 寫在面板最底下的狀態列，被鍵盤/邊界擋住根本看不到）。
+            window.JonaminzBackend.getContactInfo({ token: token })
+              .then(function (result) {
+                myPhoneNumber = result.myPhoneNumber || "";
+                peerPhoneNumber = result.peerPhoneNumber || "";
+                if (els.myPhoneInput && document.activeElement !== els.myPhoneInput) {
+                  els.myPhoneInput.value = myPhoneNumber;
+                }
+                if (els.callStatus) {
+                  els.callStatus.textContent = peerPhoneNumber ? "" : "對方還沒有設定電話號碼";
+                }
+              })
+              .catch(function () {});
           }
         });
         document.addEventListener("click", function (event) {
@@ -1311,7 +1330,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (els.callBtn) {
         els.callBtn.addEventListener("click", function () {
           if (!peerPhoneNumber) {
-            els.status.textContent = "對方還沒有設定電話號碼";
+            if (els.callStatus) els.callStatus.textContent = "對方還沒有設定電話號碼";
             return;
           }
           if (inPanel) {

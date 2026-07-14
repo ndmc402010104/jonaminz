@@ -468,6 +468,15 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 
     function handlePushSubscribeRequest(applicationServerKeyArray) {
       var applicationServerKey = new Uint8Array(applicationServerKeyArray || []);
+      // 2026-07-14（真機回報修正）：Jonaminz App（Capacitor，Android
+      // WebView）平台層就沒有網頁推播 API（PushManager 不存在），這不是
+      // bug、修不了——App 要收推播得做原生推播（FCM，排在之後的原生功能
+      // 輪次）。偵測到 App 環境時給一句看得懂的實話，不要跟其他「瀏覽器
+      // 太舊」的情況混用同一句籠統的「不支援」。
+      if (window.Capacitor) {
+        replyPushSubscribeResult(false, "App 內目前收不到網頁推播（要等之後的 App 原生推播）；現在想收推播請用 Chrome 開啟 www.jonaminz.com 再開啟一次");
+        return;
+      }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
         replyPushSubscribeResult(false, "此瀏覽器不支援推播通知");
         return;
