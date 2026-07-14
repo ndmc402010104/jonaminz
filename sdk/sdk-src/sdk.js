@@ -286,7 +286,8 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
         "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;bottom:" + ANCHOR_BOTTOM + "px;" +
         "width:64px;height:64px;border-radius:50%;z-index:10000;background:transparent;" +
         "touch-action:none;cursor:pointer;" +
-        "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;}" +
+        "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" +
+        "-webkit-tap-highlight-color:transparent;outline:none;}" +
         "." + PANEL_CLASS + "{position:fixed;right:14px;bottom:92px;border:0;border-radius:20px;" +
         "z-index:9998;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +
         "transition:width .22s ease,height .22s ease;}" +

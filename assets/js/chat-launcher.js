@@ -127,7 +127,8 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
       "width:64px;height:64px;border-radius:50%;z-index:10000;background:transparent;" +
       "touch-action:none;cursor:pointer;" +
-      "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;}" +
+      "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" +
+      "-webkit-tap-highlight-color:transparent;outline:none;}" +
       "." + PANEL_CLASS + "{position:fixed;right:14px;" +
       "top:calc(var(--jcl-anchor-top) + " + GAP_BELOW_LAUNCHER + "px);border:0;border-radius:20px;" +
       "z-index:9998;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +

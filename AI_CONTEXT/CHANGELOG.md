@@ -20,6 +20,45 @@
 
 ---
 
+## 2026-07-14（下午，第十二次）— 送出鍵鍵盤閃爍修正 + 對照常見行動聊天室慣例的系統性補強
+
+- **任務**：使用者回報「每次按送出，鍵盤會消失一下又跳出來」，另外
+  請我對照 WhatsApp/Messenger/iMessage 這類成熟聊天 App 的慣例，抓出
+  這套手刻聊天室還缺什麼，一次補齊，不要等使用者一個一個回報。
+- **變更**：
+  1. **鍵盤閃爍根因**：`<button>` 在 `pointerdown` 那一刻就會把焦點從
+     原本聚焦的輸入框搶過去，送出流程結束後 `doSendText()` 尾端又呼叫
+     `els.input.focus()` 拉回來，兩次焦點轉換在手機上就是「鍵盤收起來
+     又跳出來」的閃爍。修法：`els.action`（送出鍵）加
+     `pointerdown` 監聽呼叫 `event.preventDefault()`，輸入框全程不
+     失焦，鍵盤不會收起來（Playwright 驗證送出全程 `document.activeElement`
+     維持是輸入框）。
+  2. **輸入框自動長高**：新增 `autoGrowInput()`，`input` 事件時量
+     `scrollHeight` 動態調整高度（到 CSS `max-height` 為止），不再是
+     多行文字只能在固定高度裡自己捲動。
+  3. **面板輸入框字級 14px→16px**：低於 16px 會讓 iOS Safari 對到焦點
+     時自動放大整頁——這台裝置是 Android 沒踩到，但外部專案的 iOS
+     訪客會中，寫死 16px（不跟著 `--text-sm` token 走，因為這是瀏覽器
+     行為門檻不是設計決定）。
+  4. `pages/chat-launcher/`／`pages/chat-panel/` 補上 `<meta
+     name="viewport">`（這兩個極簡頁面跳過正常 bootstrap，一直沒有這
+     個標準標籤）。
+  5. 訊息串 `.jonaminz-chat-thread` 加 `overscroll-behavior:contain`
+     （避免捲到頂/底時捲動「漏」給底下頁面造成整頁彈跳）；聊天容器加
+     `touch-action:manipulation`（避免連續點擊誤觸雙擊放大，順便去掉
+     部分瀏覽器的點擊判斷延遲）。
+- **驗證**：Playwright 驗證送出全程輸入框不失焦；輸入多行文字後高度
+  正確從 37px 長到 90px（CSS max-height）上限、清空後縮回；字級/
+  overscroll-behavior 都用 `getComputedStyle` 實際讀值確認。
+- **狀態變化**：無新的未完成項。
+- **遺留**：這次是「掃過一輪常見慣例」的補強，不是逐項使用者回報，
+  之後如果還有沒對照到的慣例（例如訊息長按複製/選取、鍵盤開啟時
+  visualViewport 的即時避讓）可以再抓。角標/在線小綠點被圓形裁切這個
+  之前用「縮進去」暫時止血的做法，使用者已經指出這是偷吃步，正確做法
+  （host 端用複合 clip-path 讓角標能畫在圓圈外面）還在進行中，還沒
+  完成。
+- **版本**：v0.25.4-202607141630
+
 ## 2026-07-14（下午，第十一次）— 展開位置也統一到頁首下方、面板改往下展開、時間分隔線改看間隔
 
 - **任務**：使用者兩點回饋：(1) 第十次修正只改了「收合時」的休息位置，

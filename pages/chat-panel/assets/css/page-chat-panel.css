@@ -21,6 +21,9 @@ html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
+  /* 防止連續點擊觸發瀏覽器預設的雙擊放大，順便去掉部分瀏覽器對一般
+     點擊加的 ~300ms 判斷延遲。 */
+  touch-action: manipulation;
 }
 body {
   font-family: var(--font-sans);
@@ -140,6 +143,8 @@ button, textarea { font: inherit; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* 捲到頂/底時不要把捲動「漏」給底下的頁面造成整頁彈跳 */
+  overscroll-behavior: contain;
   padding: var(--space-3);
   background: var(--color-bg-lobby);
 }
@@ -333,7 +338,11 @@ button, textarea { font: inherit; }
   background: var(--color-bg-lobby);
   color: var(--color-text);
   outline: none;
-  font-size: var(--text-sm);
+  /* 2026-07-14：字級一定要 >=16px，不然 iOS Safari 對到焦點時會自動把
+     整頁放大（這台裝置是 Android 沒踩到，但外部專案的 iOS 訪客會中）。
+     這裡刻意寫死 16px，不是跟著 --text-sm 的 token 值走，因為這個數字
+     是瀏覽器行為門檻，不是設計決定，token 之後調整不該影響它。 */
+  font-size: 16px;
 }
 .jonaminz-chat-input-shell textarea:focus { border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border)); }
 .jonaminz-chat-emoji-toggle {

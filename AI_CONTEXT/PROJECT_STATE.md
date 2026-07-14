@@ -1182,6 +1182,14 @@ System App：
     螢幕底部）。同時 `chat-thread.js` 的時間分隔線改成看「跟上一條分隔
     線間隔多久」（15 分鐘門檻），不是「格式化字串變了沒」，避免訊息
     密集時每分鐘都冒出時間。
+  - **第十二輪（同日）**：送出鍵 `pointerdown` 加
+    `event.preventDefault()` 修好「送出後鍵盤閃一下」；composer 輸入框
+    新增 `autoGrowInput()` 隨內容長高；面板輸入框字級補到 16px（避免
+    iOS 對焦自動放大）；`pages/chat-launcher/`／`pages/chat-panel/` 補
+    `<meta viewport>`；訊息串加 `overscroll-behavior:contain`、聊天
+    容器加 `touch-action:manipulation`。角標/在線小綠點被圓形裁切目前
+    只是「縮進去」的暫時止血（第十輪），使用者已指出這不是正確做法，
+    正式修法（host 端複合 clip-path 讓角標畫在圓圈外面）待完成。
   - **教訓（值得記住，別重蹈覆轍）**：一開始把大頭貼跟面板塞進「同一個
     iframe、靠內部視圖切換」，即使裁形狀本身的技巧是對的，也因為
     「一個 iframe 只能裁一種形狀」逼得展開時要把大頭貼縮成面板內部的

@@ -333,6 +333,15 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.action.setAttribute("aria-label", hasText ? "送出訊息" : "快速送出 " + QUICK_REACTION);
     }
 
+    // 2026-07-14：輸入框原本是固定高度，多行文字只能在裡面自己捲動——
+    // 標準聊天 App（iMessage/WhatsApp/Messenger）都是隨內容長高，長到
+    // CSS 的 max-height 才開始內部捲動。textarea 本身不會自動長高，要
+    // 手動量 scrollHeight 才能做到。
+    function autoGrowInput() {
+      els.input.style.height = "auto";
+      els.input.style.height = els.input.scrollHeight + "px";
+    }
+
     function doSendText(body) {
       if (!body || sending) return;
       sending = true;
@@ -484,18 +493,32 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
       }
 
+      // 2026-07-14：點送出按鈕原本會讓輸入框失焦（鍵盤收起來），送出流程
+      // 跑完才在 doSendText() 尾端 els.input.focus() 拉回來，手機上看起來
+      // 就是「鍵盤消失一下又跳出來」的閃爍。根因是 <button> 預設在
+      // pointerdown 那一刻就會把焦點從原本聚焦的元素（輸入框）搶過去；
+      // 在 pointerdown 擋掉這個預設行為，輸入框全程不失焦，鍵盤就不會
+      // 收起來，doSendText() 尾端那次 focus() 也就變成不會有動作的
+      // no-op（保留著沒關係，防呆用）。
+      els.action.addEventListener("pointerdown", function (event) {
+        event.preventDefault();
+      });
       els.action.addEventListener("click", function () {
         var body = els.input.value.trim();
         if (body) {
           els.input.value = "";
           updateComposerAction();
+          autoGrowInput();
           doSendText(body);
         } else {
           doSendText(QUICK_REACTION);
         }
       });
 
-      els.input.addEventListener("input", updateComposerAction);
+      els.input.addEventListener("input", function () {
+        updateComposerAction();
+        autoGrowInput();
+      });
       els.input.addEventListener("keydown", function (event) {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
@@ -518,6 +541,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         els.input.focus();
         els.input.setSelectionRange(caret, caret);
         updateComposerAction();
+        autoGrowInput();
       });
       document.addEventListener("click", function (event) {
         if (!els.emojiPanel.hidden && !event.target.closest(".jonaminz-chat-input-shell")) {
