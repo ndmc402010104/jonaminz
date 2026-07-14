@@ -20,6 +20,76 @@
 
 ---
 
+## 2026-07-14（下午，稍晚）— Chat 懸浮面板三態（P2）＋修透明陰影裁切 bug
+
+- **任務**：Phase 2 roadmap P2。使用者確認框架：`/pages/chat/` 是
+  「主頁」（完整、可直接導航/深連結），`pages/chat-launcher/`（浮動
+  大頭貼）是主頁的「攜帶版」——同一份渲染邏輯掛進不同容器，不是另刻
+  一份像的東西。三態模型（收合/半版/全版）取自
+  `jonaminz-chat交接包/AI_CONTEXT/DECISIONS.md`／
+  `SOURCE/ux-mvp-v0.11/CHAT_SHARED_ARCHITECTURE.md`（v0.7-v0.11 決策
+  日誌，`CHECKPOINTS.md` 標記 ACCEPTED）。過程中使用者順手回報一個
+  真實視覺 bug：浮動大頭貼「圓形外面卡一個方框」，一併修掉。
+- **架構**：
+  - 新增共用模組 `assets/js/chat-thread.js`：把
+    `pages/chat/assets/js/app.js` 的訊息渲染/composer/未讀已讀邏輯
+    整段搬過來（今早才修好的競態 bug 原樣保留），改成
+    `mount(root,{token,onUpdate})`——`identity` 不再要求呼叫端先解析
+    好，改成從第一次 `listChatMessages` 回應內部解析；`onUpdate` 讓
+    「一直存在」的浮動大頭貼跟面板頭部的大頭貼同步同一組算好的資料
+    （對方是誰/未讀數/在線狀態），不用各自重算一次。
+  - `pages/chat/assets/js/app.js` 瘦身成呼叫端（`requireLogin` →
+    `mount` → loading-gate 回報），`config.json` 的 chat 頁面
+    `afterScripts` 補上 `chat-thread.js` 的載入順序。
+  - `pages/chat-launcher/index.html` 大改：三態狀態機（大頭貼是唯一
+    收合控制、展開時仍可見；頂部 sheet handle 只切半版/全版；選擇存
+    localStorage）。只 `postMessage` 狀態字串（collapsed/half/full）
+    給宿主，**不送算好的像素數字**——embed 頁被 resize 前，自己的
+    `window.innerWidth` 反映的是「現在的 iframe 框」而非宿主真實
+    視窗大小，JS 在裡面算不出手機上該多寬；改成宿主端（
+    `assets/js/chat-launcher.js`／`sdk-src/sdk.js`）收到狀態後切換
+    iframe 的 CSS class，尺寸用 `vw`/`dvh` 交給宿主自己的瀏覽器引擎
+    算，沒有雞生蛋問題。兩個宿主注入器各自維護一份這組 CSS（刻意
+    重複，跟 `TOKEN_KEY`/`readToken()` 那組小工具同一個理由：這批
+    shell script/SDK 注入器彼此獨立，不互相依賴）。
+  - 新增 `pages/chat-launcher/assets/css/page-chat-launcher.css`：
+    `<link>` 引入同源相對路徑 `/assets/css/reservoir/02-tokens.css`
+    （只拿靜態 token 值，不載 `theme-runtime.js`/`entry-core.js`——
+    Chat 是跨專案共用識別，不該跟著 jonaminz 當下選的 Theme 走，
+    維持 identity-relay 那種最小化 bootstrap 原則），跟
+    `pages/chat/assets/css/page-chat.css` 用同一批 token/class 名稱
+    約定但不是同一份檔案（container 層級視覺本來就該不同，正常的
+    「同元件不同外殼」）。
+  - **修 bug**：舊版浮動大頭貼容器 76×76px，按鈕 56px 圓形只留
+    6-14px 邊距，但 `box-shadow: 0 8px 24px` 實際需要上/左/右約 24px、
+    下方約 32px 的透明淨空——邊距不夠，陰影被 iframe 邊界硬裁，肉眼
+    看起來像「圓形外面卡一個方框」。改成容器 148px、按鈕內縮
+    32-40px，四邊淨空都超過陰影需要的空間，從根本解決（不是壓縮
+    陰影將就舊尺寸）。
+  - `sdk-src/sdk.js` 的 `mountChatLauncher()` 同步改成三態 class 機制
+    （移除舊的「點擊導頁」邏輯）。新 release `9e0aa786703b`，
+    `sdk-versions.json` revision 9。
+- **驗證**：Playwright 三條路——① 內部頁（假 origin＋真檔案）：收合→
+  點大頭貼展開半版（訊息渲染/未讀分組/已讀回條/composer 全部正確）→
+  點 handle 變全版→點大頭貼收合→重新展開記得上次是全版（localStorage
+  生效）；截圖確認陰影不再被裁切，乾淨透明。② SDK 路徑（假外部
+  origin＋真 `sdk-src/sdk.js`＋真 `getEffectiveSettings`
+  mock）：同樣的三態行為在「外部專案」情境下一致重現，證實
+  travel 會自動獲得同樣體驗。③ `pages/chat/` 主頁：用既有的
+  stub-harness 技巧（`file://` 實體檔案，非 `page.setContent`——後者
+  沒有 `file://` origin 會被瀏覽器擋掉載入同目錄資源，過程中修正這個
+  test harness 本身的問題）確認瘦身後的 `app.js`＋新
+  `chat-thread.js` 正常渲染/送出訊息。`node --check` 全部改動檔案；
+  esbuild bundle-check `sdk.js` 確認無 eval/new Function。
+- **狀態變化**：Chat 從「demo 品質、無懸浮面板」進一步到「有懸浮面板，
+  跟主頁共用邏輯，外部專案自動獲得」。Phase 2 roadmap P2 完成。
+- **遺留**：貼圖/訊息反應/typing indicator/回覆——P3 的另一個獨立
+  決定，這次沒碰。Header 沒放電話按鈕（沒有 `callPeer()`
+  capability，不放假功能）。
+- **版本**：v0.24.0-202607141157
+
+---
+
 ## 2026-07-14（下午）— 修復 KNOWN_ISSUES #12：identity capability 改名為 kebab-case
 
 - **任務**：Phase 2 roadmap P1——`identity.currentUser@1` 是 camelCase，

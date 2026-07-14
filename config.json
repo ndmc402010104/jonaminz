@@ -90,7 +90,7 @@
       "showInNav": false,
       "entry": {
         "styles": ["/pages/chat/assets/css/page-chat.css"],
-        "afterScripts": ["/assets/js/backend-client.js", "/pages/chat/assets/js/app.js"],
+        "afterScripts": ["/assets/js/backend-client.js", "/assets/js/chat-thread.js", "/pages/chat/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     },

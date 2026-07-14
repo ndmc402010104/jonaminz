@@ -45,22 +45,17 @@
   （`sdk-versions.json` revision 8），已 `wrangler deploy` 並驗證。
   `window.Jonaminz.identity.currentUser()` 函式名不受影響。
 
-## P2 — Chat 懸浮面板（半版/全版，交接包驗證過的完整 UX）
+## P2 — ~~Chat 懸浮面板（半版/全版，交接包驗證過的完整 UX）~~ 已完成（2026-07-14 下午）
 
-- [ ] 現況：點右下角大頭貼是「跳轉整頁 /pages/chat/」，交接包
-  `DECISIONS.md`（jonaminz-chat交接包那份）定義的是三態模型：
-  收合大頭貼 ⇄ 半版面板 ⇄ 全版面板（拖把手切換），聊天疊在當前
-  頁面上不離開內容。參考畫面：交接包 `SOURCE/ux-mvp-v0.11/index.html`
-  （用 Playwright 點 #chatLauncher／#panelHandle 可看到兩種面板態，
-  2026-07-14 上午已截圖研究過）。
-- **架構上路已鋪好**：launcher 已經是 iframe（`pages/chat-launcher/`），
-  懸浮面板可以做成「同一個 iframe 依狀態變大」——embed 頁內部管理
-  收合/半版/全版三態，postMessage 通知嵌入端調整 iframe 尺寸
-  （嵌入端只改 width/height/position，聊天邏輯全部留在 embed 頁，
-  外部專案自動獲得同樣功能，不用另外開發）。這就是當初選 iframe
-  的延伸紅利。
-- 注意：整頁版 `/pages/chat/` 保留（手機/深連結用），兩者共用
-  Worker API，不要做成兩套訊息邏輯。
+- [x] 三態機（收合⇄半版⇄全版，大頭貼是唯一收合控制、頂部 sheet handle
+  切半版/全版）已實作：`pages/chat-launcher/` 內部管理狀態，
+  postMessage 狀態字串給宿主（`assets/js/chat-launcher.js`／
+  `sdk-src/sdk.js`），宿主 CSS 用 vw/dvh 換算實際尺寸。訊息渲染邏輯
+  抽成共用模組 `assets/js/chat-thread.js`，`/pages/chat/`（主頁）跟
+  `pages/chat-launcher/`（攜帶版）都用同一份，不重複。順手修好舊版
+  浮動大頭貼 box-shadow 被 iframe 邊界裁出方框的視覺 bug。外部專案
+  （travel）自動獲得同樣的懸浮面板體驗，驗證過。細節見
+  `AI_CONTEXT/CHANGELOG.md` 2026-07-14 下午條目。
 
 ## P3 — 二選一（問使用者要先哪個）
 

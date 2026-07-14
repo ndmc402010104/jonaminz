@@ -1122,11 +1122,24 @@ System App：
   入口每 12 秒一次）取代 WebSocket／Durable Object——交接包
   `AGENT/WORK_PLAN.md` 自己建議先用這個「方案 C」證明端到端能動，不是
   最終架構。
+- **2026-07-14 下午（P2）**：DECISIONS.md 描述的半版/全版懸浮聊天面板
+  **已實作並上線**——`/pages/chat/`（主頁，完整可直接導航/深連結）跟
+  `pages/chat-launcher/`（主頁的「攜帶版」，浮動大頭貼＋收合/半版/全版
+  三態面板）現在共用同一份訊息渲染/composer 邏輯（新模組
+  `assets/js/chat-thread.js`），避免兩套實作 drift。大頭貼是唯一收合
+  控制、展開時仍可見，頂部 sheet handle 單獨切換半版/全版，選擇存
+  localStorage。iframe 尺寸只送狀態字串給宿主（`chat-launcher.js`／
+  `sdk-src/sdk.js` 各自維護一份 CSS，用 vw/dvh 相對單位換算，避免
+  embed 頁自己猜宿主視窗大小的雞生蛋問題）。順手修好一個真實 bug：
+  舊版浮動大頭貼的 box-shadow 因為容器太小被 iframe 邊界硬裁，肉眼看
+  起來像「圓形外面卡一個方框」，這次放大容器＋按鈕內縮足夠的淨空
+  解決。外部專案（travel，透過 SDK 的 `chat.launcher@1`）自動獲得
+  同樣的懸浮面板體驗，不用另外開發——這是選 iframe 架構那次就設想的
+  延伸紅利。SDK 新 release `9e0aa786703b`。
 - 沒做：typing indicator、訊息反應（reaction）、回覆（reply）、貼圖
-  面板、附件、Shared 收件匣、Android Overlay、DECISIONS.md 描述的
-  半版/全版懸浮聊天面板（這次維持點擊大頭貼導去整頁 `/pages/chat/` 的
-  簡化路線）——這些多半在交接包的「不准做」清單裡，或超出「展示畫面」
-  這次的範圍，刻意不碰。
+  面板、附件、Shared 收件匣、Android Overlay——這些多半在交接包的
+  「不准做」清單裡，或屬於 roadmap Phase 2 的 P3（另一個獨立決定），
+  刻意不碰。
 - `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
   `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
   Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo
