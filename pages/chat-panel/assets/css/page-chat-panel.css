@@ -692,6 +692,19 @@ button, textarea { font: inherit; }
   z-index: 6;
 }
 .jonaminz-chat-emoji-panel[hidden] { display: none; }
-.jonaminz-chat-emoji-panel button { height: 34px; border: none; border-radius: var(--radius-sm); background: var(--color-bg-lobby); font-size: 17px; cursor: pointer; }
+/* 2026-07-15：emoji 按鈕加置中（display:grid + place-items）——emoji
+   字形在按鈕裡用預設 inline 排版，Android 上會偏一邊很阿雜。 */
+.jonaminz-chat-emoji-panel button {
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-lobby);
+  font-size: 17px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
 .jonaminz-chat-emoji-panel button:hover { background: var(--color-accent); }
 .jonaminz-chat-status-line { display: none; } /* 攜帶版不需要頁尾狀態列，狀態改用 head 呈現 */

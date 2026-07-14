@@ -46,7 +46,14 @@
   心跳新鮮時綠點亮。真機：兩人各自開/關面板觀察綠點 2 分鐘後轉離線
   待使用者驗收。
 - **遺留**：無。
-- **版本**：`v0.32.0-202607150715`（`version.js`）。
+- **補記（同早上，v0.32.1）**：使用者澄清 emoji「不對」指的是**輸入框
+  那排的 emoji 按鈕**——emoji 選單（.jonaminz-chat-emoji-panel）的按鈕
+  沒有置中規則，emoji 字形在按鈕裡用預設 inline 排版、Android 上偏一邊
+  ——兩份 CSS 都補 display:grid＋place-items:center＋padding:0。另修
+  真機回報「聊天框框蓋到泡泡」：WindowManager 同型別視窗層級＝加入
+  順序，面板（後加）疊在泡泡上——面板加完後把泡泡 remove+add 重新墊
+  到上層（APK 已重建，adb 連不上改 SendUserFile 交付）。
+- **版本**：`v0.32.1-202607150732`（`version.js`）。
 
 ---
 

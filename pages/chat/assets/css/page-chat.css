@@ -742,6 +742,8 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   display: none;
 }
 
+/* 2026-07-15：emoji 按鈕加置中（display:grid + place-items）——emoji
+   字形在按鈕裡用預設 inline 排版，Android 上會偏一邊很阿雜。 */
 .jonaminz-chat-emoji-panel button {
   height: 38px;
   border: none;
@@ -749,6 +751,10 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   background: var(--color-bg-lobby);
   font-size: 19px;
   cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: grid;
+  place-items: center;
 }
 
 .jonaminz-chat-emoji-panel button:hover {
