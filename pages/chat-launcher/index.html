@@ -1,61 +1,43 @@
 <!doctype html>
 <!--
 檔案位置：jonaminz/pages/chat-launcher/index.html
-用途：Chat「主頁」（/pages/chat/）的攜帶版——全站/跨專案共用的浮動入口
-＋懸浮面板本體。自己不決定出現在哪裡——由嵌入端（jonaminz 內部頁面的
+用途：全站/跨專案共用的浮動 Chat 入口——**只有大頭貼本體**，不含面板。
+自己不決定出現在哪裡——由嵌入端（jonaminz 內部頁面的
 assets/js/chat-launcher.js，或外部專案透過 SDK Kernel 的
 chat.launcher@1 自動掛載）注入一個 iframe 指到這裡。跟
 pages/identity-relay/ 同一個模式：不走 entry-core.js／config.json 的
-水庫 bootstrap，極簡、載入速度優先——但這頁跟 identity-relay 不同的是
-「會被使用者實際看到並互動」，不是純背景 relay，所以還是載入
-02-tokens.css 拿真實視覺 token（不載入 theme-runtime.js／完整 bootstrap，
-見同資料夾 CSS 檔頭說明——理由不只是輕量，Chat 是跨專案共用的識別，
-不該跟著 jonaminz 自己當下選的 Theme 走）。
+水庫 bootstrap，極簡、載入速度優先。
 
-2026-07-14（P2）：三態機——收合（只有大頭貼）／半版／全版，交接包
-DECISIONS.md／CHAT_SHARED_ARCHITECTURE.md v0.7 定案的模型。
+2026-07-14（三次修正後的最終架構，教訓見 CHANGELOG 同日條目）：
+1. P2 做完後這裡原本連面板都一起做（一個 iframe 同時管收合/半版/全版
+   三態），使用者在真實 Android 裝置上回報「圓形外面卡方框」。
+2. 第一次診斷錯誤（以為陰影被裁到），第二次抓到真正原因——那台裝置的
+   瀏覽器/WebView 上 iframe 內部透明背景不可靠，改成宿主端直接對
+   `<iframe>` 元素套 border-radius/box-shadow（不依賴內部透明，這個
+   技巧本身是對的、繼續沿用）。
+3. 但「一個 iframe 只能裁一種形狀」逼得大頭貼跟面板擠進同一個 iframe，
+   面板展開時只能把大頭貼縮成面板內部一顆「迷你版」——連續兩輪使用者
+   實機測試都回報「還是被蓋住」「收不回來」，因為**大頭貼的本質就應該
+   是在面板外面的獨立元素，不是塞進面板裡的裝飾**，怎麼調位置都是治標。
+4. **這次的修正**：拆成兩個完全獨立的 iframe。這裡（Iframe A）**永遠
+   只顯示大頭貼**，不受面板是否展開影響，也不掛 `chat-thread.js`
+   （那個要留給下面第 5 點的面板 iframe 專用）——自己起一個很輕量的
+   輪詢（每 12 秒問一次 listChatMessages 算 peer/未讀數/在線狀態），
+   跟 `chat-thread.js` 的邏輯有小部分重複（算 peer/unreadCount 那幾行），
+   是刻意的重複，理由跟 TOKEN_KEY/readToken() 這類小工具在各個 shell
+   script/SDK 注入器裡各自維護一份一樣：這批彼此獨立，不互相依賴。
+5. 面板本體搬去新頁面 `pages/chat-panel/`（獨立的第二個 iframe，只有
+   使用者點這裡的大頭貼之後宿主才會建立它，收合時宿主直接把它移除，
+   不是像這次之前那樣自己內部切換 hidden 狀態）。
 
-2026-07-14（同日稍晚，重要修正）：使用者在真實 Android 裝置上回報一個
-第一版沒抓到根因的 bug——浮動大頭貼「圓形外面卡一個方框」，而且原本
-以為是 box-shadow 被裁到（見 CHANGELOG 同日較早條目），實際加大容器
-邊距後**在 Android 上依然存在、看起來更怪**。真正原因：iframe 內部的
-「透明背景」在這台裝置的瀏覽器／WebView 上不可靠——任何原本該透明、
-讓宿主頁面透出來的區域，實際上都被畫成不透明的白色，跟容器邊距大小
-無關。
+點擊只 postMessage `{action:"toggle"}` 給宿主——這裡完全不知道面板現在
+是不是開著、開著的話是半版還是全版，那些狀態現在都在宿主（負責同時
+管理兩個 iframe）跟面板 iframe 自己身上，這裡只負責「大頭貼長什麼樣子
+＋通知宿主使用者點了它」，職責單純到不可能再因為跟面板耦合而出這類
+bug。
 
-修法：**不再依賴 iframe 內部透明**，改成宿主端（`assets/js/
-chat-launcher.js`／`sdk-src/sdk.js`）直接對 `<iframe>` 這個元素本身套
-`border-radius`／`box-shadow`——這是瀏覽器對「一般 HTML 元素」的裁形狀
-能力，跟這個元素「裡面的文件」透不透明完全無關，是遠比「指望 iframe
-內容透明疊在頁面上」更穩固的機制。代價是這個頁面內部**不能再留任何
-「本來想讓宿主頁面透出來」的空白區域**——收合態／展開態各自的畫面現在
-都完整填滿整個 iframe（0 透明留白），視覺上該有的圓角/陰影全部交給
-宿主的 CSS 處理，不是這裡自己畫。
-
-「大頭貼在面板展開時仍然可見、可點擊收合」這條規則（見
-CHAT_SHARED_ARCHITECTURE.md v0.6-v0.7）改成：展開視圖裡的右下角（composer
-上方留出的淨空，不蓋住送出鍵）有一顆小一號的同一顆大頭貼
-（`#miniLauncher`，2026-07-14 稍晚從原本試過的右上角移過來——右上角在
-較窄的螢幕上會跟頁首自己的姓名/badge文字疊到，且使用者原本的習慣是
-「圓圈一直在螢幕右下角」，右上角不符合預期），跟收合視圖裡佔滿整個
-iframe 的大頭貼（`#launcher`）是同一組資料算出來的兩個 DOM，功能一樣
-（點了就收合），只是不再是「疊在面板外面的獨立圓形」——因為現在整個
-iframe 只有一個裁切形狀，同一時間只能是圓形（收合）或圓角矩形（展開）
-兩者之一，不能兩者同時存在。
-
-注意：這頁不走 entry-core.js 的 bootstrap，所以拿不到 version.js 的
-cache-buster 機制——如果改完這頁看起來沒生效，先確認是不是瀏覽器/
-WebView 快取到舊版本（強制重新整理／清 App 資料），不是改動本身沒
-生效。
-
-訊息串/composer 邏輯完全不在這裡重寫——掛
-window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
-跟 /pages/chat/ 主頁共用同一份實作。onUpdate callback 讓兩顆大頭貼
-（收合視圖的大顆／展開視圖的迷你顆）同步同一組已算好的資料（對方是
-誰／未讀數／在線狀態），不是各自重算一次。
-
-點擊 postMessage 用 "*"：跟 identity-relay 同一個理由——內容只有狀態
-字串本身，不含 token，外洩了也不能拿去做任何事。
+postMessage 用 "*"：跟 identity-relay 同一個理由——內容只有一個固定的
+"toggle" 字串，不含 token，外洩了也不能拿去做任何事。
 -->
 <html lang="zh-Hant">
 <head>
@@ -66,113 +48,104 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
 <link rel="stylesheet" href="/pages/chat-launcher/assets/css/page-chat-launcher.css">
 </head>
 <body>
-<div class="jcl-view jcl-collapsed" id="collapsedView">
-  <button type="button" class="jcl-avatar-btn jcl-avatar-btn--big" id="launcher" aria-label="開啟 Chat">
-    <span id="avatarTextBig"></span>
-    <span class="jcl-presence"></span>
-    <span class="jcl-badge" id="badgeBig"></span>
-  </button>
-</div>
-<div class="jcl-view jcl-expanded" id="expandedView" hidden>
-  <button type="button" class="jcl-handle" id="handle" aria-label="切換半版／全版"><span></span></button>
-  <div class="jcl-thread-root" id="threadRoot"></div>
-  <button type="button" class="jcl-avatar-btn jcl-avatar-btn--mini" id="miniLauncher" aria-label="收合 Chat">
-    <span id="avatarTextMini"></span>
-    <span class="jcl-presence"></span>
-    <span class="jcl-badge" id="badgeMini"></span>
-  </button>
-</div>
-<script src="/assets/js/backend-client.js"></script>
-<script src="/assets/js/chat-thread.js"></script>
+<button type="button" class="jcl-avatar-btn jcl-avatar-btn--big" id="launcher" aria-label="開啟 Chat">
+  <span id="avatarText"></span>
+  <span class="jcl-presence"></span>
+  <span class="jcl-badge" id="badge"></span>
+</button>
 <script>
 (function () {
   "use strict";
 
   var TOKEN_KEY = "jonaminz.sessionToken";
-  var STATE_KEY = "jonaminz.chatPanelSize"; // 只記半版/全版偏好，不記收合/展開
+  var WORKER_URL = "https://jonaminz-backend.ndmc402010104.workers.dev/api/action";
+  var POLL_MS = 12000;
+  var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+  var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
 
-  var collapsedView = document.getElementById("collapsedView");
-  var expandedView = document.getElementById("expandedView");
   var launcher = document.getElementById("launcher");
-  var miniLauncher = document.getElementById("miniLauncher");
-  var handle = document.getElementById("handle");
-  var threadRoot = document.getElementById("threadRoot");
-  var avatarTextBig = document.getElementById("avatarTextBig");
-  var avatarTextMini = document.getElementById("avatarTextMini");
-  var badgeBig = document.getElementById("badgeBig");
-  var badgeMini = document.getElementById("badgeMini");
+  var avatarText = document.getElementById("avatarText");
+  var badge = document.getElementById("badge");
 
   var token = null;
   try { token = window.localStorage.getItem(TOKEN_KEY); } catch (error) { token = null; }
-  if (!token) return; // 沒登入：兩個 view 都保持 hidden，跟嵌入端的粗篩一致
-
-  var panelState = "collapsed"; // collapsed | half | full
-  var expandedSize = "half";
-  try {
-    var saved = window.localStorage.getItem(STATE_KEY);
-    if (saved === "half" || saved === "full") expandedSize = saved;
-  } catch (error) {
-    // localStorage 不可用就用預設 half，不影響其他功能。
-  }
-
-  function postState() {
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage(
-          { source: "jonaminz-chat-launcher", action: "setState", state: panelState },
-          "*"
-        );
-      }
-    } catch (error) {
-      // 不燒房子：postMessage 失敗頂多是尺寸沒跟著換，不影響面板本身操作。
-    }
-  }
-
-  function applyState() {
-    var collapsed = panelState === "collapsed";
-    collapsedView.hidden = !collapsed;
-    expandedView.hidden = collapsed;
-    postState();
-  }
+  if (!token) return; // 沒登入：整頁維持看不到大頭貼，跟嵌入端的粗篩一致
 
   launcher.addEventListener("click", function () {
-    panelState = expandedSize;
-    applyState();
-  });
-  miniLauncher.addEventListener("click", function () {
-    panelState = "collapsed";
-    applyState();
-  });
-
-  handle.addEventListener("click", function () {
-    expandedSize = expandedSize === "half" ? "full" : "half";
-    panelState = expandedSize;
-    try { window.localStorage.setItem(STATE_KEY, expandedSize); } catch (error) {}
-    applyState();
-  });
-
-  applyState(); // 立刻通知宿主目前是收合態，避免展開前那瞬間尺寸對不上
-
-  window.JonaminzChatThread.mount(threadRoot, {
-    token: token,
-    onUpdate: function (state) {
-      var initial = state.peerLabel.charAt(0).toUpperCase();
-      var label = "開啟與 " + state.peerLabel + " 的 Chat";
-      var unreadText = state.unreadCount > 9 ? "9+" : String(state.unreadCount);
-
-      [
-        { avatarEl: avatarTextBig, badgeEl: badgeBig, btn: launcher },
-        { avatarEl: avatarTextMini, badgeEl: badgeMini, btn: miniLauncher }
-      ].forEach(function (pair) {
-        pair.avatarEl.textContent = initial;
-        pair.badgeEl.textContent = unreadText;
-        pair.btn.classList.add("is-visible");
-        pair.btn.classList.toggle("is-online", state.isOnline);
-        pair.btn.classList.toggle("has-unread", state.unreadCount > 0);
-        pair.btn.setAttribute("aria-label", pair.btn === launcher ? label : "收合 Chat");
-      });
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: "jonaminz-chat-launcher", action: "toggle" }, "*");
+      }
+    } catch (error) {
+      // 不燒房子：postMessage 失敗頂多是面板開不了，不影響大頭貼本身顯示。
     }
   });
+
+  function initialOf(id) {
+    var label = IDENTITY_LABEL[id] || id || "?";
+    return label.charAt(0).toUpperCase();
+  }
+
+  function refresh() {
+    fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "listChatMessages", payload: { token: token } })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          launcher.classList.remove("is-visible");
+          return;
+        }
+        var identity = data.identity;
+        var peer = identity === "jonathan" ? "minz" : "jonathan";
+        var peerLabel = IDENTITY_LABEL[peer] || peer;
+        var messages = data.messages || [];
+        var readState = data.readState || {};
+        var myRead = readState[identity] || {};
+        var peerRead = readState[peer] || {};
+
+        avatarText.textContent = initialOf(peer);
+        launcher.setAttribute("aria-label", "開啟與 " + peerLabel + " 的 Chat");
+        launcher.classList.add("is-visible");
+
+        var peerLastActivity = 0;
+        messages.forEach(function (m) {
+          if (m.sender_identity === peer) {
+            var t = new Date(m.created_at).getTime();
+            if (t > peerLastActivity) peerLastActivity = t;
+          }
+        });
+        if (peerRead.lastReadAt) {
+          var readAt = new Date(peerRead.lastReadAt).getTime();
+          if (readAt > peerLastActivity) peerLastActivity = readAt;
+        }
+        var isOnline = peerLastActivity > 0 && (Date.now() - peerLastActivity) < PRESENCE_WINDOW_MS;
+        launcher.classList.toggle("is-online", isOnline);
+
+        var myReadIndex = -1;
+        if (myRead.lastReadMessageId) {
+          for (var i = 0; i < messages.length; i += 1) {
+            if (messages[i].id === myRead.lastReadMessageId) { myReadIndex = i; break; }
+          }
+        }
+        var unreadCount = 0;
+        if (myReadIndex >= 0) {
+          for (var j = myReadIndex + 1; j < messages.length; j += 1) {
+            if (messages[j].sender_identity === peer) unreadCount += 1;
+          }
+        }
+        launcher.classList.toggle("has-unread", unreadCount > 0);
+        badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+      })
+      .catch(function () {
+        // 網路失敗：保留上一次的畫面狀態，下一輪 poll 再試。
+      });
+  }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
 })();
 </script>
 </body>

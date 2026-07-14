@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+檔案位置：jonaminz/pages/chat-panel/index.html
+用途：Chat「主頁」（/pages/chat/）的攜帶版面板本體——半版／全版懸浮
+聊天室。只有使用者點擊浮動大頭貼（pages/chat-launcher/，獨立的另一個
+iframe）之後，宿主才會建立這個 iframe；收合時宿主直接把整個 iframe
+移除，不是像 2026-07-14 稍早那次做法自己內部切換 hidden 狀態。
+
+跟 pages/chat-launcher/ 一樣不走 entry-core.js／config.json 的水庫
+bootstrap，只用 <link> 引入 02-tokens.css 拿靜態視覺 token。
+
+2026-07-14（拆成兩個 iframe 的教訓，完整脈絡見 CHANGELOG 同日條目）：
+浮動大頭貼跟面板原本擠在同一個 iframe 裡（靠 collapsed/expanded 兩個
+視圖切換），使用者在真實裝置上連續兩輪回報「大頭貼被蓋住/收不回來」
+——因為大頭貼本質上該是面板外面一個獨立、永遠看得到的東西，不是塞進
+面板內部的裝飾。這次拆開：大頭貼（pages/chat-launcher/）永遠獨立存在，
+這裡（面板）只在展開時才存在，兩個 iframe 各自被宿主端的 CSS 裁成
+對應形狀（這裡永遠是圓角矩形，不需要 collapsed 態）。
+
+半版/全版只由這裡自己的 sheet handle 切換，postMessage
+`{action:"setSize", size:"half"|"full"}` 給宿主調整**這個 iframe 自己**
+的尺寸——不影響大頭貼那個 iframe。收合這個動作不在這裡發生（這裡沒有
+收合按鈕），使用者點的是另一個 iframe 裡的大頭貼，宿主收到那邊的
+`toggle` 訊息後直接把這個 iframe 整個移除。
+
+訊息串/composer 邏輯完全不在這裡重寫——掛
+window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
+跟 /pages/chat/ 主頁共用同一份實作，這次搬移沒有動到這支模組。
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>jonaminz chat panel</title>
+<link rel="stylesheet" href="/assets/css/reservoir/02-tokens.css">
+<link rel="stylesheet" href="/pages/chat-panel/assets/css/page-chat-panel.css">
+</head>
+<body>
+<div class="jcp-panel">
+  <button type="button" class="jcp-handle" id="handle" aria-label="切換半版／全版"><span></span></button>
+  <div class="jcp-thread-root" id="threadRoot"></div>
+</div>
+<script src="/assets/js/backend-client.js"></script>
+<script src="/assets/js/chat-thread.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var TOKEN_KEY = "jonaminz.sessionToken";
+  var STATE_KEY = "jonaminz.chatPanelSize";
+
+  var handle = document.getElementById("handle");
+  var threadRoot = document.getElementById("threadRoot");
+
+  var token = null;
+  try { token = window.localStorage.getItem(TOKEN_KEY); } catch (error) { token = null; }
+  if (!token) return; // 理論上不會發生（宿主只在有 token 的大頭貼觸發後才建立這個 iframe），防呆保留
+
+  var size = "half";
+  try {
+    var saved = window.localStorage.getItem(STATE_KEY);
+    if (saved === "half" || saved === "full") size = saved;
+  } catch (error) {
+    // localStorage 不可用就用預設 half，不影響其他功能。
+  }
+
+  function postSize() {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(
+          { source: "jonaminz-chat-panel", action: "setSize", size: size },
+          "*"
+        );
+      }
+    } catch (error) {
+      // 不燒房子：postMessage 失敗頂多是尺寸沒跟著換，不影響面板本身操作。
+    }
+  }
+
+  handle.addEventListener("click", function () {
+    size = size === "half" ? "full" : "half";
+    try { window.localStorage.setItem(STATE_KEY, size); } catch (error) {}
+    postSize();
+  });
+
+  postSize(); // 一建立就通知宿主目前該用哪個尺寸（上次記住的偏好）
+
+  window.JonaminzChatThread.mount(threadRoot, { token: token });
+})();
+</script>
+</body>
+</html>

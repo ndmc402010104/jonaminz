@@ -1,23 +1,17 @@
 /*
 檔案位置：jonaminz/pages/chat-launcher/assets/css/page-chat-launcher.css
-用途：Chat「攜帶版」（浮動大頭貼＋面板）的視覺樣式。
+用途：浮動 Chat 大頭貼（Iframe A）的視覺樣式——**只有大頭貼**，面板的
+CSS 搬去 pages/chat-panel/assets/css/page-chat-panel.css。
 
 跟 pages/chat/assets/css/page-chat.css 用同一批 reservoir token 名稱
 （--color-primary 等），但不是同一份檔案——這裡是獨立小頁面（不走
 entry-core.js 全套 bootstrap，只用 <link> 引入 assets/css/reservoir/
-02-tokens.css 拿靜態 token 值，見 index.html 檔頭說明），container 層級
-的視覺（浮動卡片 vs 整頁排版）本來就該不同，只共用 token 名稱跟
-chat-thread.js 產生的 class 名稱約定。
+02-tokens.css 拿靜態 token 值，見 index.html 檔頭說明）。
 
-2026-07-14（同日第二次修正，真正解決透明度 bug）：第一版（今早）以為是
-box-shadow 被 iframe 邊界裁到，加大容器邊距解決；使用者在真實 Android
-裝置上回報「還是有方框、更怪」——真正原因是 iframe 內部的透明背景在
-那台裝置上不可靠，任何本來該透明的區域都畫成不透明白色，跟邊距大小
-無關。修法：**這份 CSS 不再留任何「本來想讓宿主頁面透出來」的空白
-區域**——收合視圖／展開視圖現在都是完整填滿 100% 的不透明內容，圓角
-跟陰影全部交給宿主端（assets/js/chat-launcher.js／sdk-src/sdk.js）
-對 <iframe> 元素本身做——那是瀏覽器對「一般元素」的裁形狀能力，跟這
-份文件裡面透不透明無關，不會受這台裝置的怪異行為影響。
+2026-07-14：整個 iframe 現在永遠只填滿一個圓形（不再有 collapsed/
+expanded 兩個視圖切換），圓角／陰影交給宿主端（assets/js/
+chat-launcher.js／sdk-src/sdk.js）對 <iframe> 元素本身做——不依賴這份
+文件裡面透不透明，這個技巧本身是對的，繼續沿用（見同日 CHANGELOG）。
 */
 
 * { box-sizing: border-box; }
@@ -29,61 +23,24 @@ html, body {
 }
 body {
   font-family: var(--font-sans);
-  color: var(--color-text);
-  background: var(--color-surface); /* 整個 iframe 現在永遠不透明，形狀由宿主的 border-radius 裁 */
-}
-button, textarea { font: inherit; }
-
-.jcl-view {
-  width: 100%;
-  height: 100%;
-  display: none;
-}
-.jcl-view:not([hidden]) { display: flex; }
-
-/* ---- 收合視圖：大頭貼填滿整個 iframe（宿主端裁成圓形） ---- */
-
-.jcl-collapsed {
-  align-items: center;
-  justify-content: center;
   background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
 }
+button { font: inherit; cursor: pointer; }
 
 .jcl-avatar-btn {
   position: relative;
+  width: 100%;
+  height: 100%;
   border: none;
+  background: transparent;
   display: none;
   align-items: center;
   justify-content: center;
   font-weight: 900;
+  font-size: 22px;
   color: #fff;
-  cursor: pointer;
 }
 .jcl-avatar-btn.is-visible { display: flex; }
-
-.jcl-avatar-btn--big {
-  width: 100%;
-  height: 100%;
-  font-size: 22px;
-  background: transparent; /* 用 .jcl-collapsed 的背景，不要疊兩層漸層 */
-}
-
-.jcl-avatar-btn--mini {
-  /* 2026-07-14：原本放頁首右上角，跟頁首自己的姓名/badge文字在窄螢幕
-     上會疊到，且使用者原本習慣「圓圈一直在螢幕右下角」，改放面板
-     右下角、composer 上方留出的空隙（不是蓋在 composer 按鈕上）。
-     z-index 拉高到蓋過訊息串捲動內容，避免被任何東西蓋住。 */
-  position: absolute;
-  right: 12px;
-  bottom: 68px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  font-size: 15px;
-  background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
-  box-shadow: 0 6px 16px rgba(38, 34, 32, 0.3);
-  z-index: 20;
-}
 
 .jcl-presence {
   position: absolute;
@@ -97,7 +54,6 @@ button, textarea { font: inherit; }
   opacity: 0;
   transition: opacity 0.16s ease;
 }
-.jcl-avatar-btn--mini .jcl-presence { width: 9px; height: 9px; right: 1px; bottom: 1px; border-width: 1.5px; }
 .jcl-avatar-btn.is-online .jcl-presence { opacity: 1; }
 
 .jcl-badge {
@@ -117,254 +73,4 @@ button, textarea { font: inherit; }
   justify-content: center;
   border: 2px solid var(--color-primary);
 }
-.jcl-avatar-btn--mini .jcl-badge { min-width: 15px; height: 15px; font-size: 8px; top: -2px; right: -2px; border-width: 1.5px; }
 .jcl-avatar-btn.has-unread .jcl-badge { display: flex; }
-
-/* ---- 展開視圖：面板填滿整個 iframe（宿主端裁成圓角矩形） ---- */
-
-.jcl-expanded {
-  position: relative;
-  flex-direction: column;
-  background: var(--color-surface);
-}
-
-.jcl-handle {
-  flex: 0 0 auto;
-  width: 100%;
-  height: 20px;
-  border: none;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-.jcl-handle span {
-  display: block;
-  width: 44px;
-  height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
-  transition: width 0.16s ease;
-}
-.jcl-handle:hover span { width: 56px; }
-
-/* chat-thread.js 掛進這個容器——扮演跟 page-chat.css 的
-   .jonaminz-chat-container 一樣的角色（給 head/thread/composer 一個
-   flex column 容器），只是這裡用 flex:1 填滿面板剩餘空間，不是整頁
-   固定高度算式。 */
-.jcl-thread-root {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ---- 以下沿用 page-chat.css 的內層樣式，class 名稱跟 chat-thread.js
-   產出的 DOM 一致，數值視「浮動卡片」的脈絡微調（跟整頁版不用逐字同
-   一份，這是正常的「同元件不同外殼」）。 ---- */
-
-.jonaminz-chat-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4); /* 迷你大頭貼現在改放面板右下角，頁首不用再留右側淨空 */
-  border-bottom: 1px solid var(--color-border);
-  flex: 0 0 auto;
-}
-
-.jonaminz-chat-avatar,
-.jonaminz-chat-message-avatar {
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-weight: 900;
-  color: #fff;
-  background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
-  flex: 0 0 auto;
-}
-
-.jonaminz-chat-avatar {
-  width: 42px;
-  height: 42px;
-  font-size: 16px;
-  position: relative;
-}
-.jonaminz-chat-avatar::after {
-  content: "";
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  right: -1px;
-  bottom: 1px;
-  border-radius: 50%;
-  background: #35c66b;
-  border: 2px solid var(--color-surface);
-  transition: opacity 0.16s ease;
-}
-.jonaminz-chat-avatar.no-presence::after { opacity: 0; }
-
-.jonaminz-chat-head-meta { min-width: 0; flex: 1; }
-.jonaminz-chat-head-meta h1 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  color: var(--color-text);
-}
-.jonaminz-chat-status {
-  margin: 1px 0 0;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-.jonaminz-chat-instance-badge {
-  display: inline-block;
-  margin-top: var(--space-1);
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent);
-  color: var(--color-primary);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.jonaminz-chat-thread {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-3);
-  padding-bottom: 60px; /* 幫面板右下角的迷你大頭貼留出淨空，最新訊息才不會被蓋住 */
-  background: var(--color-bg-lobby);
-}
-.jonaminz-chat-empty {
-  margin: auto;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-.jonaminz-chat-time-divider {
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: 10px;
-  margin: var(--space-1) 0 2px;
-}
-.jonaminz-chat-unread-divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-primary-2);
-  font-size: 10px;
-  font-weight: 800;
-  margin: var(--space-1) 0;
-}
-.jonaminz-chat-unread-divider::before,
-.jonaminz-chat-unread-divider::after {
-  content: "";
-  height: 1px;
-  flex: 1;
-  background: color-mix(in srgb, var(--color-primary-2) 35%, transparent);
-}
-.jonaminz-chat-message {
-  display: flex;
-  gap: var(--space-1);
-  align-items: flex-end;
-  max-width: 86%;
-}
-.jonaminz-chat-message[data-mine="true"] { align-self: flex-end; flex-direction: row-reverse; }
-.jonaminz-chat-message[data-mine="false"] { align-self: flex-start; }
-.jonaminz-chat-message-avatar {
-  width: 22px;
-  height: 22px;
-  font-size: 10px;
-  box-shadow: 0 0 0 2px var(--color-bg-lobby);
-}
-.jonaminz-chat-message-avatar.is-placeholder { visibility: hidden; }
-.jonaminz-chat-message-avatar.is-tiny { width: 14px; height: 14px; font-size: 7px; }
-.jonaminz-chat-bubble {
-  padding: 8px 11px;
-  border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-.jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble {
-  background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
-  color: #fff;
-  border-color: transparent;
-  border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-md);
-}
-.jonaminz-chat-read-receipt { display: flex; justify-content: flex-end; padding-right: 3px; margin-top: -5px; }
-
-.jonaminz-chat-composer {
-  display: flex;
-  gap: var(--space-2);
-  align-items: flex-end;
-  padding: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  flex: 0 0 auto;
-}
-.jonaminz-chat-plus-btn,
-.jonaminz-chat-action-btn {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  border-radius: var(--radius-md);
-  font-size: 17px;
-  display: grid;
-  place-items: center;
-}
-.jonaminz-chat-plus-btn { border: 1px solid var(--color-border); background: var(--color-bg-lobby); color: var(--color-text-muted); }
-.jonaminz-chat-plus-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.jonaminz-chat-action-btn { border: none; background: var(--color-primary); color: #fff; font-weight: 900; }
-.jonaminz-chat-action-btn.is-send-mode { background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary)); }
-.jonaminz-chat-input-shell { position: relative; flex: 1; min-width: 0; }
-.jonaminz-chat-input-shell textarea {
-  width: 100%;
-  resize: none;
-  min-height: 36px;
-  max-height: 90px;
-  padding: 8px 36px 8px 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-lobby);
-  color: var(--color-text);
-  outline: none;
-  font-size: var(--text-sm);
-}
-.jonaminz-chat-input-shell textarea:focus { border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border)); }
-.jonaminz-chat-emoji-toggle {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 16px;
-  display: grid;
-  place-items: center;
-}
-.jonaminz-chat-emoji-panel {
-  position: absolute;
-  right: 0;
-  bottom: 42px;
-  width: 190px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
-  padding: 6px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-md);
-  z-index: 6;
-}
-.jonaminz-chat-emoji-panel[hidden] { display: none; }
-.jonaminz-chat-emoji-panel button { height: 34px; border: none; border-radius: var(--radius-sm); background: var(--color-bg-lobby); font-size: 17px; cursor: pointer; }
-.jonaminz-chat-emoji-panel button:hover { background: var(--color-accent); }
-.jonaminz-chat-status-line { display: none; } /* 攜帶版不需要頁尾狀態列，狀態改用 head 呈現 */

@@ -1122,20 +1122,30 @@ System App：
   入口每 12 秒一次）取代 WebSocket／Durable Object——交接包
   `AGENT/WORK_PLAN.md` 自己建議先用這個「方案 C」證明端到端能動，不是
   最終架構。
-- **2026-07-14 下午（P2）**：DECISIONS.md 描述的半版/全版懸浮聊天面板
-  **已實作並上線**——`/pages/chat/`（主頁，完整可直接導航/深連結）跟
-  `pages/chat-launcher/`（主頁的「攜帶版」，浮動大頭貼＋收合/半版/全版
-  三態面板）現在共用同一份訊息渲染/composer 邏輯（新模組
-  `assets/js/chat-thread.js`），避免兩套實作 drift。大頭貼是唯一收合
-  控制、展開時仍可見，頂部 sheet handle 單獨切換半版/全版，選擇存
-  localStorage。iframe 尺寸只送狀態字串給宿主（`chat-launcher.js`／
-  `sdk-src/sdk.js` 各自維護一份 CSS，用 vw/dvh 相對單位換算，避免
-  embed 頁自己猜宿主視窗大小的雞生蛋問題）。順手修好一個真實 bug：
-  舊版浮動大頭貼的 box-shadow 因為容器太小被 iframe 邊界硬裁，肉眼看
-  起來像「圓形外面卡一個方框」，這次放大容器＋按鈕內縮足夠的淨空
-  解決。外部專案（travel，透過 SDK 的 `chat.launcher@1`）自動獲得
-  同樣的懸浮面板體驗，不用另外開發——這是選 iframe 架構那次就設想的
-  延伸紅利。SDK 新 release `9e0aa786703b`。
+- **2026-07-14 下午（P2＋連續五輪修正後的最終架構）**：DECISIONS.md
+  描述的半版/全版懸浮聊天面板**已實作並上線**——`/pages/chat/`
+  （主頁，完整可直接導航/深連結）跟攜帶版共用同一份訊息渲染/composer
+  邏輯（`assets/js/chat-thread.js`），避免兩套實作 drift。攜帶版**現在
+  是兩個完全獨立的 iframe**（不是單一 iframe）：
+  - `pages/chat-launcher/`：只有大頭貼，永遠存在、固定小圓形，不掛
+    `chat-thread.js`（自己有一支獨立輕量輪詢算 peer/未讀數/在線狀態）。
+  - `pages/chat-panel/`：面板本體，只有點過大頭貼才由宿主建立，掛
+    `chat-thread.js`，sheet handle 切半版/全版，沒有自己的收合按鈕
+    （收合是點大頭貼觸發宿主把這個 iframe整個移除）。
+  兩個 iframe 各自對 `<iframe>` 元素套 `border-radius`／`box-shadow`
+  （宿主端裁形狀，不依賴 iframe 內部透明——這是連續修正中途才抓到的
+  真正 Android bug 根因，見下方教訓）。`assets/js/chat-launcher.js`／
+  `sdk-src/sdk.js` 同時管理兩個 iframe，大頭貼位置永遠固定、不受面板
+  是否展開或多高影響。外部專案（travel，透過 SDK 的
+  `chat.launcher@1`）自動獲得同樣的雙 iframe 體驗。SDK 最終 release
+  `3b9aa952cc9f`。
+  - **教訓（值得記住，別重蹈覆轍）**：一開始把大頭貼跟面板塞進「同一個
+    iframe、靠內部視圖切換」，即使裁形狀本身的技巧是對的，也因為
+    「一個 iframe 只能裁一種形狀」逼得展開時要把大頭貼縮成面板內部的
+    裝飾——這違反了「大頭貼本質上是面板外面一個獨立元素」的設計原意，
+    連續三輪位置微調（加大邊距/右上角/右下角）都沒解決根本問題，直到
+    使用者直接點破「圈圈應該在對話外面不是裡面」才找到真正的修法。
+    完整脈絡見 `AI_CONTEXT/CHANGELOG.md` 2026-07-14 當天連續五筆條目。
 - 沒做：typing indicator、訊息反應（reaction）、回覆（reply）、貼圖
   面板、附件、Shared 收件匣、Android Overlay——這些多半在交接包的
   「不准做」清單裡，或屬於 roadmap Phase 2 的 P3（另一個獨立決定），
