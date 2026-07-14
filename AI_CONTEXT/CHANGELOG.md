@@ -58,6 +58,13 @@
   **鍵盤行為、泡泡版型、對齊手感均需使用者真機驗收**——這輪起不再
   宣稱「修好」，只陳述「改了什麼機制」。
 - **遺留**：App 內整頁版 chat/後台表單在 adjustNothing 下的鍵盤適配。
+- **補記（同早上，v0.33.1，鍵盤雙重扣除修正）**：真機回報面板縮成
+  一條——實測數據回推（面板 47dp ≈ 公式的 58dp）證實 Samsung WebView
+  在 adjustNothing 下 **100dvh 追蹤視覺視口、鍵盤彈出時本來就會縮**，
+  第二十八輪疊加的原生 inset 扣除變成鍵盤高度扣兩次。修正＝面板高度
+  公式移除 inset 扣除、只靠 100dvh（背景不動✓＋面板自動抬到鍵盤上✓）；
+  原生 --jonaminz-keyboard-inset 管道保留備用不再使用。純網頁修正、
+  不用重裝 APK。
 - **補記（APK 發佈管道）**：使用者遠端用手機、SendUserFile 的附件在
   手機端下載不了——APK 改發佈成 GitHub Release（使用者核准公開；tag
   `app-latest`，固定網址 `https://github.com/ndmc402010104/jonaminz/

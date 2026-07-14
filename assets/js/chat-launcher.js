@@ -177,15 +177,17 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       "top:calc(var(--jcl-anchor-top) + " + GAP_BELOW_LAUNCHER + "px);border:0;border-radius:20px;" +
       "z-index:9998;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +
       "transition:width .22s ease,height .22s ease;}" +
-      // --jonaminz-keyboard-inset：App（Capacitor）的原生層在鍵盤彈出時
-      // 寫入鍵盤高度（見 jonaminz-mobile-app MainActivity 的
-      // setupKeyboardInsetPipe）——App 改 adjustNothing 後視窗不再縮放、
-      // 背景頁面完全不動，改由面板自己扣掉鍵盤高度把下緣抬上來。
-      // 一般瀏覽器沒有這個變數（fallback 0px），維持原本行為。
+      // 鍵盤適配（2026-07-15 第二十九輪定案）：App 的 manifest 是
+      // adjustNothing——鍵盤彈出時「版面視口」不縮放，背景頁面完全不動；
+      // 但實測（Samsung WebView）100dvh 追蹤的是「視覺視口」，鍵盤彈出
+      // 時**本來就會自己縮**，面板高度公式用 100dvh 就會自動把下緣抬到
+      // 鍵盤上方。第二十八輪曾疊加原生 IME inset 再扣一次，等於鍵盤
+      // 高度被扣兩次、面板縮成一條（實測 47dp≈公式的 58dp），已移除；
+      // 原生的 --jonaminz-keyboard-inset 管道保留但不再使用（備用）。
       "." + PANEL_CLASS + ".size-half{width:min(430px,calc(100vw - 28px));" +
-      "height:calc(min(720px,100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px) - var(--jonaminz-keyboard-inset, 0px));}" +
+      "height:min(720px,calc(100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px));}" +
       "." + PANEL_CLASS + ".size-full{width:min(760px,calc(100vw - 28px));" +
-      "height:calc(100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px - var(--jonaminz-keyboard-inset, 0px));}" +
+      "height:calc(100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px);}" +
       "." + PANEL_CLASS + ".jcl-panel-hidden{visibility:hidden;pointer-events:none;}";
     document.head.appendChild(style);
 
