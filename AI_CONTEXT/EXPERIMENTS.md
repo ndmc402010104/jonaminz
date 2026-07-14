@@ -320,3 +320,33 @@ Reservoir 1-7 層裡「結構規則」的部分（flex/grid 排版、hover/focus
 **未拍板，不要在沒有真實需求前預先設計**——跟 `EXPERIMENTS.md` #7
 （各 Platform Service 的 API 簽名）同樣的原則：等真的有第一個外部
 caller 的具體情境出現，再回頭設計介面，不要先蓋一個沒人用的通用層。
+
+## 12. Movies／Travel 要不要各自獨立的 DB（像 skhps-db 那樣）
+
+**2026-07-14 使用者提問，當場給了建議，未拍板、明確說先不做。**
+
+建議的判斷準則：**切分單位是「信任域」，不是「一個 App 一個 DB」**。
+skhps-db 獨立不是因為「每個 App 都該有自己的 DB」，是因為 SKHPS 是
+不同的信任域（醫院工作系統、使用者是同事們、資料敏感性不同）。
+Movies／Travel／Chat／Minz 都在同一個信任域裡（兩人的數位家），
+建議共用 jonaminz-db，用資料表前綴（chat_* 已是這個模式，未來
+travel_*／movie_*）或 Postgres schema 做命名空間隔離，存取一律走
+Worker action＋capability 把關——真正該隔離的授權邊界本來就在
+Worker 層，不在 DB 層。
+
+實務理由：
+- Supabase 免費方案 active 專案數有限（目前 org 已有 jonaminz-db＋
+  skhps-db 兩個），每多一個專案就多一組憑證/遷移流程，「搞混專案」
+  的事故面也變大（歷史上真的發生過差點打錯 DB）。
+- 兩人自用的資料量級（幾百列）撐不出獨立基礎設施的效益。
+- 跨 App 引用（Minz 房間引用 Travel 內容、Chat 分享 Movie 卡片）在
+  同一個 DB 裡做起來也單純得多。
+
+**什麼時候該回頭切出去**（觸發條件，到時再議）：
+1. 某個 App 的資料量（尤其照片/附件）逼近 jonaminz-db 的方案上限；
+2. 某個 App 的使用者超出兩人（信任域改變）；
+3. 某個 App 要獨立生命週期（開源、對外提供服務）。
+
+**架構上晚點切零成本**：Platform 規格的邊界畫在 Worker API 層，
+前端/外部專案從不直接碰 DB——之後真要把某個 App 的表搬去獨立
+專案，對所有呼叫端都是隱形的。所以這題不急著決定是正確的。
