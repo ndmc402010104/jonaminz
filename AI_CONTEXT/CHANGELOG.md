@@ -58,6 +58,13 @@
   **鍵盤行為、泡泡版型、對齊手感均需使用者真機驗收**——這輪起不再
   宣稱「修好」，只陳述「改了什麼機制」。
 - **遺留**：App 內整頁版 chat/後台表單在 adjustNothing 下的鍵盤適配。
+- **補記（APK 發佈管道）**：使用者遠端用手機、SendUserFile 的附件在
+  手機端下載不了——APK 改發佈成 GitHub Release（使用者核准公開；tag
+  `app-latest`，固定網址 `https://github.com/ndmc402010104/jonaminz/
+  releases/download/app-latest/jonaminz.apk`，之後每版用
+  `gh release upload app-latest <apk> --clobber` 覆蓋同一個檔案）。
+  **使用者裁決的未來計畫**：等 OneDrive 儲存線接通後，App 改由自家
+  後台發佈（後台掛下載連結），屆時撤掉這個公開 Release。
 - **版本**：`v0.33.0-202607150744`（`version.js`）。
 
 ---
