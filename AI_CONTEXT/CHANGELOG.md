@@ -20,6 +20,68 @@
 
 ---
 
+## 2026-07-14（下午）— Chat Shared 分享內容模組 Phase 1（唯一垂直流程）
+
+- **任務**：使用者交付正式任務書，要求完成 Chat 裡的 Shared（分享內容）
+  模組——只做一條真實垂直流程：開 Chat →＋→分享目前內容→Worker 正規化
+  URL→相同 URL 合併→建立引用該項目的訊息→對方在聊天裡看到卡片→明確
+  點進去才算已看到→按「討論」把該項目綁定到 composer→後續文字訊息保留
+  `shared_item_id`。明確排除：typing、一般訊息 reaction/reply、電話、
+  視訊、OneDrive、Shared 獨立瀏覽列表、後台摘要。
+- **變更**：
+  - 新增 `backend/supabase/chat_shared_schema.sql`（`chat_shared_items`／
+    `chat_shared_item_seen` 兩張表，`chat_messages` 加 `shared_item_id`
+    欄位＋擴大 `kind` 的 check constraint 到含 `shared_item`）——這次
+    直接用 Supabase 直連授權（`apply_migration`）套用到 jonaminz-db，
+    沒有走使用者手動貼 SQL Editor 那條路（兩條路都有效，這次選了比較
+    快的）。
+  - `backend/cloudflare-worker/worker.js` 新增 `shareCurrentContent`
+    （伺服器端 `normalizeSharedUrl()`／`sourceFromSharedUrl()`，邏輯照抄
+    交接包 `ux-mvp-v0.11` 已驗證過的原型；撞到既有 `unique(room_id,url)`
+    就合併累加 `share_count`，沒撞到就新建）、`markSharedItemSeen`；
+    `sendChatMessage` 多接受選填的 `sharedItemId`；`listChatMessages`
+    多回傳 `sharedItems` map（含各自的 `seenState`）。
+  - `assets/js/backend-client.js` 加對應兩個 wrapper。
+  - `assets/js/chat-launcher.js`／`sdk/sdk-src/sdk.js` 新增
+    `requestContext`/`contextReply` 訊息，讓面板 iframe 能跟宿主頁面要
+    `document.title`/`location.href`（外部專案跟內部頁面都適用，回覆
+    targetOrigin 分別處理）。
+  - `assets/js/chat-thread.js`：composer 的「+」在面板情境
+    （`window.parent !== window`）啟用，跳出「分享目前內容」選單；
+    `kind==='shared_item'` 的訊息畫成內容卡（標題/來源/未查看提示/
+    討論按鈕）取代文字泡泡；點卡片＝`markSharedItemSeen`＋開新分頁；
+    點討論綁定 `activeSharedItemId`，composer 上方出現可關閉橫幅，之後
+    `sendChatMessage` 都帶著這個 id 直到手動清除。`/pages/chat/` 整頁版
+    的「+」維持原本 disabled（沒有「宿主頁面」這回事）。
+  - `pages/chat-panel/assets/css/page-chat-panel.css`／
+    `pages/chat/assets/css/page-chat.css` 加卡片／橫幅／+選單樣式。
+- **驗證**：`normalizeSharedUrl()` 單元測試（utm/igsh/gclid 等追蹤參數、
+  hash、大小寫 host、結尾斜線、instagram/youtube 判斷）全過；Playwright
+  端到端跑完整流程（分享→合併去重→卡片渲染→點卡標記已讀+開新分頁→
+  討論綁定→送出文字帶 sharedItemId→清除討論後不再帶）全部通過，包含
+  跨 iframe 的 `requestContext` 真的抓到宿主頁面的 title。`esbuild`
+  bundle-check `worker.js` 乾淨無 eval/new Function。
+- **事故與修正（部署順序踩到的坑，值得記住）**：Worker 程式碼先用
+  `wrangler deploy` 上線，但當下 `chat_shared_schema.sql` 還沒套用到
+  jonaminz-db——`listChatMessages`／`sendChatMessage` 因為無條件
+  SELECT/INSERT `shared_item_id` 這個當時還不存在的欄位，差點讓**既有
+  的收發訊息**（不是只有新功能）整個壞掉。修法：(1) `listChatMessages`
+  的 Shared 查詢改成 try/catch 容錯（查不到表就當作沒有分享內容，不
+  拖垮訊息主線）；(2) `sendChatMessage` 的 insert body 只在
+  `sharedItemId` 真的有值時才放進那個 key，一般傳文字訊息完全不會提到
+  這個欄位。**教訓**：改動共用的核心 action（`listChatMessages`／
+  `sendChatMessage`）去支援一個還沒建表的新功能時，要嘛先確保 migration
+  已經套用再 deploy，要嘛讓新功能的程式碼路徑對「表還不存在」這件事
+  完全容錯——不能讓兩者的部署順序有機可乘。這次也順便修正
+  `worker.js`／`AI_CONTEXT/PROJECT_STATE.md` 裡兩處過期的「Claude 沒有
+  直接寫入 Postgres 的管道」說法（今天稍早直連授權定案後就不準確了）。
+- **狀態變化**：Chat 的「沒做」清單裡的 Shared 分享內容模組，Phase 1
+  唯一垂直流程從無到有、端到端可用。
+- **遺留**：Shared 獨立瀏覽列表（像原型的 Shared tab）、送往其他 App
+  的 destinations registry、後台首頁「N 筆尚未看到」摘要——都是使用者
+  任務書裡明確排除的範圍，刻意不做。
+- **版本**：v0.25.0-202607141457
+
 ## 2026-07-14（下午，第八次）— 拖動微調：邊緣吸附、開面板鎖定不能拖、關閉還原原位置
 
 - **任務**：使用者實機試用第七次修正後的拖動功能，回饋三點：(1) 放開

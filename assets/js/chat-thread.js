@@ -21,6 +21,22 @@
   lastMessage })`，每次 poll 後呼叫一次（選填）——`pages/chat-launcher/`
   的浮動大頭貼跟展開後的面板頭部是「同一組資料算出來的兩個 DOM」，
   靠這個 callback 同步，不是各自重算一次未讀數（那又是新的 drift 風險）。
+
+2026-07-14（Shared 分享內容模組，Phase 1 唯一垂直流程）：composer 的
+「+」按鈕從純視覺佔位改成功能選單（目前只有一項：「分享目前內容」）。
+這個選項只在**面板情境**（`window.parent !== window`，也就是跑在
+`pages/chat-panel/` 裡）才啟用——`/pages/chat/` 整頁版是使用者自己主動
+離開別的內容跑來的頁面，沒有「宿主頁面目前內容」這回事，「+」在那裡
+維持原本的 disabled 佔位。點「分享目前內容」會跟宿主要目前頁面的
+title/url（見 `requestHostContext()`，宿主端實作在
+`assets/js/chat-launcher.js`／`sdk-src/sdk.js` 的 `requestContext`/
+`contextReply` 訊息），再呼叫 Worker 的 `shareCurrentContent`。
+`kind==='shared_item'` 的訊息不畫文字泡泡，改畫內容卡（靠
+`listChatMessages` 回應多出來的 `sharedItems` map 查標題/來源/已讀
+狀態）；點卡片＝明確標記已讀＋開新分頁；點「討論」把該 Shared item
+綁到 composer（`activeSharedItemId`），之後的文字訊息會帶著
+`sharedItemId` 一起送出，composer 上方出現可關閉的橫幅提示目前在討論
+哪一則。
 */
 (function () {
   "use strict";
@@ -56,16 +72,51 @@
     return label.charAt(0).toUpperCase();
   }
 
+  // Shared 分享內容模組：面板（這支跑在 pages/chat-panel/ iframe 裡時）
+  // 不知道自己被嵌在哪個宿主頁面，跟宿主要「目前頁面」的 title/url。
+  // 宿主端實作見 assets/js/chat-launcher.js／sdk-src/sdk.js 的
+  // requestContext/contextReply 訊息處理。單一 in-flight 假設就夠用
+  // （使用者一次只會點一次「分享目前內容」），逾時就退回
+  // document.referrer 當 fallback，不讓使用者卡住。
+  function requestHostContext(timeoutMs) {
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish(value) {
+        if (done) return;
+        done = true;
+        window.removeEventListener("message", onMessage);
+        resolve(value);
+      }
+      function onMessage(event) {
+        var data = event.data;
+        if (!data || data.source !== "jonaminz-chat-panel-host" || data.action !== "contextReply") return;
+        finish({ title: data.title || document.title, url: data.url || "" });
+      }
+      window.addEventListener("message", onMessage);
+      try {
+        window.parent.postMessage({ source: "jonaminz-chat-panel", action: "requestContext" }, "*");
+      } catch (error) {}
+      setTimeout(function () {
+        finish({ title: document.title, url: document.referrer || "" });
+      }, timeoutMs || 1500);
+    });
+  }
+
   function mount(root, options) {
     options = options || {};
     var token = options.token;
     var onUpdate = typeof options.onUpdate === "function" ? options.onUpdate : function () {};
+
+    var inPanel = false;
+    try { inPanel = Boolean(window.parent) && window.parent !== window; } catch (error) { inPanel = false; }
 
     var identity = null;
     var lastMessageId = null;
     var pollTimer = null;
     var sending = false;
     var destroyed = false;
+    var sharedItems = {};
+    var activeSharedItemId = null;
     var els = {};
 
     function otherIdentity() {
@@ -129,6 +180,7 @@
 
       var messages = data.messages || [];
       var readState = data.readState || {};
+      sharedItems = data.sharedItems || {};
       var myRead = readState[identity] || {};
       var otherRead = readState[otherIdentity()] || {};
 
@@ -184,10 +236,28 @@
 
         var readByOther = mine && otherRead.lastReadMessageId === m.id;
 
+        var bodyHtml;
+        if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
+          var item = sharedItems[m.shared_item_id];
+          var viewerSeen = Boolean(item.seenState && item.seenState[identity]);
+          bodyHtml =
+            '<div class="jonaminz-chat-shared-card' + (viewerSeen ? "" : " is-unseen") + '" ' +
+            'data-shared-card data-item-id="' + escapeHtml(item.id) + '" ' +
+            'data-item-url="' + escapeHtml(item.url) + '">' +
+            '<div class="jonaminz-chat-shared-card-source">' + escapeHtml(item.source) + "</div>" +
+            '<div class="jonaminz-chat-shared-card-title">' + escapeHtml(item.title) + "</div>" +
+            (viewerSeen ? "" : '<div class="jonaminz-chat-shared-card-unseen">尚未查看</div>') +
+            '<button type="button" class="jonaminz-chat-shared-card-discuss" data-discuss-btn ' +
+            'data-item-id="' + escapeHtml(item.id) + '" data-item-title="' + escapeHtml(item.title) + '">討論</button>' +
+            "</div>";
+        } else {
+          bodyHtml = '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) + "</div>";
+        }
+
         html +=
           '<div class="jonaminz-chat-message" data-mine="' + mine + '">' +
           avatarHtml +
-          '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) + "</div>" +
+          bodyHtml +
           "</div>";
 
         if (readByOther) {
@@ -235,7 +305,9 @@
       sending = true;
       els.action.disabled = true;
       var clientMessageId = identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-      window.JonaminzBackend.sendChatMessage({ token: token, body: body, clientMessageId: clientMessageId })
+      var sendPayload = { token: token, body: body, clientMessageId: clientMessageId };
+      if (activeSharedItemId) sendPayload.sharedItemId = activeSharedItemId;
+      window.JonaminzBackend.sendChatMessage(sendPayload)
         .then(function () {
           return poll();
         })
@@ -253,7 +325,31 @@
       els.emojiPanel.hidden = true;
     }
 
+    function closePlusPanel() {
+      if (els.plusPanel) els.plusPanel.hidden = true;
+    }
+
+    function setDiscussTarget(itemId, title) {
+      activeSharedItemId = itemId;
+      if (!els.discussBanner) return;
+      if (itemId) {
+        els.discussTitle.textContent = "討論：" + title;
+        els.discussBanner.hidden = false;
+      } else {
+        els.discussBanner.hidden = true;
+      }
+    }
+
     function buildUI() {
+      var plusButtonHtml = inPanel
+        ? '<button type="button" class="jonaminz-chat-plus-btn" data-plus ' +
+          'aria-label="更多功能" aria-haspopup="true">+</button>' +
+          '<div class="jonaminz-chat-plus-panel" data-plus-panel hidden>' +
+          '<button type="button" data-share-current>分享目前內容</button>' +
+          "</div>"
+        : '<button type="button" class="jonaminz-chat-plus-btn" data-plus disabled ' +
+          'title="附件與更多動作——之後開放" aria-label="更多功能（尚未開放）">+</button>';
+
       root.innerHTML =
         '<section class="jonaminz-chat-head">' +
         '<div class="jonaminz-chat-avatar no-presence" data-avatar>?</div>' +
@@ -264,9 +360,12 @@
         "</div>" +
         "</section>" +
         '<div class="jonaminz-chat-thread" data-thread><p class="jonaminz-chat-empty">載入中...</p></div>' +
+        '<div class="jonaminz-chat-discuss-banner" data-discuss-banner hidden>' +
+        '<span data-discuss-title></span>' +
+        '<button type="button" data-discuss-clear aria-label="取消討論">✕</button>' +
+        "</div>" +
         '<div class="jonaminz-chat-composer">' +
-        '<button type="button" class="jonaminz-chat-plus-btn" data-plus disabled ' +
-        'title="附件與更多動作——之後開放" aria-label="更多功能（尚未開放）">+</button>' +
+        '<div class="jonaminz-chat-plus-wrap">' + plusButtonHtml + "</div>" +
         '<div class="jonaminz-chat-input-shell">' +
         '<textarea data-input placeholder="輸入訊息..." rows="1"></textarea>' +
         '<button type="button" class="jonaminz-chat-emoji-toggle" data-emoji-toggle ' +
@@ -287,10 +386,70 @@
       els.status = root.querySelector("[data-page-status]");
       els.emojiToggle = root.querySelector("[data-emoji-toggle]");
       els.emojiPanel = root.querySelector("[data-emoji-panel]");
+      els.plus = root.querySelector("[data-plus]");
+      els.plusPanel = root.querySelector("[data-plus-panel]");
+      els.discussBanner = root.querySelector("[data-discuss-banner]");
+      els.discussTitle = root.querySelector("[data-discuss-title]");
 
       els.emojiPanel.innerHTML = EMOJI_SET.map(function (emoji) {
         return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
       }).join("");
+
+      if (inPanel && els.plusPanel) {
+        els.plus.addEventListener("click", function (event) {
+          event.stopPropagation();
+          closeEmojiPanel();
+          els.plusPanel.hidden = !els.plusPanel.hidden;
+        });
+        els.plusPanel.addEventListener("click", function (event) {
+          if (!event.target.closest("[data-share-current]")) return;
+          closePlusPanel();
+          els.status.textContent = "正在取得目前內容...";
+          requestHostContext()
+            .then(function (context) {
+              return window.JonaminzBackend.shareCurrentContent({
+                token: token,
+                title: context.title,
+                url: context.url
+              });
+            })
+            .then(function () {
+              els.status.textContent = "";
+              return poll();
+            })
+            .catch(function (error) {
+              els.status.textContent = "分享失敗：" + (error.message || String(error));
+            });
+        });
+        document.addEventListener("click", function (event) {
+          if (!els.plusPanel.hidden && !event.target.closest(".jonaminz-chat-plus-wrap")) {
+            closePlusPanel();
+          }
+        });
+      }
+
+      els.thread.addEventListener("click", function (event) {
+        var discussBtn = event.target.closest("[data-discuss-btn]");
+        if (discussBtn) {
+          setDiscussTarget(discussBtn.dataset.itemId, discussBtn.dataset.itemTitle);
+          els.input.focus();
+          return;
+        }
+        var card = event.target.closest("[data-shared-card]");
+        if (card) {
+          window.JonaminzBackend.markSharedItemSeen({ token: token, itemId: card.dataset.itemId }).catch(function () {});
+          card.classList.remove("is-unseen");
+          var unseenLabel = card.querySelector(".jonaminz-chat-shared-card-unseen");
+          if (unseenLabel) unseenLabel.remove();
+          window.open(card.dataset.itemUrl, "_blank", "noopener");
+        }
+      });
+
+      if (els.discussBanner) {
+        els.discussBanner.addEventListener("click", function (event) {
+          if (event.target.closest("[data-discuss-clear]")) setDiscussTarget(null, "");
+        });
+      }
 
       els.action.addEventListener("click", function () {
         var body = els.input.value.trim();

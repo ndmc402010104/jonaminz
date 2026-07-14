@@ -128,6 +128,14 @@
     return call("markChatRead", payload, options);
   }
 
+  function shareCurrentContent(payload, options) {
+    return call("shareCurrentContent", payload, options);
+  }
+
+  function markSharedItemSeen(payload, options) {
+    return call("markSharedItemSeen", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -142,6 +150,8 @@
     logout: logout,
     listChatMessages: listChatMessages,
     sendChatMessage: sendChatMessage,
-    markChatRead: markChatRead
+    markChatRead: markChatRead,
+    shareCurrentContent: shareCurrentContent,
+    markSharedItemSeen: markSharedItemSeen
   };
 })();

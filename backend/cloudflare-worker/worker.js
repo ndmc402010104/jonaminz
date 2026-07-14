@@ -73,11 +73,8 @@
   極簡 MVP」，用來先證明端到端流程能動，不是長期最終架構；之後如果需要
   更即時的 typing/presence，再評估要不要換成方案 A（Durable Object）。
   `sendChatMessage` 用 `clientMessageId` 做 idempotent 重試（撞到既有的
-  unique constraint 時回傳既有那筆，不當錯誤）。**這幾個 action 需要的
-  資料表（backend/supabase/chat_schema.sql）还沒有在正式 Supabase
-  `jonaminz-db` 建立**——要先手動在 Supabase SQL Editor 貼上執行那份
-  schema，這三個 action 才會真的有資料表可用（跟這個專案其他 schema 檔
-  的建立方式一致，Claude 沒有直接寫入 Postgres 的管道，也不該有）。
+  unique constraint 時回傳既有那筆，不當錯誤）。資料表見
+  `backend/supabase/chat_schema.sql`（已套用到正式 `jonaminz-db`）。
 - getGrantedIdentity：implementation plan 第 9 項階段 B（`identity.current-user@1`
   capability，S30-33）。只給 `pages/identity-relay/` 呼叫，不是給外部
   專案的 SDK 直接打——token 永遠留在 jonaminz.com 自己的瀏覽器裡。用
@@ -245,6 +242,14 @@ export default {
 
       if (action === "markChatRead") {
         return json(await markChatRead(env, payload), 200);
+      }
+
+      if (action === "shareCurrentContent") {
+        return json(await shareCurrentContent(env, payload), 200);
+      }
+
+      if (action === "markSharedItemSeen") {
+        return json(await markSharedItemSeen(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -1091,10 +1096,21 @@ async function listChatMessages(env, payload) {
   const messagesUrl =
     base + "/rest/v1/chat_messages?room_id=eq." + roomId +
     "&order=created_at.asc,id.asc&limit=500" +
-    "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id";
+    "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id,shared_item_id";
   const membersUrl =
     base + "/rest/v1/chat_room_members?room_id=eq." + roomId +
     "&select=identity,last_read_message_id,last_read_at";
+  // Shared 分享內容：跟訊息平行查這個房間目前所有 Shared item（連同各自
+  // 的已讀狀態），前端靠 message.shared_item_id 對到這個 map 畫內容卡。
+  // 這兩張表（chat_shared_items／chat_shared_item_seen）要等使用者手動
+  // 在 Supabase SQL Editor 執行 backend/supabase/chat_shared_schema.sql
+  // 才會存在——在那之前這裡刻意容錯（查詢失敗就當作沒有分享內容），
+  // 不能讓一個還沒建表的新功能拖垮既有的收發訊息主線。
+  const sharedItemsUrl =
+    base + "/rest/v1/chat_shared_items?room_id=eq." + roomId +
+    "&select=id,url,title,source,note,share_count,first_shared_by,last_shared_by,created_at,last_shared_at";
+  const sharedSeenUrl =
+    base + "/rest/v1/chat_shared_item_seen?select=item_id,identity,seen_at";
 
   const [messagesRes, membersRes] = await Promise.all([
     fetch(messagesUrl, { method: "GET", headers: supabaseHeaders(env) }),
@@ -1109,12 +1125,57 @@ async function listChatMessages(env, payload) {
 
   const messages = await messagesRes.json();
   const members = await membersRes.json();
+
+  var sharedItemRows = [];
+  var sharedSeenRows = [];
+  try {
+    const [sharedItemsRes, sharedSeenRes] = await Promise.all([
+      fetch(sharedItemsUrl, { method: "GET", headers: supabaseHeaders(env) }),
+      fetch(sharedSeenUrl, { method: "GET", headers: supabaseHeaders(env) })
+    ]);
+    if (sharedItemsRes.ok && sharedSeenRes.ok) {
+      sharedItemRows = await sharedItemsRes.json();
+      sharedSeenRows = await sharedSeenRes.json();
+    }
+  } catch (error) {
+    // 表還沒建立或其他暫時性錯誤：分享內容這次就是空的，不影響訊息本身。
+  }
+
   const readState = {};
   members.forEach(function (m) {
     readState[m.identity] = { lastReadMessageId: m.last_read_message_id, lastReadAt: m.last_read_at };
   });
 
-  return { ok: true, identity: identity, roomId: roomId, messages: messages, readState: readState };
+  const sharedItems = {};
+  sharedItemRows.forEach(function (item) {
+    sharedItems[item.id] = {
+      id: item.id,
+      url: item.url,
+      title: item.title,
+      source: item.source,
+      note: item.note,
+      shareCount: item.share_count,
+      firstSharedBy: item.first_shared_by,
+      lastSharedBy: item.last_shared_by,
+      createdAt: item.created_at,
+      lastSharedAt: item.last_shared_at,
+      seenState: {}
+    };
+  });
+  sharedSeenRows.forEach(function (row) {
+    if (sharedItems[row.item_id]) {
+      sharedItems[row.item_id].seenState[row.identity] = row.seen_at;
+    }
+  });
+
+  return {
+    ok: true,
+    identity: identity,
+    roomId: roomId,
+    messages: messages,
+    readState: readState,
+    sharedItems: sharedItems
+  };
 }
 
 async function sendChatMessage(env, payload) {
@@ -1132,20 +1193,33 @@ async function sendChatMessage(env, payload) {
   }
 
   const clientMessageId = String((payload && payload.clientMessageId) || "").trim() || randomToken();
+  // 選填：這則文字訊息是不是「討論中」綁定某個 Shared item（見任務書
+  // 「按討論把該 Shared item 綁定到 composer，後續文字訊息保留
+  // shared_item_id」）——不驗證跨房間，這支 Worker 目前只有一個房間，
+  // 跟既有程式碼一致的簡化。
+  const sharedItemId = String((payload && payload.sharedItemId) || "").trim() || null;
   const roomId = await resolveChatRoomId(env);
   const base = env.SUPABASE_URL.replace(/\/+$/, "");
 
   const insertUrl = base + "/rest/v1/chat_messages";
+  var insertBody = {
+    room_id: roomId,
+    sender_identity: identity,
+    client_message_id: clientMessageId,
+    kind: "text",
+    body: body
+  };
+  // 只有真的要帶 shared_item_id 才放進去這個 key——這欄位要等使用者
+  // 手動套用 backend/supabase/chat_shared_schema.sql 才存在，一般傳文字
+  // 訊息（sharedItemId 是 null）絕對不能在請求裡出現這個 key，不然
+  // PostgREST 會因為欄位不存在直接拒絕整個 insert，連最基本的傳訊息都
+  // 會壞掉。
+  if (sharedItemId) insertBody.shared_item_id = sharedItemId;
+
   const response = await fetch(insertUrl, {
     method: "POST",
     headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
-    body: JSON.stringify({
-      room_id: roomId,
-      sender_identity: identity,
-      client_message_id: clientMessageId,
-      kind: "text",
-      body: body
-    })
+    body: JSON.stringify(insertBody)
   });
 
   if (response.status === 409) {
@@ -1155,7 +1229,7 @@ async function sendChatMessage(env, payload) {
       base + "/rest/v1/chat_messages?room_id=eq." + roomId +
       "&sender_identity=eq." + identity +
       "&client_message_id=eq." + encodeURIComponent(clientMessageId) +
-      "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id&limit=1";
+      "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id,shared_item_id&limit=1";
     const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
     const rows = await existingRes.json();
     return { ok: true, message: rows[0] || null };
@@ -1191,6 +1265,164 @@ async function markChatRead(env, payload) {
   });
   if (!response.ok) {
     throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+// ---------- Chat Shared 分享內容模組（第一階段唯一垂直流程，見任務書：
+// 分享目前內容→正規化 URL→相同 URL 合併→內容卡→明確點進去才算已看到→
+// 討論綁定 composer）。schema 見
+// backend/supabase/chat_shared_schema.sql（要先在 Supabase SQL Editor
+// 貼上執行）。正規化規則跟已看到定義都照抄交接包
+// jonaminz-chat交接包/SOURCE/ux-mvp-v0.11/index.html 已經驗證過的原型
+// 邏輯，不是重新設計一套。----------
+
+function normalizeSharedUrl(raw) {
+  var TRACKING_PARAMS = [
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "igsh", "igshid", "fbclid", "gclid"
+  ];
+  try {
+    var parsed = new URL(String(raw).trim());
+    TRACKING_PARAMS.forEach(function (key) { parsed.searchParams.delete(key); });
+    parsed.hash = "";
+    parsed.hostname = parsed.hostname.toLowerCase();
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+    return parsed.toString();
+  } catch (error) {
+    return String(raw).trim();
+  }
+}
+
+function sourceFromSharedUrl(url) {
+  if (/instagram\.com/i.test(url)) return "Instagram";
+  if (/threads\.net/i.test(url)) return "Threads";
+  if (/youtu\.?be/i.test(url)) return "YouTube";
+  if (/maps\.google/i.test(url)) return "Google Maps";
+  if (/facebook\.com/i.test(url)) return "Facebook";
+  if (/tiktok\.com/i.test(url)) return "TikTok";
+  return "Web";
+}
+
+async function shareCurrentContent(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const rawUrl = String((payload && payload.url) || "").trim();
+  if (!rawUrl) {
+    return { ok: false, code: "URL_REQUIRED", error: "url is required" };
+  }
+  const title = String((payload && payload.title) || "").trim() || rawUrl;
+  const normalizedUrl = normalizeSharedUrl(rawUrl);
+
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const now = new Date().toISOString();
+
+  const existingUrl =
+    base + "/rest/v1/chat_shared_items?room_id=eq." + roomId +
+    "&url=eq." + encodeURIComponent(normalizedUrl) + "&limit=1";
+  const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!existingRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + existingRes.status + " " + (await existingRes.text()));
+  }
+  const existingRows = await existingRes.json();
+  var sharedItem;
+
+  if (existingRows[0]) {
+    // 相同 URL 合併成同一個 Shared item：累加分享次數、更新最後分享者。
+    const updateUrl = base + "/rest/v1/chat_shared_items?id=eq." + existingRows[0].id;
+    const updateRes = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+      body: JSON.stringify({
+        share_count: existingRows[0].share_count + 1,
+        last_shared_by: identity,
+        last_shared_at: now
+      })
+    });
+    if (!updateRes.ok) {
+      throw new Error("Supabase update failed: HTTP " + updateRes.status + " " + (await updateRes.text()));
+    }
+    const updatedRows = await updateRes.json();
+    sharedItem = updatedRows[0];
+  } else {
+    const insertUrl = base + "/rest/v1/chat_shared_items";
+    const insertRes = await fetch(insertUrl, {
+      method: "POST",
+      headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+      body: JSON.stringify({
+        room_id: roomId,
+        url: normalizedUrl,
+        title: title,
+        source: sourceFromSharedUrl(normalizedUrl),
+        share_count: 1,
+        first_shared_by: identity,
+        last_shared_by: identity,
+        created_at: now,
+        last_shared_at: now
+      })
+    });
+    if (!insertRes.ok) {
+      throw new Error("Supabase insert failed: HTTP " + insertRes.status + " " + (await insertRes.text()));
+    }
+    const insertedRows = await insertRes.json();
+    sharedItem = insertedRows[0];
+  }
+
+  // 分享者視同已經看過自己剛分享的東西。
+  const seenUpsertUrl = base + "/rest/v1/chat_shared_item_seen";
+  await fetch(seenUpsertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({ item_id: sharedItem.id, identity: identity, seen_at: now })
+  });
+
+  // 建立一則引用這個 Shared item 的 Chat message，內容卡靠前端對
+  // shared_item_id 查 listChatMessages 回應的 sharedItems map 來畫。
+  const messageInsertUrl = base + "/rest/v1/chat_messages";
+  const messageRes = await fetch(messageInsertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify({
+      room_id: roomId,
+      sender_identity: identity,
+      client_message_id: randomToken(),
+      kind: "shared_item",
+      body: title,
+      shared_item_id: sharedItem.id
+    })
+  });
+  if (!messageRes.ok) {
+    throw new Error("Supabase insert failed: HTTP " + messageRes.status + " " + (await messageRes.text()));
+  }
+  const messageRows = await messageRes.json();
+
+  return { ok: true, message: messageRows[0] || null, sharedItem: sharedItem };
+}
+
+async function markSharedItemSeen(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const itemId = String((payload && payload.itemId) || "").trim();
+  if (!itemId) {
+    return { ok: false, code: "ITEM_ID_REQUIRED", error: "itemId is required" };
+  }
+
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const seenUpsertUrl = base + "/rest/v1/chat_shared_item_seen";
+  const response = await fetch(seenUpsertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({ item_id: itemId, identity: identity, seen_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
   }
   return { ok: true };
 }

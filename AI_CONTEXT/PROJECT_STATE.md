@@ -1105,9 +1105,12 @@ jonaminz/
 草案）。這次做的是交接包自己定義的「第一個真實里程碑」，不是完整 Chat
 System App：
 
-- 已完成：`backend/supabase/chat_schema.sql` **已由使用者手動在正式
-  Supabase SQL Editor 執行**（Claude 沒有直接寫入 Postgres 的管道，這
-  個專案的 schema 一律走這個流程），Worker action
+- 已完成：`backend/supabase/chat_schema.sql` **已套用到正式
+  jonaminz-db**（2026-07-14 之前是使用者手動在 Supabase SQL Editor
+  執行；2026-07-14 之後 Claude 也可以直連 Supabase 直接
+  `apply_migration`，見 `reference_supabase_direct_db_access` 記憶——
+  每次都要先講清楚操作內容跟目標 project ref，使用者按過才執行，兩種
+  路徑都有效，看當下順手選一種），Worker action
   `listChatMessages`/`sendChatMessage`/`markChatRead`（都要求
   `requireSession`）已 `wrangler deploy`，端到端真的能雙向傳訊息＋已讀。
 - **2026-07-14 上午**：畫面照交接包 `SOURCE/ux-mvp-v0.11/index.html`
@@ -1177,10 +1180,22 @@ System App：
     判斷邏輯放在 iframe 內部，要放在宿主自己的 document 裡（這次的解法
     是在 iframe 正上方蓋一個透明、z-index 更高、位置同步的覆蓋層
     `<div>`，所有 pointer 事件在宿主自己的文件裡發生）。
-- 沒做：typing indicator、訊息反應（reaction）、回覆（reply）、貼圖
-  面板、附件、Shared 收件匣、Android Overlay——這些多半在交接包的
-  「不准做」清單裡，或屬於 roadmap Phase 2 的 P3（另一個獨立決定），
-  刻意不碰。
+- **Shared 分享內容模組 Phase 1（同日，唯一垂直流程）已完成並上線**：
+  分享目前內容→伺服器端正規化 URL→相同 URL 合併成同一個 Shared
+  item→建立引用該 item 的訊息→內容卡渲染→明確點卡才算已看到→討論
+  綁定 composer（`sharedItemId` 隨後續文字訊息一起送）。新表
+  `chat_shared_items`／`chat_shared_item_seen`（`backend/supabase/
+  chat_shared_schema.sql`，已用 Supabase 直連授權套用到 jonaminz-db）、
+  Worker 新增 `shareCurrentContent`／`markSharedItemSeen`，
+  `assets/js/chat-thread.js` 的「+」在面板情境變成功能選單。細節見
+  `AI_CONTEXT/CHANGELOG.md` 同日條目（含一次部署順序踩坑：Worker 先
+  deploy、schema 後套用，差點讓既有收發訊息壞掉，已修成容錯）。
+- 沒做：typing indicator、一般訊息反應（reaction）、一般訊息回覆
+  （reply）、貼圖面板、附件、電話、視訊、OneDrive、Shared 獨立瀏覽
+  列表、送往其他 App 的 destinations registry、後台首頁摘要、Android
+  Overlay——這些多半在交接包的「不准做」清單裡，或屬於使用者這次任務書
+  明確排除的範圍，或 roadmap Phase 2 的 P3（另一個獨立決定），刻意
+  不碰。
 - `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
   `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
   Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo

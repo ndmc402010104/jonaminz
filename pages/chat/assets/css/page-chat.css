@@ -205,6 +205,77 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   margin-top: -6px;
 }
 
+/* ---- Shared 分享內容模組（2026-07-14）：內容卡＋討論橫幅。整頁版的
+   「+」維持 disabled（分享目前內容只在攜帶版有意義，見
+   assets/js/chat-thread.js 說明），但訊息串仍然可能出現對方在攜帶版
+   分享的內容卡，所以卡片樣式兩邊都要有。 ---- */
+.jonaminz-chat-discuss-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.jonaminz-chat-discuss-banner[hidden] { display: none; }
+.jonaminz-chat-discuss-banner span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jonaminz-chat-discuss-banner button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.jonaminz-chat-shared-card {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  max-width: 260px;
+}
+.jonaminz-chat-shared-card.is-unseen { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
+.jonaminz-chat-shared-card-source {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-2);
+  margin-bottom: 2px;
+}
+.jonaminz-chat-shared-card-title {
+  font-size: var(--text-md);
+  color: var(--color-text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.jonaminz-chat-shared-card-unseen {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.jonaminz-chat-shared-card-discuss {
+  margin-top: var(--space-2);
+  border: none;
+  background: var(--color-bg-lobby);
+  color: var(--color-primary-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.jonaminz-chat-shared-card-discuss:hover { background: var(--color-accent); }
+
 /* ---- composer ---- */
 
 .jonaminz-chat-composer {
@@ -217,6 +288,34 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   border-top: none;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
+
+.jonaminz-chat-plus-wrap { position: relative; flex: 0 0 auto; }
+.jonaminz-chat-plus-panel {
+  position: absolute;
+  left: 0;
+  bottom: 48px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+}
+.jonaminz-chat-plus-panel[hidden] { display: none; }
+.jonaminz-chat-plus-panel button {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.jonaminz-chat-plus-panel button:hover { background: var(--color-bg-lobby); }
 
 .jonaminz-chat-plus-btn,
 .jonaminz-chat-action-btn {
