@@ -463,6 +463,21 @@ button, textarea { font: inherit; }
 }
 .jonaminz-chat-settings-note { font-size: 10px; color: var(--color-text-muted); margin: 0; }
 .jonaminz-chat-notif-item-meta { color: var(--color-text-muted); font-weight: 400; }
+.jonaminz-chat-settings-push-btn:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-bg-lobby);
+  cursor: default;
+}
+
+/* 搜尋結果跳轉後的短暫強調（scrollToMessage 加上、1.8 秒後移除）。 */
+.jonaminz-chat-search-result { cursor: pointer; }
+.jonaminz-chat-search-result:hover { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }
+.jonaminz-chat-message.is-highlighted .jonaminz-chat-bubble,
+.jonaminz-chat-message.is-highlighted .jonaminz-chat-shared-card {
+  outline: 2px solid var(--color-primary-2);
+  outline-offset: 2px;
+  transition: outline-color 0.4s ease;
+}
 
 /* ---- Shared 分享內容模組（2026-07-14）：composer 的「+」選單、內容卡、
    討論橫幅。---- */

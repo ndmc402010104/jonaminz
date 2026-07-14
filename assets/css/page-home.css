@@ -155,7 +155,10 @@ html[data-jonaminz-rwd-group="large"] .hero-photo img {
 
 .hero-logo {
   display: block;
-  width: min(520px, 78vw);
+  /* 2026-07-14 晚間：logo 從橫幅字標（含 Jonaminz 字樣）換成方形圖徽
+     （疊石＋竹葉＋筆刷圓相，使用者外部 AI 生圖新版）。方形圖用原本
+     字標的 520px 寬會過大，縮到適合圖徽的尺寸。 */
+  width: min(300px, 62vw);
   height: auto;
 }
 

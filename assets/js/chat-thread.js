@@ -520,12 +520,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
     // 重新打一次 listChatMessages）。往上插內容會讓瀏覽器把使用者原本
     // 看的位置往下推，補償 scrollTop 讓畫面看起來沒有跳動。
     function loadOlder() {
-      if (loadingOlder || !hasMoreHistory) return;
+      if (loadingOlder || !hasMoreHistory) return Promise.resolve();
       var anchor = (olderMessages[0] || (lastPollData && lastPollData.messages && lastPollData.messages[0]));
-      if (!anchor) return;
+      if (!anchor) return Promise.resolve();
       loadingOlder = true;
       if (lastPollData) render(lastPollData); // 先畫「載入中...」的 load-more 按鈕
-      window.JonaminzBackend.loadOlderChatMessages({ token: token, beforeMessageId: anchor.id })
+      // 回傳 promise 讓呼叫端能等這一頁載完（搜尋結果跳轉要連續載入歷史
+      // 直到找到目標訊息，見 scrollToMessage()）。
+      return window.JonaminzBackend.loadOlderChatMessages({ token: token, beforeMessageId: anchor.id })
         .then(function (data) {
           if (destroyed) return;
           var prevScrollHeight = els.thread.scrollHeight;
@@ -539,6 +541,24 @@ title/url（見 `requestHostContext()`，宿主端實作在
           loadingOlder = false;
           if (lastPollData) render(lastPollData);
         });
+    }
+
+    // 2026-07-14（真機回饋）：搜尋結果點了要真的跳到那則訊息。目標訊息
+    // 可能還在「沒載入的更早歷史」裡——找不到就往上多載一頁再找，最多
+    // 20 頁（1000 則）當保險絲，避免極端情況下無限迴圈。
+    function scrollToMessage(messageId, attempt) {
+      attempt = attempt || 0;
+      var el = els.thread.querySelector('[data-message-id="' + messageId + '"]');
+      if (el) {
+        el.scrollIntoView({ block: "center" });
+        el.classList.add("is-highlighted");
+        setTimeout(function () { el.classList.remove("is-highlighted"); }, 1800);
+        return;
+      }
+      if (attempt >= 20 || !hasMoreHistory) return;
+      loadOlder().then(function () {
+        scrollToMessage(messageId, attempt + 1);
+      });
     }
 
     function poll() {
@@ -722,7 +742,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
               var mine = m.sender_identity === identity;
               var label = mine ? "我" : (IDENTITY_LABEL[otherIdentity()] || otherIdentity());
               var snippet = m.kind === "shared_item" ? "[分享的內容]" : m.body;
-              return '<div class="jonaminz-chat-search-result">' +
+              return '<div class="jonaminz-chat-search-result" data-search-result data-message-id="' + escapeHtml(m.id) + '">' +
                 '<span class="jonaminz-chat-search-result-meta">' + escapeHtml(label) + " · " +
                 escapeHtml(formatTime(m.created_at)) + "</span>" +
                 '<span class="jonaminz-chat-search-result-body">' + escapeHtml(snippet) + "</span>" +
@@ -1098,6 +1118,16 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var query = els.searchInput.value.trim();
           searchDebounceTimer = setTimeout(function () { performSearch(query); }, 300);
         });
+        // 點搜尋結果：關掉搜尋、跳到那則訊息（不在已載入範圍就邊載歷史
+        // 邊找，見 scrollToMessage）。
+        els.searchResults.addEventListener("click", function (event) {
+          var result = event.target.closest("[data-search-result]");
+          if (!result) return;
+          els.searchBar.hidden = true;
+          els.searchResults.hidden = true;
+          els.searchInput.value = "";
+          scrollToMessage(result.dataset.messageId);
+        });
       }
 
       if (els.notifToggle && els.notifPanel) {
@@ -1194,7 +1224,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
       function refreshPushStatus() {
         if (!els.pushStatus) return;
         if (pushSubscribed) {
-          els.pushStatus.textContent = "這台裝置已開啟推播通知";
+          // 2026-07-14（真機回饋）：開啟推播是一次性動作，開過就把按鈕
+          // 變成打勾的完成狀態、不能再按——不是一顆永遠都能按的按鈕。
+          if (els.pushToggleBtn) {
+            els.pushToggleBtn.textContent = "✓ 已開啟推播通知";
+            els.pushToggleBtn.disabled = true;
+          }
+          els.pushStatus.textContent = "";
           return;
         }
         if (isIOSDevice() && !isStandaloneDisplay()) {

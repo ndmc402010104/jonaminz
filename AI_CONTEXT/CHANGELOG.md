@@ -20,6 +20,52 @@
 
 ---
 
+## 2026-07-14（深夜，第十九次）— FCM 真機驗收通過；推播按鈕一次性化、搜尋跳轉、新版 logo
+
+- **任務**：使用者完成 Firebase 設定（google-services.json＋服務帳戶
+  金鑰都用手機上傳）→ 建 APK 裝機 → **真機驗收通過**（系統權限詢問
+  正常跳出、訂閱成功顯示已開啟）。隨後三個新回饋：(1) 「開啟推播通知」
+  是一次性動作，開過就該變成打勾狀態不能再按；(2) 搜尋結果按下去沒有
+  跳轉；(3) 換新版 logo（方形圖徽：疊石＋竹葉＋筆刷圓相）。
+- **變更**：
+  - **第十八輪的收尾（本輪完成）**：google-services.json 放進
+    `jonaminz-mobile-app/android/app/`；服務帳戶金鑰驗證格式後用
+    `wrangler secret put FCM_SERVICE_ACCOUNT_JSON` 設好，並用真金鑰
+    實測「簽 RS256 JWT→跟 Google 換 access token」成功（效期 3599 秒），
+    Worker 發送路徑的認證真正驗證過；APK 重建（Android Studio 內建
+    JDK；途中撞到 OneDrive 鎖住 gradle 增量建置中間檔，砍掉整個
+    app/build 做乾淨建置解決——這是已知的 OneDrive 坑的新變形）；APK
+    用 SendUserFile 直接傳給在手機上的使用者安裝（debug 簽章相同，
+    原地更新）。**使用者真機按「開啟推播通知」→ 系統權限詢問正常
+    跳出 → 訂閱成功**。
+  - **推播按鈕一次性化**（`chat-thread.js`＋兩份 CSS）：已訂閱時按鈕
+    變成「✓ 已開啟推播通知」＋disabled（灰底），不再是一顆永遠能按
+    的按鈕；配合既有的 `jonaminz.pushEnabledHint` localStorage 旗標，
+    重新載入後也維持完成狀態。
+  - **搜尋結果點擊跳轉**（`chat-thread.js`＋兩份 CSS）：`loadOlder()`
+    改回傳 promise；新增 `scrollToMessage(id)`——目標訊息不在已載入
+    範圍時連續往上載歷史頁直到找到（上限 20 頁保險絲），找到後
+    `scrollIntoView` 置中＋1.8 秒的 outline 強調；搜尋結果列加
+    `data-message-id`＋點擊事件（點了關搜尋、跳訊息）＋hover 樣式。
+  - **新版 logo**（`assets/img/jonaminz-logo.png` 覆蓋＋
+    `page-home.css`）：從橫幅字標（含 Jonaminz 字樣）換成使用者外部
+    AI 生圖的方形圖徽，1080→800px 縮圖壓到 451KB；`.hero-logo` 寬度
+    從字標用的 min(520px,78vw) 調成圖徽用的 min(300px,62vw)。舊字標
+    在 git 歷史裡，要回復隨時可以。
+- **驗證**：Playwright——推播按鈕在旗標存在時正確顯示 ✓＋disabled；
+  搜尋跳轉實測「目標在 2 頁歷史之外」的情境（自動連續載入→訊息出現
+  →捲到可視範圍置中）；新 logo 檔案讀取確認內容正確。真機部分使用者
+  已驗收推播訂閱，發送端（對方傳訊息時真的收到系統通知）待兩人實際
+  對話驗證。
+- **狀態變化**：App 原生推播全鏈路完成並真機驗收（訂閱端）；聊天
+  checklist 的「系統推播通知」可以視為完成（唯一保留：發送端通知的
+  真機確認）。
+- **遺留**：使用者手機下載資料夾裡的服務帳戶金鑰檔案建議刪除（已
+  提醒）；雙人實測「A 關 App、B 傳訊息、A 收到系統通知」這最後一步。
+- **版本**：`v0.28.1-202607142331`（`version.js`）。
+
+---
+
 ## 2026-07-14（晚間，第十八次）— App 原生推播（FCM）：程式全部就位，等使用者做 Firebase 設定
 
 - **任務**：使用者裁決「可以做推播了嗎不然整個聊天app根本無法用」——
