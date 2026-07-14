@@ -474,6 +474,16 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   cursor: default;
 }
 
+/* 點一下訊息顯示確切時間（2026-07-15）。 */
+.jonaminz-chat-time-peek {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  padding: 0 4px;
+  margin-top: -3px;
+}
+.jonaminz-chat-time-peek[data-mine="true"] { align-self: flex-end; }
+.jonaminz-chat-time-peek[data-mine="false"] { align-self: flex-start; padding-left: 34px; }
+
 /* 對方「輸入中」的 ••• 跳動泡泡（2026-07-15）。 */
 .jonaminz-chat-typing-bubble {
   display: inline-flex;

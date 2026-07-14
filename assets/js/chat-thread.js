@@ -88,6 +88,22 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
   }
 
+  // 點訊息顯示的完整時間：今天的只顯示時刻，更早的補上日期。
+  function formatPeekTime(value) {
+    if (!value) return "";
+    try {
+      var dt = new Date(value);
+      var today = new Date();
+      var sameDay = dt.getFullYear() === today.getFullYear() &&
+        dt.getMonth() === today.getMonth() && dt.getDate() === today.getDate();
+      var time = dt.toLocaleTimeString("zh-TW", { hour12: false, hour: "2-digit", minute: "2-digit" });
+      if (sameDay) return "今天 " + time;
+      return (dt.getMonth() + 1) + "/" + dt.getDate() + " " + time;
+    } catch (error) {
+      return "";
+    }
+  }
+
   function initialOf(id) {
     var label = IDENTITY_LABEL[id] || id || "?";
     return label.charAt(0).toUpperCase();
@@ -206,6 +222,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var hasRenderedOnce = false;
     var readObserver = null;
     var contextMenuOpenedAt = 0;
+    var timePeekMessageId = null;
 
     function maybeMarkRead() {
       if (!isVisible) return;
@@ -472,6 +489,15 @@ title/url（見 `requestHostContext()`，宿主端實作在
           avatarHtml +
           bodyHtml +
           "</div>";
+
+        // 2026-07-15：點一下訊息顯示這則的確切時間（LINE/FB 慣例）——
+        // 時間分隔線 15 分鐘才一條，中間的訊息看不出各自幾點送的。
+        // timePeekMessageId 是 state，render 每 1.5 秒重畫也不會消失，
+        // 再點同一則收起來。
+        if (timePeekMessageId === m.id) {
+          html += '<div class="jonaminz-chat-time-peek" data-mine="' + mine + '">' +
+            escapeHtml(formatPeekTime(m.created_at)) + "</div>";
+        }
 
         if (readByOther) {
           html +=
@@ -1000,6 +1026,16 @@ title/url（見 `requestHostContext()`，宿主端實作在
           window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: pill.dataset.messageId, emoji: pill.dataset.emoji })
             .then(function () { return poll(); })
             .catch(function () {});
+          return;
+        }
+        // 點一下訊息本身：顯示/收起這則的確切時間。長按放開的合成 click
+        // 要擋掉（跟點外關閉選單同一個坑），選單開著時的點擊也不觸發。
+        var messageEl = event.target.closest(".jonaminz-chat-message");
+        if (messageEl && messageEl.dataset.messageId) {
+          if (els.contextMenu && !els.contextMenu.hidden) return;
+          if (Date.now() - contextMenuOpenedAt < 400) return;
+          timePeekMessageId = timePeekMessageId === messageEl.dataset.messageId ? null : messageEl.dataset.messageId;
+          if (lastPollData) render(lastPollData);
         }
       });
 
