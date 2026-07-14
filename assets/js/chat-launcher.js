@@ -94,7 +94,9 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
   // 遠一點，降低觸控落在系統手勢區內的機率（不是 100% 保證，是網頁
   // 天生的限制，跟原生 App 沒辦法比）。ANCHOR_RIGHT 從 14 加大到 28。
   var ANCHOR_RIGHT = 28;
-  var ANCHOR_BOTTOM = 14;
+  // GAP_BELOW_LAUNCHER：面板頂端跟大頭貼底端的間距。64=大頭貼高度，
+  // 14=間距，加起來就是面板 top 要比大頭貼 top 多讓出來的空間。
+  var GAP_BELOW_LAUNCHER = 64 + 14;
   var DRAG_THRESHOLD = 8;
 
   function mountChat() {
@@ -105,20 +107,35 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     try { token = window.localStorage.getItem(TOKEN_KEY); } catch (error) { token = null; }
     if (!token) return;
 
+    // 2026-07-14（第十一次修正）：使用者要求「整個展開後泡泡的位置」
+    // 也移到頁首下方，不要只有收合時的休息位置改、展開時還是跳回右
+    // 下角（原本右下角一樣會壓到「Jonathan」連結）。這次把「休息錨點」
+    // 跟「展開錨點」直接統一成同一個位置——大頭貼固定在頁首正下方，
+    // 面板改成往下展開（原本是往上，因為大頭貼原本在螢幕最下面；現在
+    // 大頭貼在上面，面板自然改成从大頭貼下緣往下長）。
+    //
+    // 用 CSS 自訂屬性 `--jcl-anchor-top` 存「大頭貼錨點距離頁面頂端的
+    // px 值」，大頭貼／覆蓋層／面板的 top 都透過 calc(var(...)) 算，這樣
+    // header 高度之後如果變動（例如 webfont 載入完成），只要更新這一個
+    // CSS 變數，三個元素會自動跟著動，不用個別重新套用樣式。
     var style = document.createElement("style");
     style.textContent =
-      "." + LAUNCHER_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;bottom:" + ANCHOR_BOTTOM + "px;" +
+      ":root{--jcl-anchor-top:84px;}" +
+      "." + LAUNCHER_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
       "width:64px;height:64px;border:0;border-radius:50%;z-index:9999;" +
       "box-shadow:0 8px 24px rgba(38,34,32,0.28);pointer-events:none;}" +
-      "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;bottom:" + ANCHOR_BOTTOM + "px;" +
+      "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
       "width:64px;height:64px;border-radius:50%;z-index:10000;background:transparent;" +
       "touch-action:none;cursor:pointer;" +
       "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;}" +
-      "." + PANEL_CLASS + "{position:fixed;right:14px;bottom:92px;border:0;border-radius:20px;" +
+      "." + PANEL_CLASS + "{position:fixed;right:14px;" +
+      "top:calc(var(--jcl-anchor-top) + " + GAP_BELOW_LAUNCHER + "px);border:0;border-radius:20px;" +
       "z-index:9998;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +
       "transition:width .22s ease,height .22s ease;}" +
-      "." + PANEL_CLASS + ".size-half{width:min(430px,calc(100vw - 28px));height:min(720px,calc(100dvh - 140px));}" +
-      "." + PANEL_CLASS + ".size-full{width:min(760px,calc(100vw - 28px));height:calc(100dvh - 110px);}" +
+      "." + PANEL_CLASS + ".size-half{width:min(430px,calc(100vw - 28px));" +
+      "height:min(720px,calc(100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px));}" +
+      "." + PANEL_CLASS + ".size-full{width:min(760px,calc(100vw - 28px));" +
+      "height:calc(100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px);}" +
       "." + PANEL_CLASS + ".jcl-panel-hidden{visibility:hidden;pointer-events:none;}";
     document.head.appendChild(style);
 
@@ -166,38 +183,16 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       });
     }
 
-    function applyOpenAnchor() {
+    // 「休息位置」（沒拖過時）跟「展開時鎖定的位置」現在是同一個地方
+    // （頁首正下方），清掉 left/top/right/bottom 這些 inline 覆蓋值，
+    // 讓上面靜態 CSS 規則裡的 right/top(var(--jcl-anchor-top)) 生效即可，
+    // 不需要另外指定數字。
+    function applyDefaultAnchor() {
       [launcherFrame, overlay].forEach(function (el) {
         el.style.left = "";
+        el.style.right = "";
         el.style.top = "";
-        el.style.right = ANCHOR_RIGHT + "px";
-        el.style.bottom = ANCHOR_BOTTOM + "px";
-      });
-    }
-
-    // 2026-07-14（第十次修正）：預設休息位置改到頁首正下方，不再是
-    // 右下角——使用者回報首頁右下角常駐一個「Jonathan」切換身分的連結，
-    // 大頭貼壓在上面常常按錯。開啟面板時鎖到的位置（`applyOpenAnchor`）
-    // 維持右下角不變，面板本來就固定在那個角落上方展開，兩者拆開沒有
-    // 互相影響。真的算過的高度優先用全站共用的
-    // window.JonaminzLayoutMetrics（assets/js/layout-metrics.js，讀
-    // 真實 header 的 bottom），量不到才退回一個保底的預設值。
-    function computeRestTop() {
-      try {
-        if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.getState === "function") {
-          var header = window.JonaminzLayoutMetrics.getState().header;
-          if (header && header.exists) return Math.max(0, header.bottom + 14);
-        }
-      } catch (error) {}
-      return 84;
-    }
-
-    function applyRestAnchor() {
-      [launcherFrame, overlay].forEach(function (el) {
-        el.style.left = "";
         el.style.bottom = "";
-        el.style.right = ANCHOR_RIGHT + "px";
-        el.style.top = computeRestTop() + "px";
       });
     }
 
@@ -208,24 +203,41 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     }
 
     function lockToOpenAnchor() {
-      animateTo(applyOpenAnchor);
+      animateTo(applyDefaultAnchor);
     }
 
     function restoreRestingPosition() {
       animateTo(function () {
-        if (freeLeft === null) applyRestAnchor();
+        if (freeLeft === null) applyDefaultAnchor();
         else applyPosition(freeLeft, freeTop);
       });
     }
 
-    // header 高度剛開始量測時可能還不準（webfont/圖片還沒載完），
-    // layout-metrics.js 自己會延遲重算幾次——這裡跟著訂閱，只要目前
-    // 待在「預設休息位置」（沒被拖過、面板沒開著）就跟著更新，不會動到
-    // 使用者自己拖過的位置或面板開著時鎖定的位置。
+    // --jcl-anchor-top 存「大頭貼距離頁面頂端的 px 值」，優先讀全站共用
+    // 的 window.JonaminzLayoutMetrics（assets/js/layout-metrics.js，量
+    // 真實 header 的 bottom），量不到就退回一個保底值。header 高度剛
+    // 開始量測時可能還不準（webfont/圖片還沒載完），layout-metrics.js
+    // 自己會延遲重算幾次——這裡訂閱它的更新事件，隨時把最新高度寫回這個
+    // CSS 變數，大頭貼/覆蓋層/面板只要沒有 inline 覆蓋值就會自動跟著動
+    // （使用者自己拖過的位置、或面板展開時鎖定的位置都是靠 inline
+    // left/top 蓋掉這個變數，不會被這裡影響）。
+    function computeAnchorTop() {
+      try {
+        if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.getState === "function") {
+          var header = window.JonaminzLayoutMetrics.getState().header;
+          if (header && header.exists) return Math.max(0, header.bottom + 14);
+        }
+      } catch (error) {}
+      return 84;
+    }
+
+    function updateAnchorTopVar() {
+      document.documentElement.style.setProperty("--jcl-anchor-top", computeAnchorTop() + "px");
+    }
+
+    updateAnchorTopVar();
     if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.subscribe === "function") {
-      window.JonaminzLayoutMetrics.subscribe(function () {
-        if (freeLeft === null && !panelOpen) applyRestAnchor();
-      });
+      window.JonaminzLayoutMetrics.subscribe(updateAnchorTopVar);
     }
 
     function snapToNearestEdge(left, top) {
@@ -378,10 +390,6 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       }
     });
 
-    // 靜態 CSS 規則裡的 right/bottom 只是還沒量到真實 header 高度前的
-    // 保底位置，這裡立刻套用真正的預設休息位置（見上方 applyRestAnchor
-    // 說明），沒有動畫、直接定位，避免一開始閃一下錯的位置。
-    applyRestAnchor();
   }
 
   if (document.readyState === "loading") {

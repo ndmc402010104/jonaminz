@@ -43,6 +43,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
   var POLL_INTERVAL_MS = 3000;
   var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+  // 2026-07-14：時間分隔線原本只要「格式化後的 HH:MM 字串」跟上一則不同
+  // 就插一次，等於只要跨過一分鐘就會冒出時間，訊息密集時滿版都是時間，
+  // 使用者要的是像 FB 那樣——真的隔了一段時間才顯示。改成看「距離上一條
+  // 分隔線」的實際毫秒差，超過這個門檻才插新的分隔線。
+  var TIME_DIVIDER_GAP_MS = 15 * 60 * 1000;
   var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
   var QUICK_REACTION = "👍";
   var EMOJI_SET = [
@@ -230,15 +235,18 @@ title/url（見 `requestHostContext()`，宿主端實作在
       }
 
       var html = "";
-      var lastTimeLabel = "";
+      var lastDividerAt = -Infinity; // 上一條時間分隔線代表的時間點（ms），跟這則訊息差夠久才再插一次
       var dividerInserted = firstUnreadIndex < 0; // 沒有已讀紀錄或沒有對方的未讀訊息就不畫分隔線
 
       messages.forEach(function (m, index) {
         var mine = m.sender_identity === identity;
-        var timeLabel = formatTime(m.created_at);
-        if (timeLabel && timeLabel !== lastTimeLabel) {
-          html += '<div class="jonaminz-chat-time-divider">' + escapeHtml(timeLabel) + "</div>";
-          lastTimeLabel = timeLabel;
+        var messageAt = new Date(m.created_at).getTime();
+        if (messageAt - lastDividerAt >= TIME_DIVIDER_GAP_MS) {
+          var timeLabel = formatTime(m.created_at);
+          if (timeLabel) {
+            html += '<div class="jonaminz-chat-time-divider">' + escapeHtml(timeLabel) + "</div>";
+            lastDividerAt = messageAt;
+          }
         }
 
         if (!dividerInserted && index === firstUnreadIndex) {
