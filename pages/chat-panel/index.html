@@ -92,14 +92,31 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
   // 打開時會 postMessage visibility:true 過來，chat-thread.js 內部收到
   // 才會真的標記已讀。
   //
-  // 2026-07-15（第二十四輪）：?standalone=1——App 的泡泡（系統 Bubbles
-  // 的 BubbleActivity／懸浮泡泡的 BubbleOverlayService）用原生 WebView
-  // 把這頁當「頂層頁面」直接載入，不是 iframe：沒有宿主會送 visibility
-  // 訊息，開著就等於使用者正在看（要 startVisible:true 才會正常標記
-  // 已讀）；半版/全版 handle 沒有宿主可通知，藏起來。
+  // 2026-07-15（第二十四/二十五輪）：?standalone=1——App 的泡泡（系統
+  // Bubbles 的 BubbleActivity／懸浮泡泡的 BubbleOverlayService）用原生
+  // WebView 把這頁當「頂層頁面」直接載入，不是 iframe。半版/全版
+  // handle 沒有宿主可通知，藏起來。可見度**由原生層驅動**：原生用
+  // evaluateJavascript 對這個 window 自己 postMessage 同一套
+  // visibility 訊息（chat-thread.js 的監聽不分訊息來自宿主 iframe 還是
+  // 自己）——懸浮泡泡的面板現在是服務一啟動就預載（隱形），不能像
+  // 第二十四輪那樣 startVisible:true，不然藏著的面板會偷偷把訊息全
+  // 標成已讀。
   var standalone = /[?&]standalone=1/.test(window.location.search);
   if (standalone) handle.style.display = "none";
-  window.JonaminzChatThread.mount(threadRoot, { token: token, startVisible: standalone });
+  var mountOptions = { token: token, startVisible: false };
+  if (standalone) {
+    // 懸浮泡泡的原生層要畫未讀角標：每次 poll 把未讀數丟給
+    // JavascriptInterface（只有 App 的泡泡 WebView 會注入這個 bridge，
+    // 一般瀏覽器沒有、try 包著靜靜跳過）。
+    mountOptions.onUpdate = function (state) {
+      try {
+        if (window.JonaminzOverlayBridge && window.JonaminzOverlayBridge.onUnread) {
+          window.JonaminzOverlayBridge.onUnread(state.unreadCount || 0);
+        }
+      } catch (error) {}
+    };
+  }
+  window.JonaminzChatThread.mount(threadRoot, mountOptions);
 })();
 </script>
 </body>

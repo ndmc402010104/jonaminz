@@ -20,6 +20,45 @@
 
 ---
 
+## 2026-07-15（凌晨，第二十五次）— 泡泡三連修：菱形圖示、未讀角標、開合飛行定位
+
+- **任務**：真機回饋三件事：(1) 系統泡泡拖去關閉時圖示變菱形（附
+  截圖）；(2) 「原生的泡泡可以有通知，我們的沒有」——懸浮泡泡要未讀
+  角標；(3) 「原生的是跟網頁內一樣會彈到固定位置、關起來回到初始
+  位置」——懸浮泡泡開面板要飛到定位、關閉飛回。另外 ✕ 關閉目標在
+  使用者的 Galaxy Fold 上位置不對。
+- **變更**（原生都在 jonaminz-mobile-app）：
+  - **菱形修正**（`JonaminzMessagingService`）：Bubbles 對非 adaptive
+    圖示套遮罩/拖曳動畫會變形——新增 `adaptiveEmblemIcon()`（米紙底＋
+    launcher 前景合成點陣圖→`IconCompat.createWithAdaptiveBitmap`），
+    BubbleMetadata／conversation shortcut／Person 頭像全部改用它。
+  - **未讀角標**（`BubbleOverlayService`＋`pages/chat-panel/index.html`）：
+    面板 WebView 改成服務啟動就預載（INVISIBLE＋FLAG_NOT_TOUCHABLE，
+    保持排版與輪詢；比照網頁版面板 keep-alive 哲學，點開內容永遠是
+    最新的）；standalone 頁 mount 加 onUpdate，每次 poll 把未讀數經
+    `JavascriptInterface`（JonaminzOverlayBridge.onUnread）餵給原生，
+    泡泡右上畫紅色數字角標（>9 顯示 9+，0 隱藏）。
+  - **開合飛行**：點開面板→記住休息位置、泡泡動畫飛到面板右上角落
+    鎖定（面板開著時拖動被忽略，跟網頁版一致）；關閉→飛回休息位置。
+    吸邊也改成 ValueAnimator 平滑飛行。
+  - **✕ 位置 Fold 修正**：關閉目標改用系統的 BOTTOM|CENTER_HORIZONTAL
+    錨定（原本用 displayMetrics 手算像素在折疊機上會飄），距離判定改
+    `getLocationOnScreen` 真實座標；所有螢幕尺寸計算改
+    `getCurrentWindowMetrics`（API 30+）。
+  - **可見度改由原生驅動**：standalone 頁改回 startVisible:false
+    （預載的隱形面板不能偷偷標已讀——第二十四輪的 startVisible:true
+    在預載架構下是錯的），原生在面板開/關（overlay）與
+    onPageFinished/onResume/onPause（BubbleActivity）時
+    evaluateJavascript 對頁面 postMessage 同一套 visibility 訊息。
+- **驗證**：APK 建置成功、adb 無線安裝 Success。真機驗收待使用者：
+  系統泡泡拖曳不再變形、懸浮泡泡角標會跳數字、開合飛行、✕ 在正中
+  底部。
+- **遺留**：懸浮泡泡面板預載常駐記憶體（一個 WebView），兩人自用可
+  接受；window.open 限制照舊。
+- **版本**：`v0.31.2-202607150149`（`version.js`）。
+
+---
+
 ## 2026-07-15（凌晨，第二十四次）— 懸浮泡泡打磨：拖到 ✕ 關閉、圓形泡泡、圓角面板、standalone 聊天頁
 
 - **任務**：使用者實測懸浮泡泡回報「關不掉而且好粗糙XD」。第一版的
