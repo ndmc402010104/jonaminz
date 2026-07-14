@@ -20,6 +20,43 @@
 
 ---
 
+## 2026-07-14（下午）— 修復 KNOWN_ISSUES #12：identity capability 改名為 kebab-case
+
+- **任務**：Phase 2 roadmap P1——`identity.currentUser@1` 是 camelCase，
+  撞上 contract schema 的 kebab-case capabilityId pattern，外部專案
+  永遠無法在合約裡合法宣告它。使用者拍板選「改名」這條修法，趁零
+  消費者（沒有任何專案真的被授權過）成本最低。
+- **變更**：capability ID 全面改成 `identity.current-user@1`：
+  - `worker.js` 的 `getGrantedIdentity` 檢查字串（唯一功能性用途，
+    其餘是註解）。
+  - `sdk-src/sdk.js` 的 `IDENTITY_CAPABILITY` 常數＋兩處錯誤訊息
+    字串，補一段說明改名理由的註解。
+  - 新 SDK release `407d53fc5d80`（`generate-sdk-release.mjs` 產生），
+    `sdk-versions.json` revision 8，stable/next 皆指過去。
+  - `integration-settings.json` 沒有任何專案宣告過舊值（本來就過不了
+    schema），不需要資料遷移。
+  - `window.Jonaminz.identity.currentUser()` **函式名不變**——S30 的
+    capability ID 命名規則跟 S32 的 API 物件函式命名是兩個獨立維度。
+  - 順手更新「當前狀態」類文件裡的舊名引用（`ARCHITECTURE.md`／
+    `CURRENT_STATE.md`／`CONTEXT_PACK.md`／`EXPERIMENTS.md`／
+    `PROJECT_STATE.md` §5 表格／`FACTS.md` #17）；`CHANGELOG.md`／
+    `SESSION_LOG.md` 裡描述 2026-07-12 當時事件的歷史敘述維持原樣
+    不改（那是準確的當下紀錄），只有 `KNOWN_ISSUES.md` #12 標記已修復。
+- **驗證**：`node --check` 兩份改動檔案語法乾淨；esbuild bundle
+  `worker.js` 確認無 `eval()`/`new Function()`（用 word-boundary regex
+  精確檢查，避免把 `evaluated` 這類識別字誤判成 `eval` 呼叫）；
+  `wrangler deploy` 後 curl `getSdkVersion` 確認回傳新 hash
+  `407d53fc5d80`／revision 8。
+- **狀態變化**：KNOWN_ISSUES #12 從「待裁決」變「已修復」；
+  Phase 2 roadmap P1 完成，可以安全推進到 skhpsv2 接入（仍待使用者
+  另行交辦）而不會撞上這個命名死路。
+- **遺留**：無（這條 bug 已完全解決）。「正向授權」路徑現在 schema
+  層面已可行，但仍沒有真實專案宣告支援這個 capability，等真的有
+  （很可能是 skhpsv2）才會有第一筆真實資料可測。
+- **版本**：v0.23.1-202607141123
+
+---
+
 ## 2026-07-14（中午）— Phase 2 roadmap 定稿（換模型交接用）
 
 - **任務**：使用者要換到別的模型繼續開發，要求先把 roadmap 定好。

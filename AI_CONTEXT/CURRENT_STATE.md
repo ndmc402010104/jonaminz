@@ -36,7 +36,7 @@
 - 舊的 `JONAMINZ_ADMIN_TOKEN` 固定密語機制**已完全淘汰**：Cloudflare
   secret 已刪除，`worker.js` 沒有任何讀取它的邏輯，前端沒有殘留的
   token 輸入框。
-- `identity.currentUser@1` capability（S30-33 規格意義下的正式
+- `identity.current-user@1` capability（S30-33 規格意義下的正式
   service）機制已上線：`window.Jonaminz.identity.currentUser()` 一定存在
   （不論呼叫端有沒有被授權），未授權時 reject `CAPABILITY_NOT_GRANTED`；
   真正的授權判斷由 `pages/identity-relay/` 背後的 `getGrantedIdentity`
@@ -81,7 +81,7 @@
 - SDK 常青 loader（`sdk/jonaminz-entry.js`）＋ SDK Kernel
   （`sdk/sdk-src/sdk.js`）：contract discovery、推送、查 Effective
   Settings、settle `ready`/`degraded`、`tokens` CSS 收編、
-  `identity.currentUser@1` 首個正式 service。
+  `identity.current-user@1` 首個正式 service。
 - **唯一真實登記並跑過完整流程（submit→approve→撤回→再核准）的外部
   專案是 `jonaminz-movies`**（獨立 repo、GitHub Pages 部署）。
 - `/pages/admin/design/`（implementation plan 外、2026-07-13 新增）：
@@ -93,7 +93,7 @@
   `FACTS.md` #34），這是本次唯一的 Worker 改動，向後相容。
 
 **尚未完成**：
-- `window.Jonaminz.*` 除了 `identity.currentUser@1` 以外，**沒有任何
+- `window.Jonaminz.*` 除了 `identity.current-user@1` 以外，**沒有任何
   其他已發布的 service**（`search`／`notification` 等在 F11/S30 名單
   上的名字都還沒有實作，只是保留名稱）。
 - SKHPSv2 尚未透過 Contract 機制正式登記（另一個 repo，使用者已明確

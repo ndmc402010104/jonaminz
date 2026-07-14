@@ -37,15 +37,13 @@
   app/build/outputs/apk/debug/app-debug.apk`）。網頁層改動不需要
   重裝 App（WebView 直連正式站）。
 
-## P1 — 小而擋路，先做（裁決後半天內可完成）
+## P1 — ~~小而擋路，先做~~ 已完成（2026-07-14 下午）
 
-- [ ] **修 KNOWN_ISSUES #12**：`identity.currentUser@1` 是 camelCase，
-  過不了 contract schema 的 kebab-case pattern，外部專案永遠無法
-  合法宣告——趁零消費者改名 `identity.current-user@1` 成本最低。
-  需要使用者先拍板（修法選項寫在 KNOWN_ISSUES #12）。改名要動：
-  `worker.js`＋`sdk-src/sdk.js`（重跑 generate-sdk-release.mjs、
-  改 sdk-versions.json 指標）＋`integration-settings.json`＋
-  wrangler deploy（問過再部署）。
+- [x] **修 KNOWN_ISSUES #12**：改名 `identity.currentUser@1` →
+  `identity.current-user@1`（kebab-case，通過 schema）。`worker.js`／
+  `sdk-src/sdk.js` 已改，新 SDK release `407d53fc5d80`
+  （`sdk-versions.json` revision 8），已 `wrangler deploy` 並驗證。
+  `window.Jonaminz.identity.currentUser()` 函式名不受影響。
 
 ## P2 — Chat 懸浮面板（半版/全版，交接包驗證過的完整 UX）
 

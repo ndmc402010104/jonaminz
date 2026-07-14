@@ -95,7 +95,7 @@ Cloudflare，才能讓 Worker 掛自訂網域、以及讓 Cookie 的 `Domain=.jo
    notification、analytics、ai、calendar、file、profile、sharedCache、health）
 
 **現況**：這 11 個名字已在規格 F11/S30 凍結為永久 ID（只能新增不能改名），
-但除了 `identity`（`identity.currentUser@1`，已實作）以外，**其餘全部
+但除了 `identity`（`identity.current-user@1`，已實作）以外，**其餘全部
 沒有任何實作，也沒有 API 簽名設計**。`docs/platform-integration-consensus.md`
 明文「參數與回傳格式等第一個真實 caller 出現才定」。
 

@@ -78,10 +78,10 @@
   `jonaminz-db` 建立**——要先手動在 Supabase SQL Editor 貼上執行那份
   schema，這三個 action 才會真的有資料表可用（跟這個專案其他 schema 檔
   的建立方式一致，Claude 沒有直接寫入 Postgres 的管道，也不該有）。
-- getGrantedIdentity：implementation plan 第 9 項階段 B（`identity.currentUser@1`
+- getGrantedIdentity：implementation plan 第 9 項階段 B（`identity.current-user@1`
   capability，S30-33）。只給 `pages/identity-relay/` 呼叫，不是給外部
   專案的 SDK 直接打——token 永遠留在 jonaminz.com 自己的瀏覽器裡。用
-  `resolveEffectiveCapabilities` 重新算一次 `identity.currentUser@1`
+  `resolveEffectiveCapabilities` 重新算一次 `identity.current-user@1`
   是否在該 (projectId, environment) 的授權交集裡（S33：不信任何快取），
   沒授權直接回 `granted:false, identity:null`，連 session 查詢都不做，
   避免對未授權的呼叫端洩漏「現在有沒有人登入」這個資訊本身。
@@ -1005,9 +1005,16 @@ async function getCurrentIdentity(env, payload) {
 // implementation plan 第 9 項階段 B：給 pages/identity-relay/ 呼叫，不是
 // 給外部專案直接打（session token 永遠不離開 jonaminz.com 自己的瀏覽器）。
 // S33：不能只信 getEffectiveSettings 回應裡快取的 capabilities 陣列，這裡
-// 用 resolveEffectiveCapabilities 逐請求重算一次「identity.currentUser@1」
+// 用 resolveEffectiveCapabilities 逐請求重算一次「identity.current-user@1」
 // 是不是真的在授權交集裡，granted:false 時完全不查身分、直接回 null，
 // 避免對未授權的呼叫端洩漏「這個人現在有沒有登入」這個資訊本身。
+//
+// 2026-07-14：capability ID 從 identity.currentUser@1 改名成這個
+// kebab-case 版本——原本的 camelCase 撞上 contract schema 的
+// capabilityId pattern（強制 kebab-case），外部專案永遠無法在合約裡
+// 合法宣告它，等於這條授權路徑結構上不可能被使用。函式名
+// window.Jonaminz.identity.currentUser() 不受影響，改的只是這個
+// 識別字串本身。細節見 KNOWN_ISSUES.md #12。
 async function getGrantedIdentity(env, payload) {
   const projectId = String((payload && payload.projectId) || "").trim();
   if (!projectId) {
@@ -1022,7 +1029,7 @@ async function getGrantedIdentity(env, payload) {
   }
 
   const { capabilities } = await resolveEffectiveCapabilities(env, projectId, environment, envSettings);
-  if (capabilities.indexOf("identity.currentUser@1") === -1) {
+  if (capabilities.indexOf("identity.current-user@1") === -1) {
     return { ok: true, granted: false, identity: null };
   }
 

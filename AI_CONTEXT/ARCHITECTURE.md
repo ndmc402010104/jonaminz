@@ -128,7 +128,7 @@ Approved Contract `capabilities.supports` ∩ Integration Settings
 `capabilities` 授權），不再是本文原寫的固定空陣列佔位——本文最後更新
 （2026-07-11）早於階段 B，這裡是 2026-07-13 盤點時修正的第二處過期
 內容，見 `AI_CONTEXT/FACTS.md` #17、#25。目前唯一已發布的真實
-capability 是 `identity.currentUser@1`，且**沒有任何專案被授權使用**
+capability 是 `identity.current-user@1`，且**沒有任何專案被授權使用**
 （`jonaminz-movies` 的 `capabilities` 欄位是空陣列，機制就位、刻意
 不開通）。environment 一律用 Worker 自己的
 `JONAMINZ_ENVIRONMENT`，不從 payload 讀（同 submitContract 的理由）。
@@ -235,12 +235,12 @@ S31/S38，算「approved Contract × Settings 授予」，`css`／`capabilities`
 推送合約、查 Effective Settings、settle `ready` Promise，見上面 §4）、
 tokens CSS 收編（`applyTokens()`，S34-36，見上面 §4）與**第一個正式
 發布的 service**（`window.Jonaminz.identity.currentUser()`，
-`identity.currentUser@1`，implementation plan 第 9 項階段 B，
+`identity.current-user@1`，implementation plan 第 9 項階段 B，
 2026-07-12 上線，見 `FACTS.md` #17-18、`DECISIONS.md` §一第 5、13 條）
 **已實作並部署上線**，不在本節範圍——本節只列真正還沒做的部分，依
 `docs/platform-integration-v1-implementation-plan.md` 的順序：
 
-- **`identity.currentUser@1` 以外的其他 service**：`search`／
+- **`identity.current-user@1` 以外的其他 service**：`search`／
   `notification` 等 F11/S30 保留名稱都還沒有實作或 API 簽名設計，
   等第一個真實 caller 出現才定（見 `EXPERIMENTS.md` #7）。
 - **smoke app** 完整生命週期測試（固定情境清單見
