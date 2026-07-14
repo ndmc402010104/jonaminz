@@ -20,6 +20,63 @@
 
 ---
 
+## 2026-07-14（晚間，第十八次）— App 原生推播（FCM）：程式全部就位，等使用者做 Firebase 設定
+
+- **任務**：使用者裁決「可以做推播了嗎不然整個聊天app根本無法用」——
+  App（Capacitor Android WebView）收推播只有 Firebase Cloud Messaging
+  這條路，開工。同時要求把設定面板的「我的電話號碼」輸入框＋儲存鈕
+  收掉（號碼已直接存資料庫，UI 留著很怪）。
+- **變更**：
+  - **設定面板收掉電話編輯 UI**（`chat-thread.js`）：保留「撥打給對方」
+    按鈕跟提示；`setMyPhoneNumber` Worker action 與 backend-client
+    wrapper 保留（之後要改號碼再把 UI 接回來）。
+  - **Schema**（已用 MCP 套用到 jonaminz-db，`chat_features_v2_schema.sql`
+    同步更新）：`chat_push_subscriptions` 加 `kind` 欄
+    （'webpush'/'fcm'，預設 webpush），`p256dh`/`auth` 改可空——FCM
+    訂閱只有一個 device token（存 endpoint 欄），沒有 Web Push 的加密
+    參數。
+  - **Worker**（已部署，Version `5eda2c5f`）：`savePushSubscription`
+    接受 `subscription.kind==='fcm'`（只要 token）；新增
+    `getFcmAccessToken()`（用 FCM_SERVICE_ACCOUNT_JSON secret 簽 RS256
+    JWT 換 Google access token，module 變數快取到過期前 5 分鐘）、
+    `sendFcmMessage()`（FCM HTTP v1 messages:send，UNREGISTERED 回報
+    失效）；`sendPushToIdentity()` 改雙軌——webpush 走既有 RFC8291
+    加密，fcm 走 Firebase，各自失效清理。**FCM secret 還沒設定時 fcm
+    發送自動跳過**，不影響任何既有功能（部署安全）。
+  - **`chat-launcher.js`**：宿主端偵測到 `window.Capacitor` 時，推播
+    訂閱改走 `Capacitor.Plugins.PushNotifications`（requestPermissions
+    →掛 registration 監聽→register→拿到 FCM token 回給面板存成
+    kind='fcm' 訂閱）；外掛不存在（舊版 App）顯示「要重新安裝新版
+    App」。
+  - **`chat-thread.js`**：訂閱成功後寫 `jonaminz.pushEnabledHint`
+    localStorage 旗標（同源跨 frame 共用），重新載入後推播狀態不會
+    誤顯示「尚未開啟」——App 的 FCM 訂閱沒有瀏覽器 API 可以查。
+  - **jonaminz-mobile-app（姊妹資料夾，非 git repo）**：
+    `npm install @capacitor/push-notifications@8.1.1`＋`npx cap sync
+    android`；AndroidManifest.xml 加 `POST_NOTIFICATIONS` 權限
+    （Android 13+ 必要）。gradle 的 google-services 掛載點本來就在
+    （Capacitor 模板內建，偵測到 google-services.json 就自動啟用）。
+    **APK 還沒重建**——要等使用者放入 google-services.json 才能建。
+- **驗證**：RS256 JWT 簽章用 Node 產臨時 RSA 金鑰驗證過（pemToDer→
+  importKey pkcs8→sign→公鑰驗簽通過，跟 Worker 同一段程式碼路徑）；
+  esbuild bundle check 通過；Playwright 用假 Capacitor 外掛驗證整條
+  訂閱鏈路（面板按鈕→宿主→requestPermissions→register→registration
+  token→面板存 {kind:'fcm', token} 到 Worker→localStorage 旗標寫入→
+  狀態顯示已開啟），也驗證電話輸入框/儲存鈕已收掉、撥打按鈕還在。
+- **狀態變化**：App 原生推播的程式面全部完成；剩使用者的 Firebase
+  設定（建專案→下載 google-services.json→產服務帳戶金鑰）＋重建
+  APK＋真機驗收。
+- **遺留**：
+  1. 等使用者完成 Firebase 三步驟（指引已給），然後：金鑰設進
+     `FCM_SERVICE_ACCOUNT_JSON` Worker secret、gradle 重建 APK、adb
+     無線安裝（流程見 PROJECT_STATE §5.1）、真機按「開啟推播通知」
+     驗收。
+  2. Web Push（Chrome）跟 FCM（App）同一台手機都訂閱的話會收到兩則
+     通知——兩人自用可接受，之後有困擾再處理。
+- **版本**：`v0.28.0-202607142105`（`version.js`）。
+
+---
+
 ## 2026-07-14（晚間，第十七次）— 撥打「還是不行」的真因：對方號碼沒存＋提示看不到；確認使用者在 Capacitor App 裡測試
 
 - **任務**：使用者回報第十六次修完撥打電話還是沒反應（附截圖）。追查

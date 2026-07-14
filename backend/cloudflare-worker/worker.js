@@ -1936,11 +1936,25 @@ async function savePushSubscription(env, payload) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const subscription = payload && payload.subscription;
-  const endpoint = subscription && String(subscription.endpoint || "").trim();
-  const p256dh = subscription && subscription.keys && String(subscription.keys.p256dh || "").trim();
-  const auth = subscription && subscription.keys && String(subscription.keys.auth || "").trim();
-  if (!endpoint || !p256dh || !auth) {
-    return { ok: false, code: "SUBSCRIPTION_REQUIRED", error: "subscription.endpoint/keys.p256dh/keys.auth are required" };
+
+  // 2026-07-14（第十八輪）：兩種訂閱。kind='fcm' 是 Capacitor App 的
+  // Firebase 原生推播，只有一個 device token（存進 endpoint 欄），沒有
+  // Web Push 的 p256dh/auth 加密參數。
+  var row;
+  if (subscription && subscription.kind === "fcm") {
+    const fcmToken = String(subscription.token || "").trim();
+    if (!fcmToken) {
+      return { ok: false, code: "SUBSCRIPTION_REQUIRED", error: "subscription.token is required for kind=fcm" };
+    }
+    row = { identity: identity, endpoint: fcmToken, kind: "fcm", p256dh: null, auth: null, updated_at: new Date().toISOString() };
+  } else {
+    const endpoint = subscription && String(subscription.endpoint || "").trim();
+    const p256dh = subscription && subscription.keys && String(subscription.keys.p256dh || "").trim();
+    const auth = subscription && subscription.keys && String(subscription.keys.auth || "").trim();
+    if (!endpoint || !p256dh || !auth) {
+      return { ok: false, code: "SUBSCRIPTION_REQUIRED", error: "subscription.endpoint/keys.p256dh/keys.auth are required" };
+    }
+    row = { identity: identity, endpoint: endpoint, kind: "webpush", p256dh: p256dh, auth: auth, updated_at: new Date().toISOString() };
   }
 
   const base = env.SUPABASE_URL.replace(/\/+$/, "");
@@ -1948,9 +1962,7 @@ async function savePushSubscription(env, payload) {
   const response = await fetch(url, {
     method: "POST",
     headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
-    body: JSON.stringify({
-      identity: identity, endpoint: endpoint, p256dh: p256dh, auth: auth, updated_at: new Date().toISOString()
-    })
+    body: JSON.stringify(row)
   });
   if (!response.ok) {
     throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
@@ -1976,39 +1988,151 @@ async function removePushSubscription(env, payload) {
   return { ok: true };
 }
 
+// ---------- FCM 原生推播（Capacitor App 用，2026-07-14 第十八輪）。
+// Android WebView 沒有網頁推播 API，App 內收推播要走 Firebase Cloud
+// Messaging。FCM HTTP v1 API 的認證是 Google service account：用服務
+// 帳戶金鑰（FCM_SERVICE_ACCOUNT_JSON secret，含 client_email/
+// private_key/project_id）簽一個 RS256 JWT，跟 Google 換一小時效期的
+// access token，再拿它打 messages:send。access token 用 module 變數
+// 快取（同一個 Worker isolate 存活期間重複使用，過期前 5 分鐘就換新），
+// 不用每則訊息都重新簽章換發。----------
+
+var cachedFcmAccessToken = null;
+var cachedFcmTokenExpiresAt = 0;
+
+function pemToDer(pem) {
+  var body = String(pem)
+    .replace(/-----BEGIN [^-]+-----/, "")
+    .replace(/-----END [^-]+-----/, "")
+    .replace(/\s+/g, "");
+  var bin = atob(body);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function getFcmAccessToken(env) {
+  if (cachedFcmAccessToken && Date.now() < cachedFcmTokenExpiresAt - 5 * 60 * 1000) {
+    return cachedFcmAccessToken;
+  }
+  var serviceAccount = JSON.parse(env.FCM_SERVICE_ACCOUNT_JSON);
+  var nowSeconds = Math.floor(Date.now() / 1000);
+  var header = { alg: "RS256", typ: "JWT" };
+  var claims = {
+    iss: serviceAccount.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: nowSeconds,
+    exp: nowSeconds + 3600
+  };
+  var signingInput =
+    b64urlEncode(new TextEncoder().encode(JSON.stringify(header))) + "." +
+    b64urlEncode(new TextEncoder().encode(JSON.stringify(claims)));
+  var privateKey = await crypto.subtle.importKey(
+    "pkcs8", pemToDer(serviceAccount.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]
+  );
+  var signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5", privateKey, new TextEncoder().encode(signingInput)
+  );
+  var jwt = signingInput + "." + b64urlEncode(signature);
+
+  var tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt
+    })
+  });
+  if (!tokenResponse.ok) {
+    throw new Error("FCM token exchange failed: HTTP " + tokenResponse.status + " " + (await tokenResponse.text()));
+  }
+  var tokenData = await tokenResponse.json();
+  cachedFcmAccessToken = tokenData.access_token;
+  cachedFcmTokenExpiresAt = Date.now() + (Number(tokenData.expires_in) || 3600) * 1000;
+  return cachedFcmAccessToken;
+}
+
+// 回傳 true 代表這個 device token 已失效（App 移除/資料清掉），呼叫端
+// 要把這筆訂閱刪掉。
+async function sendFcmMessage(env, deviceToken, title, bodyText) {
+  var accessToken = await getFcmAccessToken(env);
+  var projectId = JSON.parse(env.FCM_SERVICE_ACCOUNT_JSON).project_id;
+  var response = await fetch(
+    "https://fcm.googleapis.com/v1/projects/" + projectId + "/messages:send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: {
+          token: deviceToken,
+          notification: { title: title, body: bodyText },
+          android: {
+            // 同一個 tag：連續多則訊息在通知欄合併成一則（顯示最新的），
+            // 跟 sw.js 的 Web Push 通知 tag 行為一致。
+            notification: { tag: "jonaminz-chat", sound: "default" }
+          }
+        }
+      })
+    }
+  );
+  if (response.status === 404 || response.status === 400) {
+    var text = await response.text();
+    if (text.indexOf("UNREGISTERED") !== -1 || text.indexOf("INVALID_ARGUMENT") !== -1) {
+      return true; // token 失效，讓呼叫端清掉
+    }
+  }
+  return false;
+}
+
 // 對某個 identity 名下所有裝置送一次推播——這支是「盡力而為」的背景動作，
 // 呼叫端（sendChatMessage／shareCurrentContent）不應該因為推播寄不出去
 // 就讓訊息本身送失敗，所以整支函式自己吞掉所有錯誤，不 throw。
+// 兩種訂閱各走各的：kind='webpush' 走 RFC8291 加密＋VAPID；kind='fcm'
+// 走 Firebase HTTP v1（Capacitor App）。
 async function sendPushToIdentity(env, identity, senderLabel, bodyText) {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY_JWK) return;
   try {
     const base = env.SUPABASE_URL.replace(/\/+$/, "");
-    const url = base + "/rest/v1/chat_push_subscriptions?identity=eq." + identity + "&select=endpoint,p256dh,auth";
+    const url = base + "/rest/v1/chat_push_subscriptions?identity=eq." + identity + "&select=endpoint,kind,p256dh,auth";
     const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
     if (!response.ok) return;
     const subscriptions = await response.json();
 
     await Promise.all(subscriptions.map(async function (sub) {
       try {
-        const jwt = await buildVapidJwt(env, sub.endpoint);
-        const encryptedBody = await encryptWebPushPayload(sub, {
-          title: senderLabel,
-          body: bodyText,
-          tag: "jonaminz-chat"
-        });
-        const pushResponse = await fetch(sub.endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "Content-Encoding": "aes128gcm",
-            TTL: "86400",
-            Authorization: "vapid t=" + jwt + ", k=" + env.VAPID_PUBLIC_KEY
-          },
-          body: encryptedBody
-        });
-        // 404/410：訂閱已經失效（使用者移除通知權限／清了瀏覽器資料），
-        // 清掉這筆過期訂閱，避免之後每次送訊息都白打一次失敗的請求。
-        if (pushResponse.status === 404 || pushResponse.status === 410) {
+        var expired = false;
+
+        if (sub.kind === "fcm") {
+          if (!env.FCM_SERVICE_ACCOUNT_JSON) return;
+          expired = await sendFcmMessage(env, sub.endpoint, senderLabel, bodyText);
+        } else {
+          if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY_JWK) return;
+          const jwt = await buildVapidJwt(env, sub.endpoint);
+          const encryptedBody = await encryptWebPushPayload(sub, {
+            title: senderLabel,
+            body: bodyText,
+            tag: "jonaminz-chat"
+          });
+          const pushResponse = await fetch(sub.endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "Content-Encoding": "aes128gcm",
+              TTL: "86400",
+              Authorization: "vapid t=" + jwt + ", k=" + env.VAPID_PUBLIC_KEY
+            },
+            body: encryptedBody
+          });
+          // 404/410：訂閱已經失效（使用者移除通知權限／清了瀏覽器資料）。
+          expired = pushResponse.status === 404 || pushResponse.status === 410;
+        }
+
+        if (expired) {
+          // 清掉過期訂閱，避免之後每次送訊息都白打一次失敗的請求。
           await fetch(
             base + "/rest/v1/chat_push_subscriptions?identity=eq." + identity + "&endpoint=eq." + encodeURIComponent(sub.endpoint),
             { method: "DELETE", headers: supabaseHeaders(env) }

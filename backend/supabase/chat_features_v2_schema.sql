@@ -27,17 +27,32 @@ alter table chat_room_members
   references chat_messages(id)
   on delete set null;
 
--- 真推播訂閱（Web Push，見 worker.js 的 VAPID 相關邏輯）。同一個 identity
--- 可能有多個裝置/瀏覽器分頁，各自一個 endpoint，primary key 用兩者組合。
+-- 真推播訂閱。同一個 identity 可能有多個裝置/瀏覽器分頁，各自一個
+-- endpoint，primary key 用兩者組合。2026-07-14（第十八輪）起支援兩種：
+-- kind='webpush'（瀏覽器 Web Push，endpoint 是推播服務網址，p256dh/auth
+-- 是 RFC8291 加密參數）跟 kind='fcm'（Capacitor App 的 Firebase 原生
+-- 推播，endpoint 放 FCM device token，沒有 p256dh/auth 所以那兩欄可空）。
 create table if not exists chat_push_subscriptions (
   identity text not null check (identity in ('jonathan', 'minz')),
   endpoint text not null,
-  p256dh text not null,
-  auth text not null,
+  kind text not null default 'webpush' check (kind in ('webpush', 'fcm')),
+  p256dh text,
+  auth text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (identity, endpoint)
 );
+
+-- 既有部署的升級路徑（表已存在時上面的 create 不會動它）：
+alter table chat_push_subscriptions
+  add column if not exists kind text not null default 'webpush';
+alter table chat_push_subscriptions
+  drop constraint if exists chat_push_subscriptions_kind_check;
+alter table chat_push_subscriptions
+  add constraint chat_push_subscriptions_kind_check
+  check (kind in ('webpush', 'fcm'));
+alter table chat_push_subscriptions alter column p256dh drop not null;
+alter table chat_push_subscriptions alter column auth drop not null;
 
 -- 聯絡電話設定：語音/視訊通話「偷吃步」改成直接撥打真實手機號碼
 -- （tel: 連結），使用者不想把號碼寫死在程式碼裡，改存這張表、後台可編輯

@@ -789,11 +789,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<div class="jonaminz-chat-notif-wrap">' +
         '<button type="button" class="jonaminz-chat-head-icon-btn" data-settings-toggle aria-label="設定">⚙️</button>' +
         '<div class="jonaminz-chat-notif-panel jonaminz-chat-settings-panel" data-settings-panel hidden>' +
-        '<div class="jonaminz-chat-settings-row">' +
-        '<label for="jclMyPhone">我的電話號碼</label>' +
-        '<input id="jclMyPhone" type="tel" data-my-phone placeholder="09xx-xxx-xxx">' +
-        '<button type="button" data-save-phone>儲存</button>' +
-        "</div>" +
         '<button type="button" class="jonaminz-chat-settings-call-btn" data-call-btn>📞 撥打給對方</button>' +
         '<p class="jonaminz-chat-settings-note" data-call-status></p>' +
         '<button type="button" class="jonaminz-chat-settings-push-btn" data-push-toggle>開啟推播通知</button>' +
@@ -872,8 +867,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.sharedListPanel = root.querySelector("[data-shared-list-panel]");
       els.settingsToggle = root.querySelector("[data-settings-toggle]");
       els.settingsPanel = root.querySelector("[data-settings-panel]");
-      els.myPhoneInput = root.querySelector("[data-my-phone]");
-      els.savePhoneBtn = root.querySelector("[data-save-phone]");
       els.callBtn = root.querySelector("[data-call-btn]");
       els.callStatus = root.querySelector("[data-call-status]");
       els.pushToggleBtn = root.querySelector("[data-push-toggle]");
@@ -1284,20 +1277,17 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var opening = els.settingsPanel.hidden;
           els.settingsPanel.hidden = !els.settingsPanel.hidden;
           if (opening) {
-            if (els.myPhoneInput) els.myPhoneInput.value = myPhoneNumber;
             refreshPushStatus();
             // 2026-07-14（真機回報修正）：聯絡電話原本只在 mount 時抓一次
             // ——對方在那之後才存號碼的話，這邊永遠是舊的空值，按撥打
             // 就靜靜地沒反應。改成每次打開設定面板都重新抓一次，順便把
             // 「對方還沒設定號碼」的提示顯示在面板裡看得到的位置（原本
             // 寫在面板最底下的狀態列，被鍵盤/邊界擋住根本看不到）。
+            // 電話號碼本身已直接存在資料庫（使用者裁決），編輯 UI 收掉，
+            // 之後要改號碼再把設定功能加回來。
             window.JonaminzBackend.getContactInfo({ token: token })
               .then(function (result) {
-                myPhoneNumber = result.myPhoneNumber || "";
                 peerPhoneNumber = result.peerPhoneNumber || "";
-                if (els.myPhoneInput && document.activeElement !== els.myPhoneInput) {
-                  els.myPhoneInput.value = myPhoneNumber;
-                }
                 if (els.callStatus) {
                   els.callStatus.textContent = peerPhoneNumber ? "" : "對方還沒有設定電話號碼";
                 }
@@ -1309,21 +1299,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (!els.settingsPanel.hidden && !event.target.closest(".jonaminz-chat-notif-wrap")) {
             els.settingsPanel.hidden = true;
           }
-        });
-      }
-
-      if (els.savePhoneBtn) {
-        els.savePhoneBtn.addEventListener("click", function () {
-          var value = (els.myPhoneInput && els.myPhoneInput.value.trim()) || "";
-          window.JonaminzBackend.setMyPhoneNumber({ token: token, phoneNumber: value })
-            .then(function (result) {
-              myPhoneNumber = result.myPhoneNumber || value;
-              els.status.textContent = "電話號碼已儲存";
-              setTimeout(function () { if (els.status.textContent === "電話號碼已儲存") els.status.textContent = ""; }, 2000);
-            })
-            .catch(function (error) {
-              els.status.textContent = "儲存失敗：" + (error.message || String(error));
-            });
         });
       }
 
@@ -1360,6 +1335,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             })
             .then(function () {
               pushSubscribed = true;
+              try { window.localStorage.setItem("jonaminz.pushEnabledHint", "1"); } catch (error) {}
               refreshPushStatus();
             })
             .catch(function (error) {
@@ -1455,21 +1431,29 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (!destroyed) pollTimer = setInterval(poll, POLL_INTERVAL_MS);
     });
 
-    // 聯絡電話（後台可編輯）跟推播訂閱現況——都是「錦上添花」的次要資訊，
-    // 失敗不影響訊息主線，各自獨立 catch。
+    // 聯絡電話跟推播訂閱現況——都是「錦上添花」的次要資訊，失敗不影響
+    // 訊息主線，各自獨立 catch。
     window.JonaminzBackend.getContactInfo({ token: token })
       .then(function (result) {
         myPhoneNumber = result.myPhoneNumber || "";
         peerPhoneNumber = result.peerPhoneNumber || "";
       })
       .catch(function () {});
+    // App（FCM）情境的訂閱狀態沒辦法從瀏覽器 API 查（PushManager 不存在），
+    // 用 localStorage 旗標記住「這台裝置成功開過推播」——localStorage 是
+    // 同源共用，宿主/面板/整頁版都讀寫得到同一份。
     try {
-      if ("serviceWorker" in navigator && "PushManager" in window) {
+      if (window.localStorage.getItem("jonaminz.pushEnabledHint") === "1") {
+        pushSubscribed = true;
+      }
+    } catch (error) {}
+    try {
+      if (!pushSubscribed && "serviceWorker" in navigator && "PushManager" in window) {
         navigator.serviceWorker.getRegistration().then(function (registration) {
           if (!registration) return null;
           return registration.pushManager.getSubscription();
         }).then(function (subscription) {
-          pushSubscribed = Boolean(subscription);
+          if (subscription) pushSubscribed = true;
         }).catch(function () {});
       }
     } catch (error) {}

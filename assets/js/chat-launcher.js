@@ -466,15 +466,53 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       } catch (error) {}
     }
 
+    // 2026-07-14（第十八輪）：Jonaminz App（Capacitor，Android WebView）
+    // 平台層沒有網頁推播 API，App 內收推播走 Firebase 原生推播——用
+    // @capacitor/push-notifications 外掛（App 殼裡裝的，網頁端透過
+    // window.Capacitor.Plugins 呼叫）拿 FCM device token，回給面板存進
+    // Worker（kind='fcm'，Worker 端送 FCM v1）。外掛還沒裝（舊版 App）
+    // 就顯示要更新 App 的提示。
+    function handleCapacitorPushSubscribe() {
+      var PN = window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications;
+      if (!PN) {
+        replyPushSubscribeResult(false, "App 版本太舊還沒有推播功能，要重新安裝新版 App");
+        return;
+      }
+      var registrationListener = null;
+      var errorListener = null;
+      var settled = false;
+      function cleanup() {
+        try { if (registrationListener) registrationListener.remove(); } catch (error) {}
+        try { if (errorListener) errorListener.remove(); } catch (error) {}
+      }
+      function settle(ok, value) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        replyPushSubscribeResult(ok, value);
+      }
+      // registration 事件在 register() 之後非同步觸發，先掛好監聽再註冊。
+      Promise.resolve(PN.addListener("registration", function (tokenData) {
+        settle(true, { kind: "fcm", token: tokenData.value });
+      })).then(function (listener) { registrationListener = listener; });
+      Promise.resolve(PN.addListener("registrationError", function (error) {
+        settle(false, (error && error.error) || "FCM 註冊失敗");
+      })).then(function (listener) { errorListener = listener; });
+
+      PN.requestPermissions()
+        .then(function (result) {
+          if (result.receive !== "granted") throw new Error("使用者未允許通知權限");
+          return PN.register();
+        })
+        .catch(function (error) { settle(false, error); });
+
+      setTimeout(function () { settle(false, "逾時，沒有拿到 FCM token"); }, 15000);
+    }
+
     function handlePushSubscribeRequest(applicationServerKeyArray) {
       var applicationServerKey = new Uint8Array(applicationServerKeyArray || []);
-      // 2026-07-14（真機回報修正）：Jonaminz App（Capacitor，Android
-      // WebView）平台層就沒有網頁推播 API（PushManager 不存在），這不是
-      // bug、修不了——App 要收推播得做原生推播（FCM，排在之後的原生功能
-      // 輪次）。偵測到 App 環境時給一句看得懂的實話，不要跟其他「瀏覽器
-      // 太舊」的情況混用同一句籠統的「不支援」。
       if (window.Capacitor) {
-        replyPushSubscribeResult(false, "App 內目前收不到網頁推播（要等之後的 App 原生推播）；現在想收推播請用 Chrome 開啟 www.jonaminz.com 再開啟一次");
+        handleCapacitorPushSubscribe();
         return;
       }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {

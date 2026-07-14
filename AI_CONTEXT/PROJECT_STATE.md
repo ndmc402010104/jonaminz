@@ -1369,6 +1369,14 @@ repo 裡），使用者指出 Travel 應該跟 `jonaminz-movies` 同一個模式
 - 已於 2026-07-13 早上建置完成，`android/app/build/outputs/apk/debug/
   app-debug.apk` 已經是 build 好可以直接裝的 debug APK，不需要每次都
   重新 `gradlew` 編譯（除非改了 `capacitor.config.json` 或原生層設定）。
+- **2026-07-14（第十八輪）原生層有變動、APK 需要重建**：裝了
+  `@capacitor/push-notifications@8.1.1`（FCM 原生推播）＋`npx cap sync
+  android`＋AndroidManifest.xml 加 `POST_NOTIFICATIONS` 權限。重建前
+  要先把使用者從 Firebase Console 下載的 `google-services.json` 放到
+  `android/app/`（gradle 偵測到檔案就會自動啟用 google-services
+  外掛，Capacitor 模板內建這個判斷）。Worker 端對應的
+  `FCM_SERVICE_ACCOUNT_JSON` secret 也要等使用者產生服務帳戶金鑰後
+  設定。網頁端（jonaminz repo）的對接見 CHANGELOG「第十八次」條目。
 - 本機環境：Android SDK 裝在
   `C:/Users/ndmc4/AppData/Local/Android/Sdk`（`adb.exe` 在其
   `platform-tools/` 下，Git Bash 的 PATH 沒收錄，要打完整路徑或自己
