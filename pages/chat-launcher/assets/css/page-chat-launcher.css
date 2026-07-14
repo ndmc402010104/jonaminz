@@ -69,16 +69,20 @@ button, textarea { font: inherit; }
 }
 
 .jcl-avatar-btn--mini {
+  /* 2026-07-14：原本放頁首右上角，跟頁首自己的姓名/badge文字在窄螢幕
+     上會疊到，且使用者原本習慣「圓圈一直在螢幕右下角」，改放面板
+     右下角、composer 上方留出的空隙（不是蓋在 composer 按鈕上）。
+     z-index 拉高到蓋過訊息串捲動內容，避免被任何東西蓋住。 */
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
+  right: 12px;
+  bottom: 68px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 15px;
   background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
-  box-shadow: 0 4px 12px rgba(38, 34, 32, 0.22);
-  z-index: 5;
+  box-shadow: 0 6px 16px rgba(38, 34, 32, 0.3);
+  z-index: 20;
 }
 
 .jcl-presence {
@@ -163,7 +167,7 @@ button, textarea { font: inherit; }
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-7) var(--space-3) var(--space-4); /* 右邊多留給角落的迷你大頭貼 */
+  padding: var(--space-3) var(--space-4); /* 迷你大頭貼現在改放面板右下角，頁首不用再留右側淨空 */
   border-bottom: 1px solid var(--color-border);
   flex: 0 0 auto;
 }
@@ -230,6 +234,7 @@ button, textarea { font: inherit; }
   min-height: 0;
   overflow-y: auto;
   padding: var(--space-3);
+  padding-bottom: 60px; /* 幫面板右下角的迷你大頭貼留出淨空，最新訊息才不會被蓋住 */
   background: var(--color-bg-lobby);
 }
 .jonaminz-chat-empty {
