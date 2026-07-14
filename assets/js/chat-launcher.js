@@ -137,6 +137,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     // 一直都是「已經在跑」的最新狀態，不會閃一下載入中。
     var lastSize = "half";
     var panelOpen = false;
+    var lastToggleAt = 0;
     var panelFrame = document.createElement("iframe");
     panelFrame.className = PANEL_CLASS + " size-" + lastSize + " jcl-panel-hidden";
     panelFrame.src = PANEL_PATH + "?" + cacheBuster;
@@ -165,12 +166,38 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       });
     }
 
-    function applyAnchor() {
+    function applyOpenAnchor() {
       [launcherFrame, overlay].forEach(function (el) {
         el.style.left = "";
         el.style.top = "";
         el.style.right = ANCHOR_RIGHT + "px";
         el.style.bottom = ANCHOR_BOTTOM + "px";
+      });
+    }
+
+    // 2026-07-14（第十次修正）：預設休息位置改到頁首正下方，不再是
+    // 右下角——使用者回報首頁右下角常駐一個「Jonathan」切換身分的連結，
+    // 大頭貼壓在上面常常按錯。開啟面板時鎖到的位置（`applyOpenAnchor`）
+    // 維持右下角不變，面板本來就固定在那個角落上方展開，兩者拆開沒有
+    // 互相影響。真的算過的高度優先用全站共用的
+    // window.JonaminzLayoutMetrics（assets/js/layout-metrics.js，讀
+    // 真實 header 的 bottom），量不到才退回一個保底的預設值。
+    function computeRestTop() {
+      try {
+        if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.getState === "function") {
+          var header = window.JonaminzLayoutMetrics.getState().header;
+          if (header && header.exists) return Math.max(0, header.bottom + 14);
+        }
+      } catch (error) {}
+      return 84;
+    }
+
+    function applyRestAnchor() {
+      [launcherFrame, overlay].forEach(function (el) {
+        el.style.left = "";
+        el.style.bottom = "";
+        el.style.right = ANCHOR_RIGHT + "px";
+        el.style.top = computeRestTop() + "px";
       });
     }
 
@@ -181,13 +208,23 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     }
 
     function lockToOpenAnchor() {
-      animateTo(applyAnchor);
+      animateTo(applyOpenAnchor);
     }
 
     function restoreRestingPosition() {
       animateTo(function () {
-        if (freeLeft === null) applyAnchor();
+        if (freeLeft === null) applyRestAnchor();
         else applyPosition(freeLeft, freeTop);
+      });
+    }
+
+    // header 高度剛開始量測時可能還不準（webfont/圖片還沒載完），
+    // layout-metrics.js 自己會延遲重算幾次——這裡跟著訂閱，只要目前
+    // 待在「預設休息位置」（沒被拖過、面板沒開著）就跟著更新，不會動到
+    // 使用者自己拖過的位置或面板開著時鎖定的位置。
+    if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.subscribe === "function") {
+      window.JonaminzLayoutMetrics.subscribe(function () {
+        if (freeLeft === null && !panelOpen) applyRestAnchor();
       });
     }
 
@@ -205,7 +242,11 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     }
 
     function setPanelOpen(open) {
+      // 防呆：重複呼叫同一個狀態不做事——使用者連續快速點擊時，任何
+      // 一次重複觸發都不該再疊加一次 postMessage/動畫。
+      if (open === panelOpen) return;
       panelOpen = open;
+      lastToggleAt = Date.now();
       panelFrame.classList.toggle("jcl-panel-hidden", !open);
       // 告訴面板自己現在是不是真的看得到——面板一直在背景 poll，不能把
       // 「poll 到新訊息」當成「使用者看到了」，只有這裡真的說可見才算
@@ -302,6 +343,10 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       if (!panelOpen) return;
       if (!isMobileRwd()) return;
       if (overlay.contains(event.target) || launcherFrame.contains(event.target)) return;
+      // 防呆：剛開面板那一瞬間（300ms 內）不接受「點外面關閉」——避免
+      // 手機上開面板那次點擊殘留的合成 click／連續快速點擊，跟這裡的
+      // 判斷互相干擾，造成開了又立刻被關掉的閃爍。
+      if (Date.now() - lastToggleAt < 300) return;
       setPanelOpen(false);
     }, true);
 
@@ -332,6 +377,11 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
         } catch (error) {}
       }
     });
+
+    // 靜態 CSS 規則裡的 right/bottom 只是還沒量到真實 header 高度前的
+    // 保底位置，這裡立刻套用真正的預設休息位置（見上方 applyRestAnchor
+    // 說明），沒有動畫、直接定位，避免一開始閃一下錯的位置。
+    applyRestAnchor();
   }
 
   if (document.readyState === "loading") {

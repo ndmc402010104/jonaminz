@@ -20,6 +20,43 @@
 
 ---
 
+## 2026-07-14（下午，第十次）— 預設位置移到頁首下方、防連點卡死、未讀角標裁切修正
+
+- **任務**：使用者回報三個問題：(1) 大頭貼預設在右下角，跟首頁本來就有
+  的「Jonathan」切換身分連結重疊，常常按錯；(2) 快速連續點擊大頭貼會
+  卡住打不開；(3) 未讀角標／在線小綠點的右上/右下角被裁掉一塊。
+- **變更**：
+  1. `assets/js/chat-launcher.js` 新增 `computeRestTop()`／
+     `applyRestAnchor()`，把「預設休息位置」（沒被拖過、面板沒開著時）
+     從右下角改成頁首正下方——高度優先讀全站共用的
+     `window.JonaminzLayoutMetrics`（`assets/js/layout-metrics.js`，這是
+     這支水庫腳本第一次真的被消費），量不到才退回保底值。**開啟面板時
+     鎖到的位置（`applyOpenAnchor`）維持右下角不變**——面板本來就固定
+     在那個角落上方展開，兩個位置故意拆開、互不影響。額外訂閱
+     `JonaminzLayoutMetrics` 的更新事件，header 高度量測值變動時（例如
+     webfont 載入完成後）自動修正位置。這項只改
+     `chat-launcher.js`（jonaminz 自己的頁面），`sdk-src/sdk.js`（外部
+     專案）維持原本右下角，因為外部專案沒有這個「跟自己 footer 連結
+     重疊」的問題，也沒有 jonaminz 的 layout-metrics 可讀。
+  2. `setPanelOpen()` 加防呆：重複呼叫同一個開關狀態直接不做事；點外
+     關閉的邏輯加 300ms debounce（剛切換狀態的瞬間不接受）——兩個都是
+     針對「使用者連續快速點擊」可能造成狀態互相干擾的防呆，
+     `chat-launcher.js`／`sdk-src/sdk.js` 都加了。
+  3. `pages/chat-launcher/assets/css/page-chat-launcher.css` 修正
+     `.jcl-badge`／`.jcl-presence` 的定位——原本貼著 64x64 方形文件的
+     角落（`top:2/right:2`、`right:4/bottom:5`），但外層 `<iframe>` 被
+     宿主端裁成正圓（半徑 32px），算過對角距離都超過 32px，所以角標/
+     小綠點的外側一角一直被圓形裁切掉。改成 `top:12/right:12`、
+     `right:12/bottom:12`，對角距離降到約 28px，留了將近 4px 緩衝。
+  重新生成 SDK release（`sdk-980583ce0c6e.js`），`sdk-versions.json`
+  升到 revision 16。
+- **驗證**：Playwright 驗證預設休息位置在頁首下方且不再跟原本右下角的
+  連結重疊；開面板吸到右下角、關閉還原回頁首下方；連續快速點擊 6 次
+  後狀態正確（偶數次回到關閉），且之後仍能正常開啟（沒有卡死）。
+- **狀態變化**：無新的未完成項。
+- **遺留**：無。
+- **版本**：v0.25.2-202607141540
+
 ## 2026-07-14（下午，第九次）— 長按框框、邊緣手勢返回、已讀語意、點外關面板
 
 - **任務**：使用者實機試用後回報四個問題：(1) 長按大頭貼會冒出瀏覽器

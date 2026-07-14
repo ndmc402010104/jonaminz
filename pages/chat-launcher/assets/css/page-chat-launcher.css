@@ -42,12 +42,19 @@ button { font: inherit; cursor: pointer; }
 }
 .jcl-avatar-btn.is-visible { display: flex; }
 
+/* 2026-07-14：大頭貼的外層 <iframe> 是宿主端用 border-radius:50% 裁出來
+   的正圓（見 assets/js/chat-launcher.js），這個 64x64 的文件本身還是
+   方形——原本 right:4/bottom:5、top:2/right:2 這種貼著方形角落的位置，
+   換算成到圓心的距離都超過圓的半徑（32px），所以未讀角標／在線小綠點
+   會被外層的圓形裁切掉一角。改成 12px 的內縮，讓badge/dot整體都落在
+   inscribed circle 裡面（算過：對角距離約 28px < 32px 半徑，留了
+   將近 4px 緩衝）。 */
 .jcl-presence {
   position: absolute;
   width: 13px;
   height: 13px;
-  right: 4px;
-  bottom: 5px;
+  right: 12px;
+  bottom: 12px;
   border-radius: 50%;
   background: #35c66b;
   border: 2px solid var(--color-primary);
@@ -58,8 +65,8 @@ button { font: inherit; cursor: pointer; }
 
 .jcl-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 12px;
+  right: 12px;
   min-width: 20px;
   height: 20px;
   padding: 0 5px;
