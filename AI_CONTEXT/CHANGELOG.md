@@ -20,6 +20,32 @@
 
 ---
 
+## 2026-07-15（凌晨，第二十六次）— 懸浮泡泡 Messenger 化：收訊自動彈泡、全畫面長出動畫、點外收回
+
+- **任務**：真機回饋三項（全部原生，無 jonaminz repo 程式變更）：
+  (1) 收到通知應該自動彈出泡泡；(2) 面板應該展開成全畫面、看起來從
+  泡泡長出來；(3) 按對話框外面應該收回。
+- **變更**（jonaminz-mobile-app）：
+  - **收訊自動彈泡**：`JonaminzMessagingService.onMessageReceived` 在
+    App 非前景＋有覆蓋權限＋使用者曾開過懸浮泡泡（SharedPreferences
+    `overlayAutoPopup`，在外掛 openOverlayBubble 成功時寫入）時自動
+    startForegroundService——高優先權 FCM 的背景啟動豁免窗允許這件事。
+  - **準全螢幕＋長出動畫**：面板寬度吃滿、高度留頂部 84dp 泡泡列
+    （Messenger heads 列概念，也是「點外收回」的可點區域）；展開用
+    scale 0.12→1＋alpha 動畫、pivot 設右上角（泡泡位置）——視覺上從
+    泡泡長出來；收合反向縮回。
+  - **點外收回**：面板窗加 FLAG_WATCH_OUTSIDE_TOUCH，ACTION_OUTSIDE
+    →收合；「點外收回」與「點泡泡 toggle」可能同時觸發，togglePanel
+    加 350ms 防抖（跟網頁版 lastToggleAt 同一招）。
+- **驗證**：建置成功、adb 安裝 Success。真機驗收待使用者。
+- **附帶討論（使用者問「手刻這些千錘百鍊的東西有勝算嗎」）**：結論
+  記錄於對話——手感層面不追 Messenger；自有資料主權＋客製功能（Shared
+  模組、tel 直撥、雙人專屬）才是這個專案的價值所在；系統泡泡那條路
+  本身就是借用平台千錘百鍊的成果，懸浮泡泡定位為全控備援。
+- **版本**：無 jonaminz repo 程式變更（未 bump）。
+
+---
+
 ## 2026-07-15（凌晨，第二十五次）— 泡泡三連修：菱形圖示、未讀角標、開合飛行定位
 
 - **任務**：真機回饋三件事：(1) 系統泡泡拖去關閉時圖示變菱形（附
