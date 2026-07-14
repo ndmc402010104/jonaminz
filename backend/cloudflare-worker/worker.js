@@ -1343,6 +1343,12 @@ async function sendChatMessage(env, payload) {
   }
 
   const rows = await response.json();
+  // 訊息送出＝這個人不在「輸入中」了——立刻清掉 typing 列，不要等 4 秒
+  // 過期，避免對方畫面上訊息都到了「•••」還在跳。最佳努力，失敗無所謂。
+  await fetch(
+    base + "/rest/v1/chat_typing_state?room_id=eq." + roomId + "&identity=eq." + identity,
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  ).catch(function () {});
   // 真推播：對方如果有訂閱，送一則系統通知。最佳努力（best-effort）——
   // 失敗（沒訂閱／推播服務暫時性錯誤）不能讓「訊息有沒有送出」這個核心
   // 功能跟著壞掉，整段包在 sendPushToIdentity 自己的 try/catch 裡。

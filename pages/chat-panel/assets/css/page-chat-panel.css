@@ -469,6 +469,30 @@ button, textarea { font: inherit; }
   cursor: default;
 }
 
+/* 對方「輸入中」的 ••• 跳動泡泡（2026-07-15）。 */
+.jonaminz-chat-typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 18px;
+}
+.jonaminz-chat-typing-bubble span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  animation: jcl-typing-bounce 1.2s infinite ease-in-out;
+}
+.jonaminz-chat-typing-bubble span:nth-child(2) { animation-delay: 0.15s; }
+.jonaminz-chat-typing-bubble span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes jcl-typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jonaminz-chat-typing-bubble span { animation: none; opacity: 0.7; }
+}
+
 /* 搜尋結果跳轉後的短暫強調（scrollToMessage 加上、1.8 秒後移除）。 */
 .jonaminz-chat-search-result { cursor: pointer; }
 .jonaminz-chat-search-result:hover { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }

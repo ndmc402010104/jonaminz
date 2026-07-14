@@ -498,6 +498,18 @@ title/url（見 `requestHostContext()`，宿主端實作在
           (loadingOlder ? "載入中..." : "載入更早的訊息") + "</button>"
         : "";
 
+      // 2026-07-15：輸入中原本只換頭部那行小字（「正在輸入...」取代
+      // 「最後訊息 HH:MM」），真機上太隱晦、使用者根本沒發現這個功能
+      // 存在——補上聊天 App 慣見的「•••」跳動泡泡，畫在訊息串最底部，
+      // 跟對方訊息同一種泡泡樣式。頭部小字保留（兩個位置一起顯示）。
+      if (data.typing && data.typing[otherIdentity()]) {
+        html +=
+          '<div class="jonaminz-chat-message" data-mine="false">' +
+          '<div class="jonaminz-chat-message-avatar">' + escapeHtml(initialOf(otherIdentity())) + "</div>" +
+          '<div class="jonaminz-chat-bubble jonaminz-chat-typing-bubble" aria-label="對方正在輸入">' +
+          "<span></span><span></span><span></span></div></div>";
+      }
+
       var wasNearBottom = els.thread.scrollHeight - els.thread.scrollTop - els.thread.clientHeight < 80;
       els.thread.innerHTML = loadMoreHtml + html;
       if (wasNearBottom || !lastMessageId) els.thread.scrollTop = els.thread.scrollHeight;
@@ -627,6 +639,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
           sending = false;
           els.action.disabled = false;
           els.input.focus();
+          // 送出後重置輸入中節流計時——下一段輸入的第一個字就立刻回報，
+          // 不用等上一輪心跳的 2.5 秒冷卻。
+          lastTypingSentAt = 0;
         });
     }
 
