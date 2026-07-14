@@ -112,12 +112,33 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
     var identity = null;
     var lastMessageId = null;
+    var lastReadMarkedId = null;
+    // 面板一開始就建立、背景持續 poll（第七次修正），「掛著」不等於
+    // 「使用者看得到」——只有整頁版 /pages/chat/（沒有宿主可以告知
+    // 可見度，本來就等於使用者正在看）預設可見；面板情境預設不可見，
+    // 等宿主真的把面板打開才會收到 visibility 訊息改成 true（見下方
+    // message 監聽跟 pages/chat-panel/ 的 mount 呼叫）。
+    var isVisible = options.startVisible !== false;
     var pollTimer = null;
     var sending = false;
     var destroyed = false;
     var sharedItems = {};
     var activeSharedItemId = null;
     var els = {};
+
+    function maybeMarkRead() {
+      if (!isVisible) return;
+      if (!lastMessageId || lastMessageId === lastReadMarkedId) return;
+      lastReadMarkedId = lastMessageId;
+      window.JonaminzBackend.markChatRead({ token: token, messageId: lastMessageId }).catch(function () {});
+    }
+
+    window.addEventListener("message", function (event) {
+      var data = event.data;
+      if (!data || data.source !== "jonaminz-chat-panel-host" || data.action !== "visibility") return;
+      isVisible = Boolean(data.visible);
+      if (isVisible) maybeMarkRead();
+    });
 
     function otherIdentity() {
       return identity === "jonathan" ? "minz" : "jonathan";
@@ -274,10 +295,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
       var newestId = messages[messages.length - 1].id;
       if (newestId !== lastMessageId) {
         lastMessageId = newestId;
-        // 有新訊息就標記已讀（面板/頁面開著就代表看到了，這是 MVP 的簡化版
-        // 已讀語意，不做「真的捲到那一則才算已讀」的精準判定）。
-        window.JonaminzBackend.markChatRead({ token: token, messageId: newestId }).catch(function () {});
       }
+      // 2026-07-14：面板 iframe 現在跟大頭貼同時建立、background 一直在
+      // poll（見第七次修正），所以「render() 被呼叫過」不再等於「使用者
+      // 真的有看到」——面板收合在背景時一樣會 poll/render，不能在這時候
+      // 就標記已讀。已讀只在 isVisible 為真（面板真的展開，或整頁版一律
+      // 視為可見）時才觸發，見 maybeMarkRead()／mount() 的 visibility
+      // 訊息處理。
+      maybeMarkRead();
     }
 
     function poll() {

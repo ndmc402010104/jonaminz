@@ -85,7 +85,12 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
 
   postSize(); // 一建立就通知宿主目前該用哪個尺寸（上次記住的偏好）
 
-  window.JonaminzChatThread.mount(threadRoot, { token: token });
+  // startVisible:false——面板一建立就在背景 poll（見
+  // assets/js/chat-launcher.js 第七次修正），但這個 iframe 本身一開始
+  // 是隱藏的，不能讓「poll 到新訊息」就自動標記已讀。等宿主真的把面板
+  // 打開時會 postMessage visibility:true 過來，chat-thread.js 內部收到
+  // 才會真的標記已讀。
+  window.JonaminzChatThread.mount(threadRoot, { token: token, startVisible: false });
 })();
 </script>
 </body>

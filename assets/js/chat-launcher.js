@@ -81,7 +81,19 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
   var LAUNCHER_CLASS = "jonaminz-chat-launcher-frame";
   var OVERLAY_CLASS = "jonaminz-chat-launcher-overlay";
   var PANEL_CLASS = "jonaminz-chat-panel-frame";
-  var ANCHOR_RIGHT = 14;
+  // 2026-07-14（第九次修正）：使用者實機回報兩個問題：(1) 長按大頭貼
+  // 會冒出瀏覽器預設的長按框框/選取提示（FB 那種原生 View 完全不會有
+  // 這個問題，因為它根本不經過瀏覽器的觸控事件模型）——加上
+  // -webkit-touch-callout/-webkit-user-select/-webkit-user-drag 全部
+  // 設為 none 關掉。(2) 大頭貼吸邊之後，從休息位置要再次拖動時很容易
+  // 誤觸 Android 系統手勢返回（螢幕最邊緣那條窄帶是系統保留給「滑邊緣
+  // 返回」的手勢區，觸控從那裡開始很容易被系統攔截，不會進到我們的
+  // pointerdown）——原生 App（FB）可以呼叫
+  // `View.setSystemGestureExclusionRects()` 完全排除這個問題，但純
+  // 網頁沒有對應的 API 可以用，只能讓大頭貼的休息位置離螢幕真正邊緣
+  // 遠一點，降低觸控落在系統手勢區內的機率（不是 100% 保證，是網頁
+  // 天生的限制，跟原生 App 沒辦法比）。ANCHOR_RIGHT 從 14 加大到 28。
+  var ANCHOR_RIGHT = 28;
   var ANCHOR_BOTTOM = 14;
   var DRAG_THRESHOLD = 8;
 
@@ -100,7 +112,8 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       "box-shadow:0 8px 24px rgba(38,34,32,0.28);pointer-events:none;}" +
       "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;bottom:" + ANCHOR_BOTTOM + "px;" +
       "width:64px;height:64px;border-radius:50%;z-index:10000;background:transparent;" +
-      "touch-action:none;cursor:pointer;}" +
+      "touch-action:none;cursor:pointer;" +
+      "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;}" +
       "." + PANEL_CLASS + "{position:fixed;right:14px;bottom:92px;border:0;border-radius:20px;" +
       "z-index:9998;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +
       "transition:width .22s ease,height .22s ease;}" +
@@ -194,6 +207,16 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     function setPanelOpen(open) {
       panelOpen = open;
       panelFrame.classList.toggle("jcl-panel-hidden", !open);
+      // 告訴面板自己現在是不是真的看得到——面板一直在背景 poll，不能把
+      // 「poll 到新訊息」當成「使用者看到了」，只有這裡真的說可見才算
+      // （見 chat-thread.js 的 maybeMarkRead()）。
+      try {
+        panelFrame.contentWindow.postMessage({
+          source: "jonaminz-chat-panel-host",
+          action: "visibility",
+          visible: open
+        }, window.location.origin);
+      } catch (error) {}
       if (open) lockToOpenAnchor();
       else restoreRestingPosition();
     }
@@ -256,6 +279,31 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 
     overlay.addEventListener("pointerup", endDrag);
     overlay.addEventListener("pointercancel", endDrag);
+
+    // 手機版點對話框外面的區塊要關掉泡泡，電腦版不要（桌機通常同時看
+    // 著頁面內容跟聊天，點別的地方不代表想關掉）。手機/電腦的判斷直接
+    // 讀全站共用的 assets/js/layout-metrics.js（window.JonaminzLayoutMetrics
+    // 的 rwdGroup：small=手機/平板、large=桌機/寬版），不要另外發明一套
+    // 判斷邏輯。外部專案（SDK 路徑）沒有這支水庫腳本可讀，退回同一組
+    // 斷點門檻（960px，跟 layout-metrics.js 的 small/large 分界一致）。
+    function isMobileRwd() {
+      try {
+        if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.getState === "function") {
+          return window.JonaminzLayoutMetrics.getState().rwdGroup === "small";
+        }
+      } catch (error) {}
+      return window.innerWidth <= 960;
+    }
+
+    // click 事件天生就不會跨 iframe 邊界冒泡到宿主的 document，所以這裡
+    // 收到的一定是「宿主頁面自己內容」被點了（面板/大頭貼 iframe 內部的
+    // 點擊不會流到這裡）——不需要額外判斷是不是點在面板範圍內。
+    document.addEventListener("click", function (event) {
+      if (!panelOpen) return;
+      if (!isMobileRwd()) return;
+      if (overlay.contains(event.target) || launcherFrame.contains(event.target)) return;
+      setPanelOpen(false);
+    }, true);
 
     window.addEventListener("message", function (event) {
       if (event.origin !== window.location.origin) return;

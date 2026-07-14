@@ -1142,7 +1142,7 @@ System App：
   `sdk-src/sdk.js` 同時管理兩個 iframe＋第七輪新增的拖動覆蓋層，大頭貼
   位置預設固定、不受面板是否展開或多高影響。外部專案（travel，透過
   SDK 的 `chat.launcher@1`）自動獲得同樣的體驗。SDK 最終 release
-  `3640a2434ee3`。
+  `3dd3f92b5f45`。
   - **第七輪（同日）新增行為**：(1) 大頭貼可以自由拖動；(2) 面板一開始
     就建立、背景持續 poll，開關只是顯示/隱藏，使用者點開時內容已經是
     最新的，不會有「載入中」的空檔。
@@ -1153,6 +1153,18 @@ System App：
     （`freeLeft`/`freeTop`，`null` 代表從沒拖過＝維持在預設錨點），不是
     每次都回預設右下角。這個休息位置不持久化到 localStorage，重新整理
     頁面回到預設右下角。
+  - **第九輪（同日）**：(1) 拖動覆蓋層加
+    `-webkit-touch-callout`/`-webkit-user-select`/`-webkit-user-drag`
+    全部 `none`，關掉瀏覽器長按預設提示；(2) 休息位置的邊距
+    `ANCHOR_RIGHT` 從 14 加大到 28，降低觸控落在 Android 系統手勢返回
+    保留區的機率（網頁沒有原生 App 的 `setSystemGestureExclusionRects()`
+    可用，只能降低機率不是根治）；(3) 已讀語意修正——面板背景 poll
+    不再自動標記已讀，只有宿主 `setPanelOpen()` 真的把面板打開、
+    postMessage `visibility:true` 給面板，`chat-thread.js` 的
+    `maybeMarkRead()` 才會真的呼叫 `markChatRead`；(4) 手機版點對話框外
+    的區域會關閉泡泡，電腦版不會——讀 `window.JonaminzLayoutMetrics`
+    的 `rwdGroup`（`assets/js/layout-metrics.js`，這是這支水庫腳本第一
+    次真的被消費）判斷手機/電腦，外部專案退回 960px 斷點門檻。
   - **教訓（值得記住，別重蹈覆轍）**：一開始把大頭貼跟面板塞進「同一個
     iframe、靠內部視圖切換」，即使裁形狀本身的技巧是對的，也因為
     「一個 iframe 只能裁一種形狀」逼得展開時要把大頭貼縮成面板內部的

@@ -20,6 +20,49 @@
 
 ---
 
+## 2026-07-14（下午，第九次）— 長按框框、邊緣手勢返回、已讀語意、點外關面板
+
+- **任務**：使用者實機試用後回報四個問題：(1) 長按大頭貼會冒出瀏覽器
+  預設的長按框框（原生 App 不會）；(2) 大頭貼吸邊後從休息位置再次拖動
+  很容易誤觸 Android 系統手勢返回（原生泡泡完全不用擔心）；(3) 面板只
+  是「開著」（背景 poll）就被標記已讀，應該要「真的點開泡泡」才算已讀；
+  (4) 手機版點對話框外面的區域應該關閉泡泡，電腦版不要。
+- **變更**：
+  1. 拖動覆蓋層（`assets/js/chat-launcher.js`／`sdk-src/sdk.js` 的
+     `OVERLAY_CLASS`）加上 `-webkit-touch-callout:none`／
+     `-webkit-user-select:none`／`user-select:none`／
+     `-webkit-user-drag:none`，關掉瀏覽器預設的長按提示/選取/拖曳
+     affordance。
+  2. `ANCHOR_RIGHT`（休息位置離螢幕邊緣的距離）從 14 加大到 28，降低
+     觸控落在 Android 系統手勢返回保留區內的機率——網頁沒有像原生 App
+     `setSystemGestureExclusionRects()` 那種能完全排除手勢區的 API，這
+     是網頁天生的限制，加大邊距只能降低機率、不是根治。
+  3. `assets/js/chat-thread.js` 新增 `isVisible`/`maybeMarkRead()`：面板
+     iframe 一開始就建立、背景持續 poll（第七次修正），「render() 被
+     呼叫過」不再等於「使用者看到了」。`pages/chat-panel/` 的 mount 呼叫
+     多帶 `startVisible:false`，宿主 `setPanelOpen()` 開關面板時
+     postMessage `visibility` 訊息告知面板真實可見狀態，只有真的可見時
+     才呼叫 `markChatRead`。整頁版 `/pages/chat/` 沒有宿主可以告知可見
+     度，維持原本「開著就是可見」的語意不變。
+  4. 新增「手機版點對話框外的區域關閉泡泡，電腦版不要」——判斷邏輯直接
+     讀全站共用的 `assets/js/layout-metrics.js`
+     （`window.JonaminzLayoutMetrics.getState().rwdGroup`：`small`=手機/
+     平板、`large`=桌機/寬版），沒有另外發明一套斷點。外部專案（SDK
+     路徑）沒有這支水庫腳本可讀，退回同一組 960px 斷點門檻。`click`
+     事件天生不會跨 iframe 邊界冒泡到宿主的 `document`，所以宿主收到的
+     一定是「頁面自己內容」被點了，不需要額外判斷有沒有點在面板範圍內。
+  重新生成 SDK release（`sdk-3dd3f92b5f45.js`），`sdk-versions.json`
+  升到 revision 15。
+- **驗證**：Playwright 驗證面板隱藏時 poll 不觸發 `markChatRead`、開面板
+  後才觸發；手機寬度點面板外會關閉、電腦寬度點面板外不會關閉。
+- **狀態變化**：無新的未完成項，這是既有功能之上的行為修正。
+- **遺留**：長按框框/系統手勢返回的修法都是「降低機率」而不是
+  「100% 保證」，這是網頁 vs 原生 App 的天生限制——如果之後真的要做到
+  跟原生泡泡一樣安心，需要走 Capacitor 原生外殼（`jonaminz-mobile-app`）
+  加自訂 plugin 呼叫 Android 的 `setSystemGestureExclusionRects()`，
+  是完全不同量級的工程，這次沒有做。
+- **版本**：v0.25.1-202607141525
+
 ## 2026-07-14（下午）— Chat Shared 分享內容模組 Phase 1（唯一垂直流程）
 
 - **任務**：使用者交付正式任務書，要求完成 Chat 裡的 Shared（分享內容）
