@@ -1,6 +1,6 @@
 /*
 檔案位置：jonaminz/version.js
-時間戳：2026-07-14 19:20 UTC+8
+時間戳：2026-07-14 20:04 UTC+8
 用途：jonaminz 業務版本宣告。
 獨立於 SKHPS，這不是 SKHPS_APP_VERSION。這個檔案的 version 字串本身
 2026-07-12 起也兼任全站資源的 cache-buster（見 assets/js/entry-core.js
@@ -12,12 +12,12 @@
 
   window.JONAMINZ_APP_VERSION = {
     appId: "jonaminz",
-    version: "v0.27.0-202607141920",
+    version: "v0.27.1-202607142004",
     major: 0,
     minor: 27,
-    patch: 0,
-    buildTime: "202607141920",
-    updatedAt: "2026-07-14T19:20:00+08:00",
+    patch: 1,
+    buildTime: "202607142004",
+    updatedAt: "2026-07-14T20:04:00+08:00",
     source: "version.js"
   };
 })();

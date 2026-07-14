@@ -1273,6 +1273,26 @@ System App：
   flex row，回覆引用/泡泡/反應如果不包一層 `.jonaminz-chat-bubble-col`
   （flex column）會被當成並排的 row item 疊在一起。細節見 CHANGELOG
   同日「第十五次」條目。
+- **第十六輪（同日晚間）——真機回報修正**：使用者實測回報撥打電話／
+  開啟推播通知都失敗（沒跳出權限請求）、輸入框跳出鍵盤時聊天串捲動
+  跑掉。修正：(1) `tel:` 撥號跟推播訂閱的 `Notification`/`ServiceWorker`
+  /`PushManager` 呼叫改成面板 iframe 用 postMessage 交給宿主頁面
+  （`chat-launcher.js`／`sdk-src/sdk.js`）代為執行——面板本身是
+  iframe，部分瀏覽器只信任最上層瀏覽環境觸發這類 API；外部 SDK 站台
+  刻意不接推播 relay（`/sw.js` 只存在 jonaminz.com，外部網域打不到會
+  404）。(2) 修正 `register()` 回傳值不保證已 active 就直接
+  subscribe 的 race condition，改用 `navigator.serviceWorker.ready`。
+  (3) 輸入框 focus／`visualViewport.resize` 時重新捲到底部。
+  **真正的根因，比預期嚴重**：驗證過程中發現 `sw.js` 從第一次部署
+  起就有語法錯誤——檔頭區塊註解裡用了「pages/chat*/ 底下」這種專案
+  常見的萬用字元縮寫，但`*/`兩字元連在一起提前關閉了`/* */`區塊
+  註解，導致整支檔案語法錯誤、**Service Worker 從來沒有真的註冊
+  成功過**，這才是推播失敗的真正原因（不是 iframe 限制也不是瀏覽器
+  不支援）。已修正並對全庫 `.js` 檔案跑過 `node --check` 確認沒有
+  同類問題。撥打電話／真推播的「使用者實際感受」仍待真機確認，這輪
+  Playwright 只能驗證到 postMessage relay 正確、SW 能成功註冊+
+  進入 active 狀態、subscribe() 呼叫鏈路正確（卡在測試環境連不到真的
+  推播服務，不是程式問題）。細節見 CHANGELOG 同日「第十六次」條目。
 - 沒做：貼圖面板、圖片實際上傳/儲存（下一輪接 OneDrive）、檔案附件、
   Shared 獨立瀏覽列表的完整版（目前只有樣板）、送往其他 App 的
   destinations registry、後台首頁摘要、Android 原生系統層級聊天泡泡

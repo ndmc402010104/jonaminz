@@ -20,6 +20,82 @@
 
 ---
 
+## 2026-07-14（晚間，第十六次）— 真機回報三個 bug：撥打電話/推播都失敗、鍵盤跳出捲動跑掉；抓到 sw.js 語法錯誤真因
+
+- **任務**：使用者在真機上實測第十五次做的功能，回報三個問題（附截圖）：
+  「撥打電話」「開啟推播通知」都失敗、推播沒有跳出權限請求；另外輸入框
+  跳出鍵盤時聊天串捲動位置沒有跟著到最下面。
+- **變更**：
+  - **`tel:` 撥號改由宿主頁面代為觸發**（`assets/js/chat-thread.js`／
+    `chat-launcher.js`／`sdk-src/sdk.js`）：面板本身是 iframe，部分瀏覽器
+    （尤其 WebKit/iOS）只信任「使用者網址列所在的最上層瀏覽環境」觸發
+    `tel:`/`mailto:` 這類自訂協定導頁，面板改成 postMessage
+    `requestCall` 給宿主，宿主（本身就是最上層頁面）代為執行
+    `window.location.href = "tel:..."`；整頁版 `/pages/chat/` 本身就是
+    最上層，維持原樣直接執行。用 Playwright 驗證宿主端確實收到帶正確
+    電話號碼的訊息（真的撥出電話這件事本身沒辦法在自動化測試環境驗證，
+    要真機確認）。
+  - **推播訂閱同一個問題，同一種修法**：`Notification.requestPermission()`
+    ／`serviceWorker.register()`／`pushManager.subscribe()` 這幾支 API
+    這輪也改成面板 postMessage `requestPushSubscribe` 給宿主代為執行、
+    回傳結果（`pushSubscribeResult`）。**外部 SDK 站台刻意不接這個
+    relay**——`sw.js` 只存在 jonaminz.com，外部站台自己的網域打不到，
+    在外部宿主 register 一定 404，這個限制記在 `sdk.js` 註解裡，外部
+    站台的推播訂閱維持原本在面板 iframe 內部直接嘗試（有沒有用要看
+    各家瀏覽器對同源 iframe 的支援程度，這次沒有進一步處理)。
+  - **順手修正一個真正的 race condition**：`register()` 回傳的
+    registration 不保證已經 `active`（第一次註冊通常還在
+    installing），直接拿去 `pushManager.subscribe()` 容易撞到
+    「no active Service Worker」，改成先 `await
+    navigator.serviceWorker.ready` 再訂閱。這是 Playwright 逐步驗證這輪
+    改動時，從錯誤訊息文字直接抓到的，不是憑空猜的。
+  - **新增 iOS 裝置偵測**：iOS Safari（沒有加入主畫面的一般瀏覽模式）
+    根本沒有 `window.PushManager`（Apple 平台限制，加入主畫面且 iOS
+    16.4+ 才支援），這是跟前面兩個「iframe/宿主」問題完全不同類的
+    限制，程式碼修不了。加了明確判斷，偵測到這個情境會顯示「iPhone
+    請先『分享→加入主畫面』」而不是含糊的「不支援」。
+  - **輸入框跳出鍵盤時捲動到最下面**（`chat-thread.js`）：手機鍵盤跳出來
+    會縮小「視覺視窗」高度，訊息串原本停留在鍵盤跳出前的捲動位置，看
+    起來像是被鍵盤蓋住/捲動跑掉。加 `els.input` 的 `focus` 事件（延遲
+    60ms/320ms 兩次，因為鍵盤彈出是非同步的）跟
+    `window.visualViewport` 的 `resize` 事件，觸發時都重新把
+    `els.thread.scrollTop` 設回 `scrollHeight`。
+  - ***真正找到的根因（比預期嚴重）***：在幫這三個修正寫 Playwright
+    驗證的過程中，實際去註冊 `/sw.js` 才發現**這支檔案本身就有語法
+    錯誤，從第一次部署以來從來沒有真的成功註冊過**——檔頭註解裡用了
+    「pages/chat*/ 底下」這種在這個專案很常見的萬用字元縮寫（意思是
+    「chat／chat-launcher／chat-panel 這幾個資料夾底下」），但這行是
+    寫在 `/* ... */` 區塊註解**裡面**，而`*/`兩個字元連在一起剛好就是
+    區塊註解的結束符號，導致註解在那裡就提早關閉、後面一路到真正
+    `*/` 為止的中文說明文字全部變成非法的頂層程式碼，整支檔案完全
+    無法解析。這正是使用者「開啟推播通知都失敗、沒有跳出權限請求」的
+    真正原因——不是 iframe 限制、不是瀏覽器不支援，是 Service Worker
+    根本從來沒有註冊成功過。改成把「chat*/」這種縮寫展開成明講的資料夾
+    名稱（避開任何 `*/` 連續字元出現在 block comment 裡）。**教訓**：
+    這種萬用字元縮寫是這輪之前就已經在用的既有寫法（其他地方多半是
+    寫在 `//` 單行註解或純文字 Markdown 裡，沒有這個問題），只有這次
+    第一次用在 `.js` 檔案的 `/* */` 區塊註解裡才踩到——以後任何 `.js`
+    檔案的區塊註解裡，都不要讓「萬用字元/星號」跟緊接著的斜線相鄰。
+    修完後對全庫所有 `.js` 檔案跑過一輪 `node --check`，確認沒有其他
+    地方有同樣的問題。
+- **驗證**：Playwright（沿用同一套 host harness）驗證：(1) 撥打電話——
+  宿主端正確收到帶正確電話號碼的 `requestCall` 訊息；(2)
+  推播訂閱——完整跑過「權限請求→註冊 SW→等待 SW active→呼叫
+  subscribe()」整條鏈路，SW 現在真的能成功註冊（`node --check` 通過、
+  Playwright 實際註冊成功），最後卡在「push service not available」
+  （這個自動化測試環境本身連不到真的 Google/Mozilla 推播服務，不是
+  程式問題）；(3) 輸入框 focus 後 `scrollTop` 從 0 變成 425（確認捲到
+  底部）。撥打電話跟真推播的「使用者實際感受」（電話真的打出去、真的
+  收到系統通知）仍然需要使用者在真機上確認，這是自動化測試的天花板。
+- **狀態變化**：checklist 的「系統推播通知」跟「語音通話」項目的
+  實作品質提升（相同的 postMessage relay 架構修正兩個問題），但驗證
+  狀態不變——真機確認仍待使用者操作。
+- **遺留**：外部 SDK 站台的推播訂閱沒有解決（見上方變更說明），這不是
+  這次任務範圍，之後有真的外部站台要用推播再處理。
+- **版本**：`v0.27.1-202607142004`（`version.js`）。
+
+---
+
 ## 2026-07-14（晚間，第十五次）— checklist 沒做/部分項目第二輪補完：typing／三態已讀／reactions／回覆／聯絡電話／真推播／Shared 樣板
 
 - **任務**：使用者對照 checklist 逐項要求：輸入中指示器要做、送達→已讀

@@ -1178,19 +1178,102 @@ title/url（見 `requestHostContext()`，宿主端實作在
         return outputArray;
       }
 
+      // 2026-07-14（真機回報修正）：iOS Safari（沒有加入主畫面的一般
+      // 瀏覽模式）從 iOS 16.4 起雖然理論上支援 Web Push，但只限「已加入
+      // 主畫面」的網頁 App，一般分頁裡 window.PushManager 直接不存在——
+      // 這不是哪裡寫錯，是平台限制，先精準判斷出來給使用者看得懂的訊息，
+      // 不要跟其他「真的不支援」的情況混在一起顯示同一句看不懂的話。
+      function isIOSDevice() {
+        return /iP(hone|od|ad)/.test(navigator.userAgent || "") ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      }
+      function isStandaloneDisplay() {
+        try {
+          return window.navigator.standalone === true ||
+            (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+        } catch (error) {
+          return false;
+        }
+      }
+
       function refreshPushStatus() {
         if (!els.pushStatus) return;
-        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-          els.pushStatus.textContent = "此瀏覽器不支援推播通知";
+        if (pushSubscribed) {
+          els.pushStatus.textContent = "這台裝置已開啟推播通知";
           return;
         }
-        if (Notification.permission === "denied") {
-          els.pushStatus.textContent = "通知權限被封鎖，需要到瀏覽器設定手動開啟";
-        } else if (pushSubscribed) {
-          els.pushStatus.textContent = "這台裝置已開啟推播通知";
-        } else {
-          els.pushStatus.textContent = "尚未開啟這台裝置的推播通知";
+        if (isIOSDevice() && !isStandaloneDisplay()) {
+          els.pushStatus.textContent = "iPhone 請先「分享→加入主畫面」，從主畫面開啟才能開啟推播通知";
+          return;
         }
+        // 面板本身跑在 iframe 裡，這裡的 serviceWorker/PushManager/
+        // Notification.permission 檢查未必準確反映宿主頁面的能力（有些
+        // 瀏覽器對非最上層瀏覽環境的判斷不同），這幾句只在整頁版
+        // （!inPanel，本身就是最上層）先做初步判斷；面板情境一律顯示
+        // 中性文字，真正的支援與否留到使用者按下按鈕、實際交給宿主
+        // 執行後才知道結果。
+        if (!inPanel) {
+          if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+            els.pushStatus.textContent = "此瀏覽器不支援推播通知";
+            return;
+          }
+          if (Notification.permission === "denied") {
+            els.pushStatus.textContent = "通知權限被封鎖，需要到瀏覽器設定手動開啟";
+            return;
+          }
+        }
+        els.pushStatus.textContent = "尚未開啟這台裝置的推播通知";
+      }
+
+      // 2026-07-14（真機回報修正）：Notification.requestPermission()／
+      // serviceWorker.register()／pushManager.subscribe() 這幾支 API，
+      // 部分瀏覽器只信任「使用者目前看到的最上層網址列」那個瀏覽環境，
+      // 面板是 iframe，不一定是最上層——交給宿主頁面（chat-launcher.js／
+      // sdk-src/sdk.js）代為執行，回傳結果，跟「分享目前內容」問宿主要
+      // title/url 同一種 postMessage 模式。整頁版（/pages/chat/）本身
+      // 就是最上層，直接自己做，不用繞這一圈。
+      function requestPushSubscription(applicationServerKey) {
+        if (!inPanel) {
+          if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+            return Promise.reject(new Error("此瀏覽器不支援推播通知"));
+          }
+          return Notification.requestPermission().then(function (permission) {
+            if (permission !== "granted") throw new Error("使用者未允許通知權限");
+            return navigator.serviceWorker.register("/sw.js");
+          }).then(function () {
+            // 見 chat-launcher.js 的 handlePushSubscribeRequest 同一處註解：
+            // register() 回傳值不保證已 active，改用 serviceWorker.ready。
+            return navigator.serviceWorker.ready;
+          }).then(function (registration) {
+            return registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey });
+          }).then(function (subscription) { return subscription.toJSON(); });
+        }
+        return new Promise(function (resolve, reject) {
+          var done = false;
+          function onMessage(event) {
+            var data = event.data;
+            if (!data || data.source !== "jonaminz-chat-panel-host" || data.action !== "pushSubscribeResult") return;
+            if (done) return;
+            done = true;
+            window.removeEventListener("message", onMessage);
+            if (data.ok) resolve(data.subscription);
+            else reject(new Error(data.error || "推播開啟失敗"));
+          }
+          window.addEventListener("message", onMessage);
+          try {
+            window.parent.postMessage({
+              source: "jonaminz-chat-panel",
+              action: "requestPushSubscribe",
+              applicationServerKey: Array.from(applicationServerKey)
+            }, "*");
+          } catch (error) {}
+          setTimeout(function () {
+            if (done) return;
+            done = true;
+            window.removeEventListener("message", onMessage);
+            reject(new Error("逾時，沒有收到宿主頁面回應"));
+          }, 15000);
+        });
       }
 
       if (els.settingsToggle && els.settingsPanel) {
@@ -1231,32 +1314,30 @@ title/url（見 `requestHostContext()`，宿主端實作在
             els.status.textContent = "對方還沒有設定電話號碼";
             return;
           }
-          window.location.href = "tel:" + peerPhoneNumber;
+          if (inPanel) {
+            // 面板是 iframe，部分瀏覽器（尤其 WebKit/iOS）不接受從非最
+            // 上層瀏覽環境觸發 tel: 這類自訂協定導頁，交給宿主頁面執行。
+            try {
+              window.parent.postMessage(
+                { source: "jonaminz-chat-panel", action: "requestCall", phoneNumber: peerPhoneNumber },
+                "*"
+              );
+            } catch (error) {}
+          } else {
+            window.location.href = "tel:" + peerPhoneNumber;
+          }
         });
       }
 
       if (els.pushToggleBtn) {
         els.pushToggleBtn.addEventListener("click", function () {
-          if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-            refreshPushStatus();
-            return;
-          }
           els.pushStatus.textContent = "正在開啟推播通知...";
-          Notification.requestPermission()
-            .then(function (permission) {
-              if (permission !== "granted") throw new Error("使用者未允許通知權限");
-              return navigator.serviceWorker.register("/sw.js");
-            })
-            .then(function (registration) {
-              return window.JonaminzBackend.getVapidPublicKey({}).then(function (result) {
-                return registration.pushManager.subscribe({
-                  userVisibleOnly: true,
-                  applicationServerKey: urlBase64ToUint8Array(result.publicKey)
-                });
-              });
+          window.JonaminzBackend.getVapidPublicKey({})
+            .then(function (result) {
+              return requestPushSubscription(urlBase64ToUint8Array(result.publicKey));
             })
             .then(function (subscription) {
-              return window.JonaminzBackend.savePushSubscription({ token: token, subscription: subscription.toJSON() });
+              return window.JonaminzBackend.savePushSubscription({ token: token, subscription: subscription });
             })
             .then(function () {
               pushSubscribed = true;
@@ -1308,6 +1389,23 @@ title/url（見 `requestHostContext()`，宿主端實作在
           els.action.click();
         }
       });
+
+      // 2026-07-14（真機回報修正）：手機鍵盤跳出來會把「視覺視窗」高度
+      // 縮小，面板/整頁版原本用固定高度或 100dvh 算的訊息串高度不會
+      // 自動重新捲到底部，導致鍵盤跳出來那瞬間看起來像是「捲動位置跑掉」
+      // ——其實是內容還停在鍵盤跳出來之前的捲動位置，被縮小的視窗蓋住了
+      // 最下面幾則。鍵盤彈出是非同步的（視覺視窗要過一小段時間才真的
+      // 縮小），所以 focus 當下先捲一次、resize 事件觸發後再捲一次修正。
+      function scrollThreadToBottom() {
+        if (els.thread) els.thread.scrollTop = els.thread.scrollHeight;
+      }
+      els.input.addEventListener("focus", function () {
+        setTimeout(scrollThreadToBottom, 60);
+        setTimeout(scrollThreadToBottom, 320);
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", scrollThreadToBottom);
+      }
 
       els.emojiToggle.addEventListener("click", function (event) {
         event.stopPropagation();

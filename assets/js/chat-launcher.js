@@ -432,8 +432,66 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
             url: window.location.href
           }, window.location.origin);
         } catch (error) {}
+        return;
+      }
+
+      // 2026-07-14（真機回報修正）：撥打電話跟開啟推播通知在面板 iframe
+      // 裡都失敗（使用者實機回報：tel: 連結沒反應、推播沒跳出權限請求）。
+      // 面板是 iframe，不一定是瀏覽器認定的「最上層瀏覽環境」——部分
+      // 瀏覽器（尤其 WebKit/iOS）只信任最上層環境觸發自訂協定導頁
+      // （tel:/mailto: 之類）跟 Notification 權限請求，交給宿主頁面
+      // （這裡本身就是使用者看到的網址列所在的最上層頁面）代為執行。
+      if (data.source === "jonaminz-chat-panel" && data.action === "requestCall") {
+        try {
+          if (data.phoneNumber) window.location.href = "tel:" + data.phoneNumber;
+        } catch (error) {}
+        return;
+      }
+
+      if (data.source === "jonaminz-chat-panel" && data.action === "requestPushSubscribe") {
+        handlePushSubscribeRequest(data.applicationServerKey);
+        return;
       }
     });
+
+    function replyPushSubscribeResult(ok, subscriptionOrError) {
+      try {
+        panelFrame.contentWindow.postMessage({
+          source: "jonaminz-chat-panel-host",
+          action: "pushSubscribeResult",
+          ok: ok,
+          subscription: ok ? subscriptionOrError : undefined,
+          error: ok ? undefined : String((subscriptionOrError && subscriptionOrError.message) || subscriptionOrError)
+        }, window.location.origin);
+      } catch (error) {}
+    }
+
+    function handlePushSubscribeRequest(applicationServerKeyArray) {
+      var applicationServerKey = new Uint8Array(applicationServerKeyArray || []);
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        replyPushSubscribeResult(false, "此瀏覽器不支援推播通知");
+        return;
+      }
+      Notification.requestPermission()
+        .then(function (permission) {
+          if (permission !== "granted") throw new Error("使用者未允許通知權限");
+          return navigator.serviceWorker.register("/sw.js");
+        })
+        // register() 回傳的 registration 不保證已經 active（第一次註冊通常
+        // 還在 installing），直接拿它訂閱容易撞到「no active Service
+        // Worker」——改用 navigator.serviceWorker.ready，保證拿到的是真的
+        // 已經 active 的 registration。
+        .then(function () { return navigator.serviceWorker.ready; })
+        .then(function (registration) {
+          return registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey });
+        })
+        .then(function (subscription) {
+          replyPushSubscribeResult(true, subscription.toJSON());
+        })
+        .catch(function (error) {
+          replyPushSubscribeResult(false, error);
+        });
+    }
 
   }
 

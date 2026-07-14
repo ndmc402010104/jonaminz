@@ -532,7 +532,27 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
               url: window.location.href
             }, CHAT_LAUNCHER_ORIGIN);
           } catch (error) {}
+          return;
         }
+
+        // 2026-07-14（真機回報修正，跟 assets/js/chat-launcher.js 同一個
+        // 坑）：面板是 iframe，部分瀏覽器（尤其 WebKit/iOS）只信任最上層
+        // 瀏覽環境觸發 tel: 這類自訂協定導頁，交給宿主頁面（外部專案自己
+        // 的頁面，本身就是最上層）代為執行。
+        if (data.source === "jonaminz-chat-panel" && data.action === "requestCall") {
+          try {
+            if (data.phoneNumber) window.location.href = "tel:" + data.phoneNumber;
+          } catch (error) {}
+          return;
+        }
+
+        // 注意：這裡刻意不接 requestPushSubscribe（跟 chat-launcher.js
+        // 不同）——推播需要註冊 /sw.js，那支檔案只存在 jonaminz.com，外部
+        // 專案自己的網域打不到，在這裡 register 一定 404。面板 iframe
+        // 本身就是 jonaminz.com 的來源，push 訂閱流程留在面板內部自己
+        // 處理（見 chat-thread.js 的 requestPushSubscription，!inPanel
+        // 判斷之外那個分支其實對外部站台也不適用，但至少不會嘗試對外部
+        // 網域註冊一支不存在的檔案）。
       });
 
       var append = function () {
