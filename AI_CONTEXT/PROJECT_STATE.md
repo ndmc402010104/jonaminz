@@ -1138,7 +1138,7 @@ System App：
   `sdk-src/sdk.js` 同時管理兩個 iframe，大頭貼位置永遠固定、不受面板
   是否展開或多高影響。外部專案（travel，透過 SDK 的
   `chat.launcher@1`）自動獲得同樣的雙 iframe 體驗。SDK 最終 release
-  `3b9aa952cc9f`。
+  `cc31508c3fd4`。
   - **教訓（值得記住，別重蹈覆轍）**：一開始把大頭貼跟面板塞進「同一個
     iframe、靠內部視圖切換」，即使裁形狀本身的技巧是對的，也因為
     「一個 iframe 只能裁一種形狀」逼得展開時要把大頭貼縮成面板內部的
@@ -1146,6 +1146,16 @@ System App：
     連續三輪位置微調（加大邊距/右上角/右下角）都沒解決根本問題，直到
     使用者直接點破「圈圈應該在對話外面不是裡面」才找到真正的修法。
     完整脈絡見 `AI_CONTEXT/CHANGELOG.md` 2026-07-14 當天連續五筆條目。
+  - **教訓＃2（第六輪）**：兩個獨立 iframe 上線後使用者還是回報「圈圈
+    在對話框裡面」——結果是瀏覽器/WebView 把 `pages/chat-launcher/`／
+    `pages/chat-panel/` 的 iframe `src` 網址當快取命中，繼續顯示今天
+    稍早某一輪修正時的舊 HTML，跟架構本身無關。這兩個 embed 頁面的
+    iframe `src` 之前完全沒有 cache-busting（跟外層 script/style 走
+    `withVersion()` 不一樣）——已修：`chat-launcher.js`／`sdk-src/sdk.js`
+    建立 iframe 時用 `Date.now()` 產生的 `cacheBuster` 附加在 `src`
+    後面。之後任何時候改這兩個 embed 頁的 HTML/CSS，記得這條路徑本來
+    就無法只靠 bump version.js 解決——真正保證新內容送達的是這個
+    per-page-load 的 cache-buster。
 - 沒做：typing indicator、訊息反應（reaction）、回覆（reply）、貼圖
   面板、附件、Shared 收件匣、Android Overlay——這些多半在交接包的
   「不准做」清單裡，或屬於 roadmap Phase 2 的 P3（另一個獨立決定），

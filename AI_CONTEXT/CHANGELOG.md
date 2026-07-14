@@ -20,6 +20,40 @@
 
 ---
 
+## 2026-07-14（下午，第六次）— iframe src 補上 cache-buster，避免手機還在看第五次修正之前的舊 HTML
+
+- **任務**：兩個獨立 iframe 架構（見下方「第五次」紀錄）部署上線後，
+  使用者實機再次回報「圈圈在對話框裡面」——但這次不是架構本身錯，
+  是使用者親自確認：那顆看起來「在對話框裡面」的圓形其實是**之前某一輪
+  修正時的舊版 UI**，代表瀏覽器/WebView 把 `pages/chat-launcher/`／
+  `pages/chat-panel/` 這兩個 iframe 的 `src` 網址當快取命中，沒有真的
+  跟伺服器要最新內容。
+- **根因**：`assets/js/chat-launcher.js`／`sdk-src/sdk.js` 這兩支外層
+  注入器本身有透過 `entry-core.js` 的 `withVersion()` 機制正確做
+  cache-busting（`?v=` 帶版本號），但它們建立的 `<iframe>` 元素的
+  `src` 屬性（`LAUNCHER_PATH`／`PANEL_PATH`／`CHAT_LAUNCHER_EMBED_URL`／
+  `CHAT_PANEL_EMBED_URL`）完全沒有任何查詢字串——同一個網址，瀏覽器
+  照一般 HTTP 快取規則處理，跟外層 script 有沒有換版本號無關。今天
+  稍早幾輪修正每次都改了這兩個頁面的 HTML 內容，但 iframe 網址本身從
+  沒變過，於是舊內容一直卡在快取裡，即使外層邏輯早就換成最終版的兩個
+  獨立 iframe 也沒用。
+- **變更**：`assets/js/chat-launcher.js`／`sdk/sdk-src/sdk.js` 的
+  `mountChat()`／`mountChatLauncher()` 各自在建立 iframe 時，用
+  `Date.now()` 產生一個當次頁面載入才決定的 `cacheBuster`，附加在兩個
+  iframe 的 `src` 後面（`?v=<timestamp>`），保證每次頁面重新載入都是
+  全新網址、繞過瀏覽器對舊 HTML 的快取。重新生成 SDK release
+  （`sdk-cc31508c3fd4.js`），`sdk-versions.json` 升到 revision 12。
+- **狀態變化**：兩個獨立 iframe 的架構本身沒有問題，這次修的是「新版
+  程式碼有沒有真的送達使用者手機」這個交付環節，不是設計環節。
+- **遺留**：這是這批 embed 頁面第一次補上 cache-busting，之後如果再改
+  `pages/chat-launcher/`／`pages/chat-panel/` 的 HTML/CSS，一樣要記得
+  bump version.js（觸發 `cacheBuster` 用新的 `Date.now()`）——但因為
+  buster 本身就是每次頁面載入都重算，理論上就算忘了 bump version.js
+  也不影響這個特定 cache 問題（只要使用者的分頁/App 有重新整理過一次）；
+  真正需要 bump 的原因是讓外層 chat-launcher.js／sdk.js 本身也被重新
+  抓取。
+- **版本**：v0.24.4-202607141344
+
 ## 2026-07-14（下午，第五次）— 拆成兩個獨立 iframe：大頭貼永遠在面板外面，不是塞在裡面
 
 - **任務**：連續三輪修正（加大邊距→宿主端裁形狀→迷你大頭貼移到右下角）
