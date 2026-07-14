@@ -296,6 +296,10 @@ export default {
         return json(await removePushSubscription(env, payload), 200);
       }
 
+      if (action === "replyFromNotification") {
+        return json(await replyFromNotification(env, payload), 200);
+      }
+
       return json({ ok: false, error: "Unknown action: " + action }, 400);
     } catch (error) {
       return json({ ok: false, error: error.message || String(error) }, 500);
@@ -2062,6 +2066,15 @@ async function getFcmAccessToken(env) {
 
 // 回傳 true 代表這個 device token 已失效（App 移除/資料清掉），呼叫端
 // 要把這筆訂閱刪掉。
+//
+// 2026-07-15（第二十二輪）：從 notification message 改成 **data message**
+// ——notification message 在 App 背景時是「系統」自動呈現通知，App 完全
+// 插不了手，掛不了通知內回覆按鈕（RemoteInput）也做不了系統聊天泡泡
+// （Bubbles）。data message 不管前景背景都會叫起 App 的
+// FirebaseMessagingService.onMessageReceived（高優先權會喚醒行程），
+// 通知改由 App 端的 JonaminzMessagingService 自己組（MessagingStyle＋
+// 回覆按鈕＋泡泡 metadata），呈現權才在我們手上。
+// 注意：data 的值必須全部是字串（FCM 規定）。
 async function sendFcmMessage(env, deviceToken, title, bodyText) {
   var accessToken = await getFcmAccessToken(env);
   var projectId = JSON.parse(env.FCM_SERVICE_ACCOUNT_JSON).project_id;
@@ -2076,12 +2089,8 @@ async function sendFcmMessage(env, deviceToken, title, bodyText) {
       body: JSON.stringify({
         message: {
           token: deviceToken,
-          notification: { title: title, body: bodyText },
-          android: {
-            // 同一個 tag：連續多則訊息在通知欄合併成一則（顯示最新的），
-            // 跟 sw.js 的 Web Push 通知 tag 行為一致。
-            notification: { tag: "jonaminz-chat", sound: "default" }
-          }
+          data: { title: String(title), body: String(bodyText) },
+          android: { priority: "HIGH" }
         }
       })
     }
@@ -2093,6 +2102,66 @@ async function sendFcmMessage(env, deviceToken, title, bodyText) {
     }
   }
   return false;
+}
+
+// 通知內直接回覆（2026-07-15，第二十二輪）：App 的通知回覆按鈕
+// （RemoteInput）打這支。認證用 **FCM device token 本身**——原生層天生
+// 知道自己的 token（FirebaseMessaging.getToken()），不用把 session token
+// 塞進原生儲存；token 是不可猜測的裝置密鑰、只存在我們的 DB 跟該裝置上，
+// 兩人自用的信任模型下跟 session token 同等級。查 chat_push_subscriptions
+// 反解 identity，之後流程跟 sendChatMessage 一致（插訊息、清 typing、
+// 推播給對方）。
+async function replyFromNotification(env, payload) {
+  const fcmToken = String((payload && payload.fcmToken) || "").trim();
+  const body = String((payload && payload.body) || "").trim();
+  if (!fcmToken) {
+    return { ok: false, code: "FCM_TOKEN_REQUIRED", error: "fcmToken is required" };
+  }
+  if (!body) {
+    return { ok: false, code: "BODY_REQUIRED", error: "body is required" };
+  }
+  if (body.length > 4000) {
+    return { ok: false, code: "BODY_TOO_LONG", error: "body must be 4000 characters or fewer" };
+  }
+
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const subUrl = base + "/rest/v1/chat_push_subscriptions?endpoint=eq." + encodeURIComponent(fcmToken) +
+    "&kind=eq.fcm&select=identity&limit=1";
+  const subRes = await fetch(subUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!subRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + subRes.status + " " + (await subRes.text()));
+  }
+  const subRows = await subRes.json();
+  if (!subRows[0]) {
+    return { ok: false, code: "UNKNOWN_DEVICE", error: "device is not subscribed" };
+  }
+  const identity = subRows[0].identity;
+  const roomId = await resolveChatRoomId(env);
+
+  const insertRes = await fetch(base + "/rest/v1/chat_messages", {
+    method: "POST",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify({
+      room_id: roomId,
+      sender_identity: identity,
+      client_message_id: randomToken(),
+      kind: "text",
+      body: body
+    })
+  });
+  if (!insertRes.ok) {
+    throw new Error("Supabase insert failed: HTTP " + insertRes.status + " " + (await insertRes.text()));
+  }
+  const insertedRows = await insertRes.json();
+
+  await fetch(
+    base + "/rest/v1/chat_typing_state?room_id=eq." + roomId + "&identity=eq." + identity,
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  ).catch(function () {});
+  const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+  await sendPushToIdentity(env, peerIdentity, IDENTITY_LABEL[identity] || identity, body.slice(0, 120));
+
+  return { ok: true, message: insertedRows[0] || null };
 }
 
 // 對某個 identity 名下所有裝置送一次推播——這支是「盡力而為」的背景動作，

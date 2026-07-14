@@ -1377,6 +1377,20 @@ repo 裡），使用者指出 Travel 應該跟 `jonaminz-movies` 同一個模式
   外掛，Capacitor 模板內建這個判斷）。Worker 端對應的
   `FCM_SERVICE_ACCOUNT_JSON` secret 也要等使用者產生服務帳戶金鑰後
   設定。網頁端（jonaminz repo）的對接見 CHANGELOG「第十八次」條目。
+  （後續：金鑰已設定、APK 已裝機、真機驗收通過，見第十九/二十次條目。）
+- **2026-07-15（第二十二輪）自訂原生模組進駐**：App 不再只是純殼——
+  `android/app/src/main/java/com/jonaminz/app/` 底下現在有四支自訂
+  Java：`JonaminzMessagingService`（接手聊天通知呈現：MessagingStyle
+  對話歷史＋RemoteInput 通知內回覆＋Bubbles 泡泡 metadata；Worker 端
+  FCM 已改送 data message，通知呈現權在 App 手上）、`ReplyReceiver`
+  （通知內回覆→Worker `replyFromNotification`，認證用 FCM device
+  token 反查 identity）、`BubbleActivity`（泡泡展開＝極簡原生 WebView
+  載 /pages/chat/，localStorage 同 App 共用所以免登入）、
+  `MainActivity`（前景旗標＋點通知 evaluateJavascript 觸發網頁
+  `jonaminz-open-chat` 展開面板）。gradle 補了 firebase-messaging
+  直接依賴（外掛的 implementation 依賴不傳遞）。**改 Worker 的
+  sendFcmMessage 格式時要注意部署順序：先裝新 APK 再 deploy**，data
+  message 對舊版 App（沒有自訂 service 的）不會顯示任何通知。
 - 本機環境：Android SDK 裝在
   `C:/Users/ndmc4/AppData/Local/Android/Sdk`（`adb.exe` 在其
   `platform-tools/` 下，Git Bash 的 PATH 沒收錄，要打完整路徑或自己

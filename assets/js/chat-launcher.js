@@ -408,6 +408,15 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     overlay.addEventListener("pointerup", endDrag);
     overlay.addEventListener("pointercancel", endDrag);
 
+    // 2026-07-15（第二十二輪）：App 點系統通知進來要直接展開聊天面板
+    // ——原生 MainActivity 收到通知的 openChat extra 後，對這個頁面
+    // evaluateJavascript 觸發這個事件（見 jonaminz-mobile-app 的
+    // MainActivity.java）。setPanelOpen 有同狀態防呆，原生端重複觸發
+    // 兩次（冷啟動保險）也無害。
+    window.addEventListener("jonaminz-open-chat", function () {
+      setPanelOpen(true);
+    });
+
     // 手機版點對話框外面的區塊要關掉泡泡，電腦版不要（桌機通常同時看
     // 著頁面內容跟聊天，點別的地方不代表想關掉）。手機/電腦的判斷直接
     // 讀全站共用的 assets/js/layout-metrics.js（window.JonaminzLayoutMetrics

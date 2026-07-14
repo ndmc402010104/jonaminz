@@ -20,6 +20,70 @@
 
 ---
 
+## 2026-07-15（凌晨，第二十二次）— App 原生通知工程：通知內直接回覆＋系統聊天泡泡＋點通知開聊天
+
+- **任務**：使用者裁決把通知進階能力做起來（「現在做吧」）——通知內
+  直接回覆（RemoteInput）、系統層級聊天泡泡（Android 11+ Bubbles）、
+  點通知直接展開聊天面板。這是純 Android 原生工程，主要動
+  jonaminz-mobile-app（姊妹資料夾，非 git repo）。
+- **變更**：
+  - **Worker**（已部署，Version `8223b2ae`）：
+    - `sendFcmMessage` 從 notification message 改成 **data message**
+      （`data:{title,body}`＋priority HIGH）——notification message 在
+      App 背景時是系統自動呈現，掛不了回覆按鈕也做不了泡泡；data
+      message 不論前景背景都進 App 的 onMessageReceived，通知呈現權
+      改由 App 端自己組。**部署順序重要**：先裝新 APK 再部署（舊 APK
+      對 data message 不會顯示任何通知），本輪已照此順序執行。
+    - 新 action `replyFromNotification {fcmToken, body}`：通知內回覆
+      的後端。認證用 FCM device token 本身（查 chat_push_subscriptions
+      反解 identity）——原生層天生知道自己的 token，不用把 session
+      token 塞進原生儲存。插訊息、清 typing、推播對方，跟
+      sendChatMessage 同一套後續。
+  - **jonaminz-mobile-app 原生模組**（四支新 Java 檔＋manifest＋gradle）：
+    - `JonaminzMessagingService` extends Capacitor 外掛的
+      `MessagingService`（呼叫 super 保留前景 JS 事件；app manifest
+      自己宣告的 service 在 merged manifest 排前面，FCM 會選中它）。
+      組 MessagingStyle 通知：**對話歷史存在通知本身上**（用
+      `extractMessagingStyleFromNotification` 從現掛通知取回再附加，
+      service 無狀態）、RemoteInput 回覆 action（PendingIntent 必須
+      FLAG_MUTABLE）、BubbleMetadata（前提：long-lived conversation
+      shortcut＋setShortcutId＋LocusId，缺一泡泡直接被系統忽略）、
+      前景時跳過（交給網頁內提示，不重複打擾）。
+    - `ReplyReceiver`：goAsync＋背景執行緒取 RemoteInput 文字→
+      `FirebaseMessaging.getToken()`→POST Worker。**不論成敗都要重新
+      notify**（RemoteInput 送出後通知顯示轉圈圈直到被更新，漏了會
+      永遠轉下去）；成功把自己的回覆附進對話歷史、失敗附錯誤提示。
+    - `BubbleActivity`：極簡原生 WebView 直接載
+      `https://www.jonaminz.com/pages/chat/`——刻意不用第二個
+      BridgeActivity（綁死 server.url 會載到首頁）；登入狀態免處理
+      （同 App 內所有 WebView 共用 localStorage）。已知限制：泡泡內
+      點分享卡的 window.open 不會開（極簡 WebView 無多視窗支援）。
+    - `MainActivity`：static 前景旗標（onResume/onPause）；點通知的
+      `openChat` extra → onResume 時 evaluateJavascript 觸發網頁端
+      `jonaminz-open-chat` 事件（延遲 1.8s/4.5s 各試一次，冷啟動網頁
+      沒載完事件會掉，兩次都掉就算了）。
+    - manifest：service（MESSAGING_EVENT）＋receiver＋BubbleActivity
+      （allowEmbedded/resizeableActivity/documentLaunchMode=always）；
+      新增 `res/drawable/ic_stat_chat.xml`（通知小圖示要純 alpha 剪影，
+      彩色 launcher 圖會變灰色方塊）。
+    - gradle：app 模組補 `com.google.firebase:firebase-messaging:25.0.1`
+      直接依賴——外掛內部的 firebase-messaging 是 implementation 依賴
+      不會傳遞到 app 模組 compile classpath（第一次建置就是這樣失敗的）。
+  - **網頁**（`assets/js/chat-launcher.js`）：監聽 `jonaminz-open-chat`
+    事件 → `setPanelOpen(true)`。
+- **驗證**：APK 建置成功並已 adb 無線安裝到使用者手機（先裝機後部署
+  Worker，順序正確）；Worker 部署後 curl 驗證 `replyFromNotification`
+  路由正常（空 payload 回 FCM_TOKEN_REQUIRED）。**通知內回覆／泡泡／
+  點通知開聊天的實際行為要真機驗收**（Playwright 碰不到系統通知層）。
+- **狀態變化**：通知能力從「只能顯示」升級成「可互動」；系統泡泡
+  屬 Android 11+ 且要使用者在系統設定允許該對話冒泡（Samsung OneUI
+  的對話通知長按有「顯示為泡泡」選項）。
+- **遺留**：真機驗收三件事（收通知→直接回覆、通知長按設泡泡、點通知
+  自動展開面板）；泡泡內分享卡點擊不開網頁的已知限制。
+- **版本**：`v0.30.0-202607150107`（`version.js`）。
+
+---
+
 ## 2026-07-15（凌晨，第二十一次）— 樂觀 UI 送訊息、面板開啟鎖定宿主捲動、提示音不再與系統通知重疊
 
 - **任務**：使用者三個回饋：(1) 送出文字要 1~2 秒才出現在畫面上，很
