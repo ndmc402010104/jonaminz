@@ -98,6 +98,47 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
   // 14=間距，加起來就是面板 top 要比大頭貼 top 多讓出來的空間。
   var GAP_BELOW_LAUNCHER = 64 + 14;
   var DRAG_THRESHOLD = 8;
+  var AVATAR_CLIP_ID = "jcl-avatar-clip";
+
+  // 2026-07-14（第十三次修正）：未讀角標／在線小綠點原本貼著大頭貼
+  // iframe（64x64 方形文件）的角落，但外層 <iframe> 被宿主裁成正圓，
+  // 角標超出圓的部分就被裁掉一角——第十輪的做法是把角標「縮進去」避開
+  // 裁切，使用者指出這是偷吃步，正確做法應該是讓角標像 FB／多數 App 一樣
+  // 漂亮地畫在圓圈外面。真正的修法：裁切形狀從單純的正圓換成「正圓 +
+  // 角標位置的小圓 + 小綠點位置的小圓」union 起來的複合形狀——CSS
+  // `clip-path` 的 basic shape（`circle()`）沒辦法用逗號 union 多個形狀，
+  // 要用 SVG `<clipPath>`（原生支援多個子形狀 union）搭配
+  // `clip-path:url(#id)` 引用。座標算過：大頭貼 iframe 64x64、主圓
+  // r=32；角標(20x20,top:2/right:2)中心約(52,12)，對角距離~14.14，用
+  // r=15 留緩衝；小綠點(13x13,right:4/bottom:5)中心約(53.5,52.5)，對角
+  // 距離~9.19，用 r=11 留緩衝。（跟之前「內部透明不可靠」是同一類技巧：
+  // 裁切形狀本身在宿主端定義，不依賴 iframe 內部透不透明。）
+  function ensureAvatarClipPath() {
+    if (document.getElementById(AVATAR_CLIP_ID)) return;
+    var svgNs = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNs, "svg");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    svg.style.position = "absolute";
+    var clipPath = document.createElementNS(svgNs, "clipPath");
+    clipPath.setAttribute("id", AVATAR_CLIP_ID);
+    clipPath.setAttribute("clipPathUnits", "userSpaceOnUse");
+    [
+      { cx: 32, cy: 32, r: 32 },   // 主要的大頭貼正圓
+      { cx: 52, cy: 12, r: 15 },   // 未讀角標（top:2/right:2）的位置
+      { cx: 53.5, cy: 52.5, r: 11 } // 在線小綠點（right:4/bottom:5）的位置
+    ].forEach(function (spec) {
+      var circle = document.createElementNS(svgNs, "circle");
+      circle.setAttribute("cx", spec.cx);
+      circle.setAttribute("cy", spec.cy);
+      circle.setAttribute("r", spec.r);
+      clipPath.appendChild(circle);
+    });
+    svg.appendChild(clipPath);
+    // 掛在 <head> 不是 <body>：SVG defs/clipPath 本身不是可見內容，不需要
+    // 等 document.body 存在（跟上面 <style> 標籤是同一個安全考量）。
+    document.head.appendChild(svg);
+  }
 
   function mountChat() {
     if (document.querySelector("." + LAUNCHER_CLASS)) return;
@@ -106,6 +147,8 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     var token = null;
     try { token = window.localStorage.getItem(TOKEN_KEY); } catch (error) { token = null; }
     if (!token) return;
+
+    ensureAvatarClipPath();
 
     // 2026-07-14（第十一次修正）：使用者要求「整個展開後泡泡的位置」
     // 也移到頁首下方，不要只有收合時的休息位置改、展開時還是跳回右
@@ -123,6 +166,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       ":root{--jcl-anchor-top:84px;}" +
       "." + LAUNCHER_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
       "width:64px;height:64px;border:0;border-radius:50%;z-index:9999;" +
+      "clip-path:url(#" + AVATAR_CLIP_ID + ");" +
       "box-shadow:0 8px 24px rgba(38,34,32,0.28);pointer-events:none;}" +
       "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
       "width:64px;height:64px;border-radius:50%;z-index:10000;background:transparent;" +

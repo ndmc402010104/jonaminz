@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "revision": 17,
+  "revision": 18,
   "channels": {
-    "stable": { "hash": "a714ce6f8427", "url": "/sdk/sdk-a714ce6f8427.js" },
-    "next": { "hash": "a714ce6f8427", "url": "/sdk/sdk-a714ce6f8427.js" }
+    "stable": { "hash": "184334b3e031", "url": "/sdk/sdk-184334b3e031.js" },
+    "next": { "hash": "184334b3e031", "url": "/sdk/sdk-184334b3e031.js" }
   }
 }

@@ -20,6 +20,30 @@
 
 ---
 
+## 2026-07-14（下午，第十三次）— 未讀角標/在線小綠點正確修法：SVG clipPath 讓角標畫在圓圈外面
+
+- **任務**：第十輪把角標「縮進去」避開圓形裁切，使用者當場指出這是
+  偷吃步（"不是這樣偷吃步吧XD應該還是要漂亮的在圈圈外面吧"），要求
+  角標像 FB／多數 App 一樣真的畫在圓圈外面。
+- **變更**：`assets/js/chat-launcher.js`／`sdk/sdk-src/sdk.js` 新增
+  `ensureAvatarClipPath()`，注入一個 SVG `<clipPath>`（`userSpaceOnUse`，
+  三個圓 union 起來：主要大頭貼正圓 r=32、未讀角標位置的小圓 r=15、
+  在線小綠點位置的小圓 r=11——CSS `clip-path` 的 basic shape
+  `circle()` 沒辦法用逗號 union 多個形狀，SVG `<clipPath>` 原生支援）。
+  `LAUNCHER_CLASS` 的裁切從單純 `clip-path`/`border-radius:50%` 換成
+  `clip-path:url(#jcl-avatar-clip)`，角標/小綠點在
+  `pages/chat-launcher/assets/css/page-chat-launcher.css` 裡的位置改回
+  原本貼著方形角落的座標（`top:2/right:2`、`right:4/bottom:5`）——現在
+  外層的複合裁切形狀本來就有幫它們留位置，不用再遷就裁切。跟本次架構
+  一路沿用的原則一致：裁切形狀在宿主端定義，不依賴 iframe 內部透不
+  透明。重新生成 SDK release。
+- **驗證**：Playwright 截圖直接看畫面（不是只驗 DOM 屬性）——未讀角標
+  跟在線小綠點確認漂亮地跨在圓圈邊緣上，跟 FB/多數 App 的角標設計一致，
+  沒有被裁切、box-shadow 也沒有出現異常斷裂。
+- **狀態變化**：第十輪「縮進去」的暫時止血正式被這次的正確修法取代。
+- **遺留**：無。
+- **版本**：v0.25.5-202607141646
+
 ## 2026-07-14（下午，第十二次）— 送出鍵鍵盤閃爍修正 + 對照常見行動聊天室慣例的系統性補強
 
 - **任務**：使用者回報「每次按送出，鍵盤會消失一下又跳出來」，另外
