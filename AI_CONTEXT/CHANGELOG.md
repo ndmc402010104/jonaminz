@@ -71,6 +71,18 @@
   （石頭亮面）不受影響，背景邊緣往內 2px 羽化帶用反解 alpha 保留筆刷
   柔邊。兩種底色（米紙 #f6f3ec／深綠）截圖驗證：石頭實心、筆刷紋理
   自然、無白邊。
+- **更正（同晚 23:55，v0.28.3）**：使用者澄清那張方形圖徽是要當
+  **favicon 跟 App 圖示**用的，不是換首頁 hero logo——v0.28.1-2 換錯
+  地方了。已還原：`jonaminz-logo.png` 從 git 歷史（52f6caa）復原成
+  橫幅字標、`page-home.css` 的 `.hero-logo` 寬度復原 min(520px,78vw)。
+  正確落點：(1) `favicon-32.png`／`favicon-180.png` 用去背圖徽重新
+  產生（裁到內容邊界＋3% 邊距＋補正方形）——`sw.js` 的推播通知圖示
+  本來就引用 favicon-180，自動跟著換；(2) jonaminz-mobile-app 的
+  Android launcher 圖示全套重產（5 個密度 × ic_launcher／
+  ic_launcher_round／ic_launcher_foreground，方形版米紙底 #F3EDE2＋
+  圖徽 80%、圓形版 72%、adaptive 前景透明底 56% 守 66/108 安全區），
+  APK 重建（又撞一次 OneDrive 鎖 build 資料夾，砍掉重建解決）並用
+  SendUserFile 傳給使用者安裝。
 
 - **任務**：使用者裁決「可以做推播了嗎不然整個聊天app根本無法用」——
   App（Capacitor Android WebView）收推播只有 Firebase Cloud Messaging
