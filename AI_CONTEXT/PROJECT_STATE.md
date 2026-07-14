@@ -1092,26 +1092,34 @@ jonaminz/
 - Roadmap Phase 1-5 見使用者記憶與 `docs/platform-integration-consensus.md`；
   目前處於 Phase 1 早期。
 
-### 4.1 Chat（2026-07-14 新增，demo 品質，不是完整功能）
+### 4.1 Chat（2026-07-14 新增＋當日上午重做視覺層，demo 品質，不是完整功能）
 
 見 `jonaminz-chat交接包/`（獨立交接包，含完整規格與一次失敗的技術
 草案）。這次做的是交接包自己定義的「第一個真實里程碑」，不是完整 Chat
 System App：
 
-- 已完成：`pages/chat/`（要求登入）、Worker action
+- 已完成：`backend/supabase/chat_schema.sql` **已由使用者手動在正式
+  Supabase SQL Editor 執行**（Claude 沒有直接寫入 Postgres 的管道，這
+  個專案的 schema 一律走這個流程），Worker action
   `listChatMessages`/`sendChatMessage`/`markChatRead`（都要求
-  `requireSession`）、`backend/supabase/chat_schema.sql`、Worker 已
-  `wrangler deploy`。
-- **`chat_schema.sql` 還沒有在正式 Supabase `jonaminz-db` 執行**——
-  這是唯一卡住「真的能傳訊息」的步驟，需要使用者手動到 Supabase SQL
-  Editor 貼上執行（Claude 沒有直接寫入 Postgres 的管道，這個專案的
-  schema 一律走這個流程，不是這次才有的限制）。跑完那份 SQL，
-  `pages/chat/` 應該就能真的雙向傳訊息。
-- 刻意用 polling（前端每 3 秒呼叫一次 `listChatMessages`）取代
-  WebSocket／Durable Object——交接包 `AGENT/WORK_PLAN.md` 自己建議先
-  用這個「方案 C」證明端到端能動，不是最終架構。
-- 沒做：typing indicator、reaction、reply、附件、Shared 收件匣、
-  Android Overlay——都在交接包的「不准做」清單裡，這次刻意不碰。
+  `requireSession`）已 `wrangler deploy`，端到端真的能雙向傳訊息＋已讀。
+- **2026-07-14 上午**：畫面照交接包 `SOURCE/ux-mvp-v0.11/index.html`
+  這份已驗證過的 UX 重做（`pages/chat/` 三個檔案＋
+  `assets/js/header.js` 的 `mountChatBubble()`）——大頭貼式頁首、訊息
+  分組大頭貼（只在對方連續訊息的最後一則顯示）、已讀回條、未讀分隔線
+  （從真的 readState 算出來，不是模擬）、[+][文字+表情][快速反應⇄送出]
+  三段式輸入列、全站浮動入口改成「對方身分」大頭貼＋真未讀角標＋
+  近似在線小綠點。細節見 `AI_CONTEXT/CHANGELOG.md` 同日條目。沒有動
+  `worker.js`／`backend-client.js` 任何函式簽名，純消費既有 API。
+- 刻意用 polling（前端每 3 秒呼叫一次 `listChatMessages`，全站浮動
+  入口每 12 秒一次）取代 WebSocket／Durable Object——交接包
+  `AGENT/WORK_PLAN.md` 自己建議先用這個「方案 C」證明端到端能動，不是
+  最終架構。
+- 沒做：typing indicator、訊息反應（reaction）、回覆（reply）、貼圖
+  面板、附件、Shared 收件匣、Android Overlay、DECISIONS.md 描述的
+  半版/全版懸浮聊天面板（這次維持點擊大頭貼導去整頁 `/pages/chat/` 的
+  簡化路線）——這些多半在交接包的「不准做」清單裡，或超出「展示畫面」
+  這次的範圍，刻意不碰。
 - `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
   `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
   Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo

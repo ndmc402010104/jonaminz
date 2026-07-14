@@ -20,6 +20,55 @@
 
 ---
 
+## 2026-07-14（上午）— Chat 畫面照交接包 UX 重做（大頭貼入口／已讀未讀／分組訊息）
+
+- **任務**：使用者要求「再確認 chat 的交接包，先做成展示的畫面」——跟
+  Travel 那次一樣的模式：後端（listChatMessages/sendChatMessage/
+  markChatRead）已經真的能動，這次只重做視覺/互動層，照交接包
+  `jonaminz-chat交接包/AI_CONTEXT/DECISIONS.md` 的規則跟
+  `SOURCE/ux-mvp-v0.11/index.html` 這份已驗證過的參考 UX。
+- **變更**：
+  - `assets/js/header.js` 的 `mountChatBubble()`：浮動按鈕從通用聊天圖示
+    改成「對方身分」的大頭貼圓圈（首字母＋雙色漸層），疊加真的未讀角標
+    （從 listChatMessages 算出來的數字，不是裝飾）跟綠色在線小圓點
+    （用對方最後訊息/已讀時間 5 分鐘內近似「在線」，沒有真的 presence
+    channel）。新增每 12 秒一次的背景 polling 讓角標保持更新，全站生效
+    （Chat 頁本身不疊，維持原本邏輯）。
+  - `pages/chat/index.html`／`assets/css/page-chat.css`／`assets/js/
+    app.js` 整套重寫：頁首改成大頭貼＋姓名＋「最後訊息 HH:MM」＋
+    instance badge；訊息串加上大頭貼分組（只在對方連續訊息的最後一則
+    顯示，不是每則都貼）、已讀回條（對方讀到我的哪一則就在那則下面貼一個
+    小大頭貼）、未讀分隔線（從 readState 算出真正的未讀邊界）；輸入列
+    改成 [+][文字+表情][快速反應⇄送出] 三段式——"+" 目前只是視覺佔位
+    （附件功能還沒做），表情是純前端插入字元的小面板，快速反應鍵送出的
+    是純文字訊息（emoji 字元本身），沒有新增 Worker 的 kind:"sticker"
+    分支，刻意不去動已經部署的 sendChatMessage。顏色全部沿用
+    `assets/css/reservoir/02-tokens.css` 既有的 --color-primary（深藍）
+    / --color-primary-2（赭紅）雙色調，沒有另外發明一套新色票——Chat 是
+    兩人共用空間，不套用任何一方房間的專屬色。
+  - 沒有動到 worker.js／backend-client.js 的任何函式簽名，這次純粹是
+    消費既有 API，不需要 wrangler deploy。
+- **測試方式**：沒有真的登入 session token（loginWithInternalToken 的
+  secret 不在這台機器上），改用 stub 過 window.JonaminzIdentity／
+  JonaminzBackend 的 Playwright test harness 直接載入真正的 app.js／
+  header.js／page-chat.css，餵假的 messages/readState fixture 資料驗證
+  大頭貼分組、已讀回條、未讀分隔線、輸入列圖示切換（👍⇄➤）、表情面板都
+  正確運作。過程中抓到一個 test harness 自己的 bug（沒帶 box-sizing:
+  border-box 導致 textarea 溢出蓋住送出鍵），跟正式站台無關（真站台的
+  01-reset.css 本來就有全站 border-box）。
+- **狀態變化**：Chat 展示畫面（視覺/互動層）完成，跟 Travel 一樣是
+  「既有後端 + 重做前端」的模式；Contract 審核（travel snapshotId 6/7）
+  仍待使用者手動處理，跟這次改動無關。
+- **遺留**：reactions（訊息反應）／typing indicator／回覆某則訊息／
+  貼圖面板／半版全版懸浮面板（DECISIONS.md 描述的疊加式聊天室，這次
+  維持點擊大頭貼導去整頁 `/pages/chat/` 的簡化路線）都還沒做——這些都
+  需要 Worker 新增對應 action 或更大的架構調整，超出這次「展示畫面」的
+  範圍，跟 Travel 的 Book Generation 面板同樣處理原則（先誠實標示做到
+  哪，不假裝功能存在）。
+- **版本**：v0.22.2-202607140907
+
+---
+
 ## 2026-07-14（早上）— 導航修復＋Travel 架構更正為獨立外部專案
 
 - **任務**：使用者醒來測試昨晚的成果，發現三個問題：(1) 後台首頁沒加

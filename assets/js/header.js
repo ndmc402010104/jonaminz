@@ -303,6 +303,21 @@ requireLogin() 自己的註解。
   // [data-jonaminz-header] 元素只有部分頁面有），且已經有現成的
   // readToken()/ensureBackendClient() 可以重用，不用重寫一套登入檢查。
   // 沒登入完全不顯示；在 Chat 頁本身也不疊按鈕（沒有意義）。
+  //
+  // 照交接包 AI_CONTEXT/DECISIONS.md 的規則：入口顯示的是「對方」的大頭貼
+  // （不是通用聊天圖示），未讀角標是真的從 listChatMessages 算出來的數字，
+  // 不是裝飾。點下去先用「導去 /pages/chat/ 整頁」這條最低風險的路——不做
+  // DECISIONS.md 描述的半版/全版懸浮面板（那需要在每一頁疊一個完整聊天室
+  // UI + 版面協調，風險/範圍都大得多），是刻意收斂的展示畫面範圍。
+  var CHAT_BUBBLE_POLL_MS = 12000;
+  var CHAT_IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
+  var chatBubbleTimer = null;
+
+  function chatBubbleInitialOf(id) {
+    var label = CHAT_IDENTITY_LABEL[id] || id || "?";
+    return label.charAt(0).toUpperCase();
+  }
+
   function mountChatBubble() {
     if (document.querySelector(".jonaminz-chat-bubble-launcher")) return;
     if (window.location.pathname.indexOf("/pages/chat/") === 0) return;
@@ -312,29 +327,101 @@ requireLogin() 自己的註解。
 
     ensureBackendClient()
       .then(function () {
-        return window.JonaminzBackend.getCurrentIdentity({ token: token });
-      })
-      .then(function (response) {
-        if (!response || !response.identity) return;
-
         var style = document.createElement("style");
         style.textContent =
           ".jonaminz-chat-bubble-launcher{position:fixed;right:20px;bottom:20px;" +
-          "width:52px;height:52px;border-radius:999px;background:#1f3a5f;color:#fff;" +
+          "width:56px;height:56px;border-radius:999px;color:#fff;border:none;" +
           "display:flex;align-items:center;justify-content:center;text-decoration:none;" +
-          "box-shadow:0 8px 24px rgba(38,34,32,0.28);z-index:9999;}" +
-          ".jonaminz-chat-bubble-launcher:hover{background:#16283f;}";
+          "font-size:19px;font-weight:900;" +
+          "background:linear-gradient(145deg,#a85c3f,#1f3a5f);" +
+          "box-shadow:0 8px 24px rgba(38,34,32,0.28);z-index:9999;transition:transform .16s ease;}" +
+          ".jonaminz-chat-bubble-launcher:hover{transform:translateY(-2px);}" +
+          ".jonaminz-chat-bubble-launcher .jonaminz-chat-bubble-presence{position:absolute;" +
+          "width:12px;height:12px;right:2px;bottom:3px;border-radius:50%;background:#35c66b;" +
+          "border:2px solid #fff;opacity:0;transition:opacity .16s ease;}" +
+          ".jonaminz-chat-bubble-launcher.is-online .jonaminz-chat-bubble-presence{opacity:1;}" +
+          ".jonaminz-chat-bubble-launcher .jonaminz-chat-bubble-badge{position:absolute;top:-3px;" +
+          "right:-3px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;" +
+          "background:#a24a46;color:#fff;font-size:11px;font-weight:900;display:none;" +
+          "align-items:center;justify-content:center;border:2px solid #fff;}" +
+          ".jonaminz-chat-bubble-launcher.has-unread .jonaminz-chat-bubble-badge{display:flex;}";
         document.head.appendChild(style);
 
         var link = document.createElement("a");
         link.href = "/pages/chat/";
         link.className = "jonaminz-chat-bubble-launcher";
+        link.style.position = "fixed";
         link.setAttribute("aria-label", "開啟 Chat");
-        link.innerHTML =
-          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-          '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.4 3.3A1 1 0 0 1 3 19.5V6a1 1 0 0 1 1-1Z" ' +
-          'stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
+        var avatarText = document.createElement("span");
+        link.appendChild(avatarText);
+
+        var presenceDot = document.createElement("span");
+        presenceDot.className = "jonaminz-chat-bubble-presence";
+        link.appendChild(presenceDot);
+
+        var badge = document.createElement("span");
+        badge.className = "jonaminz-chat-bubble-badge";
+        link.appendChild(badge);
+
         document.body.appendChild(link);
+
+        function refresh() {
+          window.JonaminzBackend.listChatMessages({ token: token })
+            .then(function (data) {
+              if (!data || !data.ok) return;
+              var identity = data.identity;
+              var peer = identity === "jonathan" ? "minz" : "jonathan";
+              var messages = data.messages || [];
+              var readState = data.readState || {};
+              var myRead = readState[identity] || {};
+              var peerRead = readState[peer] || {};
+
+              avatarText.textContent = chatBubbleInitialOf(peer);
+              link.setAttribute(
+                "aria-label",
+                "開啟與 " + (CHAT_IDENTITY_LABEL[peer] || peer) + " 的 Chat"
+              );
+
+              var peerLastActivity = 0;
+              messages.forEach(function (m) {
+                if (m.sender_identity === peer) {
+                  var t = new Date(m.created_at).getTime();
+                  if (t > peerLastActivity) peerLastActivity = t;
+                }
+              });
+              if (peerRead.lastReadAt) {
+                var readAt = new Date(peerRead.lastReadAt).getTime();
+                if (readAt > peerLastActivity) peerLastActivity = readAt;
+              }
+              var isOnline = peerLastActivity > 0 && (Date.now() - peerLastActivity) < 5 * 60 * 1000;
+              link.classList.toggle("is-online", isOnline);
+
+              var myReadIndex = -1;
+              if (myRead.lastReadMessageId) {
+                for (var i = 0; i < messages.length; i += 1) {
+                  if (messages[i].id === myRead.lastReadMessageId) { myReadIndex = i; break; }
+                }
+              }
+              var unreadCount = 0;
+              if (myReadIndex >= 0) {
+                for (var j = myReadIndex + 1; j < messages.length; j += 1) {
+                  if (messages[j].sender_identity === peer) unreadCount += 1;
+                }
+              }
+              link.classList.toggle("has-unread", unreadCount > 0);
+              badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+            })
+            .catch(function () {
+              // 靜默失敗即可——這只是方便的捷徑按鈕，網路異常不該影響頁面其他功能。
+            });
+        }
+
+        refresh();
+        chatBubbleTimer = setInterval(refresh, CHAT_BUBBLE_POLL_MS);
+        window.addEventListener("beforeunload", function () {
+          if (chatBubbleTimer) clearInterval(chatBubbleTimer);
+        });
       })
       .catch(function () {
         // 靜默失敗即可——這只是方便的捷徑按鈕，網路異常不該影響頁面其他功能。
