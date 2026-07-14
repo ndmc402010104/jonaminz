@@ -268,6 +268,34 @@ export default {
         return json(await searchChatMessages(env, payload), 200);
       }
 
+      if (action === "setTypingState") {
+        return json(await setTypingState(env, payload), 200);
+      }
+
+      if (action === "toggleMessageReaction") {
+        return json(await toggleMessageReaction(env, payload), 200);
+      }
+
+      if (action === "getContactInfo") {
+        return json(await getContactInfo(env, payload), 200);
+      }
+
+      if (action === "setMyPhoneNumber") {
+        return json(await setMyPhoneNumber(env, payload), 200);
+      }
+
+      if (action === "getVapidPublicKey") {
+        return json(getVapidPublicKey(env), 200);
+      }
+
+      if (action === "savePushSubscription") {
+        return json(await savePushSubscription(env, payload), 200);
+      }
+
+      if (action === "removePushSubscription") {
+        return json(await removePushSubscription(env, payload), 200);
+      }
+
       return json({ ok: false, error: "Unknown action: " + action }, 400);
     } catch (error) {
       return json({ ok: false, error: error.message || String(error) }, 500);
@@ -1080,6 +1108,16 @@ async function logout(env, payload) {
 // 訊息＋已讀」這條端到端流程能動，符合交接包 WORK_PLAN.md 自己建議的
 // 「Worker polling 作為極簡 MVP」路線，不是长期最終架構。
 
+// 2026-07-14（第十五輪）：訊息查詢統一用這個 select 字串（listChatMessages／
+// loadOlderChatMessages 都要一致，不然分頁載入的舊訊息會少了 reply/reactions
+// 欄位）。reply_to_message_id 是既有欄位（chat_schema.sql 第一版就有，不是
+// 這輪新加）；chat_message_reactions(identity,emoji) 是 PostgREST 的反向
+// resource embedding（靠 chat_message_reactions.message_id 這條既有 FK 自動
+// 偵測），一次查詢就把每則訊息底下的表情反應一起帶出來，不用前端再問一次。
+var CHAT_MESSAGE_SELECT =
+  "id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id," +
+  "shared_item_id,reply_to_message_id,chat_message_reactions(identity,emoji)";
+
 let cachedChatRoomId = null;
 
 async function resolveChatRoomId(env) {
@@ -1112,10 +1150,10 @@ async function listChatMessages(env, payload) {
   const messagesUrl =
     base + "/rest/v1/chat_messages?room_id=eq." + roomId +
     "&order=created_at.asc,id.asc&limit=500" +
-    "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id,shared_item_id";
+    "&select=" + CHAT_MESSAGE_SELECT;
   const membersUrl =
     base + "/rest/v1/chat_room_members?room_id=eq." + roomId +
-    "&select=identity,last_read_message_id,last_read_at";
+    "&select=identity,last_read_message_id,last_read_at,last_delivered_message_id,last_delivered_at";
   // Shared 分享內容：跟訊息平行查這個房間目前所有 Shared item（連同各自
   // 的已讀狀態），前端靠 message.shared_item_id 對到這個 map 畫內容卡。
   // 這兩張表（chat_shared_items／chat_shared_item_seen）要等使用者手動
@@ -1158,9 +1196,52 @@ async function listChatMessages(env, payload) {
   }
 
   const readState = {};
+  const deliveryState = {};
   members.forEach(function (m) {
     readState[m.identity] = { lastReadMessageId: m.last_read_message_id, lastReadAt: m.last_read_at };
+    deliveryState[m.identity] = { lastDeliveredMessageId: m.last_delivered_message_id, lastDeliveredAt: m.last_delivered_at };
   });
+
+  // 送達（三態已讀的中間態）：這支 action 本身就是「我方裝置正在跟伺服器
+  // 要訊息」，所以呼叫這支 action 這個事實本身就等於「我方已經送達到這個
+  // 時間點的所有訊息」——不需要前端另外回報一次。只在真的有訊息、且比
+  // 目前記錄的還新時才寫入，避免每次 1.5 秒 poll 都無意義地 PATCH 一次。
+  const newestMessage = messages[messages.length - 1];
+  if (newestMessage && deliveryState[identity] && deliveryState[identity].lastDeliveredMessageId !== newestMessage.id) {
+    try {
+      await fetch(
+        base + "/rest/v1/chat_room_members?room_id=eq." + roomId + "&identity=eq." + identity,
+        {
+          method: "PATCH",
+          headers: supabaseHeaders(env),
+          body: JSON.stringify({ last_delivered_message_id: newestMessage.id, last_delivered_at: new Date().toISOString() })
+        }
+      );
+      deliveryState[identity] = { lastDeliveredMessageId: newestMessage.id, lastDeliveredAt: new Date().toISOString() };
+    } catch (error) {
+      // 送達狀態寫入失敗不影響訊息本身能不能顯示，靜靜失敗即可。
+    }
+  }
+
+  // 輸入中：跟已讀/送達一樣是「錦上添花」的次要資訊，查詢失敗（例如表還
+  // 沒套用完成）不能拖垮訊息主線，整段包 try/catch。只看對方最後一次回報
+  // 「正在輸入」的時間是不是在 4 秒內（略大於前端 3 秒送一次心跳的間隔，
+  // 容忍一次漏送）。
+  var typing = {};
+  try {
+    const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+    const typingRes = await fetch(
+      base + "/rest/v1/chat_typing_state?room_id=eq." + roomId + "&identity=eq." + peerIdentity + "&select=updated_at&limit=1",
+      { method: "GET", headers: supabaseHeaders(env) }
+    );
+    if (typingRes.ok) {
+      const typingRows = await typingRes.json();
+      const row = typingRows[0];
+      typing[peerIdentity] = Boolean(row && (Date.now() - new Date(row.updated_at).getTime()) < 4000);
+    }
+  } catch (error) {
+    // 查不到就當作沒有在輸入，不影響訊息本身。
+  }
 
   const sharedItems = {};
   sharedItemRows.forEach(function (item) {
@@ -1190,6 +1271,8 @@ async function listChatMessages(env, payload) {
     roomId: roomId,
     messages: messages,
     readState: readState,
+    deliveryState: deliveryState,
+    typing: typing,
     sharedItems: sharedItems
   };
 }
@@ -1214,6 +1297,9 @@ async function sendChatMessage(env, payload) {
   // shared_item_id」）——不驗證跨房間，這支 Worker 目前只有一個房間，
   // 跟既有程式碼一致的簡化。
   const sharedItemId = String((payload && payload.sharedItemId) || "").trim() || null;
+  // 選填：回覆／引用某一則既有訊息——reply_to_message_id 是既有欄位
+  // （chat_schema.sql 第一版就有），不像 shared_item_id 需要條件式加欄位。
+  const replyToMessageId = String((payload && payload.replyToMessageId) || "").trim() || null;
   const roomId = await resolveChatRoomId(env);
   const base = env.SUPABASE_URL.replace(/\/+$/, "");
 
@@ -1223,7 +1309,8 @@ async function sendChatMessage(env, payload) {
     sender_identity: identity,
     client_message_id: clientMessageId,
     kind: "text",
-    body: body
+    body: body,
+    reply_to_message_id: replyToMessageId
   };
   // 只有真的要帶 shared_item_id 才放進去這個 key——這欄位要等使用者
   // 手動套用 backend/supabase/chat_shared_schema.sql 才存在，一般傳文字
@@ -1245,7 +1332,7 @@ async function sendChatMessage(env, payload) {
       base + "/rest/v1/chat_messages?room_id=eq." + roomId +
       "&sender_identity=eq." + identity +
       "&client_message_id=eq." + encodeURIComponent(clientMessageId) +
-      "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id,shared_item_id&limit=1";
+      "&select=" + CHAT_MESSAGE_SELECT + "&limit=1";
     const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
     const rows = await existingRes.json();
     return { ok: true, message: rows[0] || null };
@@ -1256,8 +1343,15 @@ async function sendChatMessage(env, payload) {
   }
 
   const rows = await response.json();
+  // 真推播：對方如果有訂閱，送一則系統通知。最佳努力（best-effort）——
+  // 失敗（沒訂閱／推播服務暫時性錯誤）不能讓「訊息有沒有送出」這個核心
+  // 功能跟著壞掉，整段包在 sendPushToIdentity 自己的 try/catch 裡。
+  const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+  await sendPushToIdentity(env, peerIdentity, IDENTITY_LABEL[identity] || identity, body.slice(0, 120));
   return { ok: true, message: rows[0] || null };
 }
+
+var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
 
 async function markChatRead(env, payload) {
   const identity = await requireSession(env, payload);
@@ -1416,6 +1510,9 @@ async function shareCurrentContent(env, payload) {
   }
   const messageRows = await messageRes.json();
 
+  const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+  await sendPushToIdentity(env, peerIdentity, IDENTITY_LABEL[identity] || identity, "分享了：" + title);
+
   return { ok: true, message: messageRows[0] || null, sharedItem: sharedItem };
 }
 
@@ -1548,7 +1645,7 @@ async function loadOlderChatMessages(env, payload) {
   const olderUrl = base + "/rest/v1/chat_messages?room_id=eq." + roomId +
     "&created_at=lt." + encodeURIComponent(anchorCreatedAt) +
     "&order=created_at.desc,id.desc&limit=" + (PAGE_SIZE + 1) +
-    "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id,shared_item_id";
+    "&select=" + CHAT_MESSAGE_SELECT;
   const olderRes = await fetch(olderUrl, { method: "GET", headers: supabaseHeaders(env) });
   if (!olderRes.ok) {
     throw new Error("Supabase read failed: HTTP " + olderRes.status + " " + (await olderRes.text()));
@@ -1589,6 +1686,341 @@ async function searchChatMessages(env, payload) {
   }
   const rows = await response.json();
   return { ok: true, messages: rows };
+}
+
+// ---------- 2026-07-14（第十五輪）：對照成熟聊天 App 慣例再補一輪——
+// 輸入中、表情反應、聯絡電話（語音通話改撥打真實電話取代）、真推播通知。
+// schema 見 backend/supabase/chat_features_v2_schema.sql（已套用到
+// jonaminz-db）。----------
+
+async function setTypingState(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const url = base + "/rest/v1/chat_typing_state?on_conflict=room_id,identity";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({ room_id: roomId, identity: identity, updated_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+// 表情反應：一個人對一則訊息同時間只有一個反應（跟 FB Messenger 一致），
+// primary key (message_id, identity) 天生就撞成這個語意。再點一次同一個
+// emoji＝取消（toggle off），點不同 emoji＝換成新的（upsert 覆蓋）。
+async function toggleMessageReaction(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const messageId = String((payload && payload.messageId) || "").trim();
+  const emoji = String((payload && payload.emoji) || "").trim();
+  if (!messageId || !emoji) {
+    return { ok: false, code: "MESSAGE_ID_AND_EMOJI_REQUIRED", error: "messageId and emoji are required" };
+  }
+
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const existingUrl = base + "/rest/v1/chat_message_reactions?message_id=eq." + encodeURIComponent(messageId) +
+    "&identity=eq." + identity + "&select=emoji&limit=1";
+  const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!existingRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + existingRes.status + " " + (await existingRes.text()));
+  }
+  const existingRows = await existingRes.json();
+
+  if (existingRows[0] && existingRows[0].emoji === emoji) {
+    const deleteUrl = base + "/rest/v1/chat_message_reactions?message_id=eq." + encodeURIComponent(messageId) +
+      "&identity=eq." + identity;
+    const deleteRes = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
+    if (!deleteRes.ok) {
+      throw new Error("Supabase delete failed: HTTP " + deleteRes.status + " " + (await deleteRes.text()));
+    }
+    return { ok: true, action: "removed", emoji: emoji };
+  }
+
+  const upsertUrl = base + "/rest/v1/chat_message_reactions?on_conflict=message_id,identity";
+  const upsertRes = await fetch(upsertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({ message_id: messageId, identity: identity, emoji: emoji, updated_at: new Date().toISOString() })
+  });
+  if (!upsertRes.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + upsertRes.status + " " + (await upsertRes.text()));
+  }
+  return { ok: true, action: "added", emoji: emoji };
+}
+
+// 聯絡電話：語音/視訊通話這輪「偷吃步」改成直接撥打真實手機號碼（tel:
+// 連結）——使用者不想把號碼寫死在程式碼裡（用途只有 Jonathan/Minz 兩人
+// 自己用），改存這張表，每個人只能改自己的號碼（identity 直接來自登入
+// session，不是 payload 自報，跟這個專案其他寫入動作一致的防護）。
+async function getContactInfo(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const url = base + "/rest/v1/chat_contact_info?select=identity,phone_number";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  const byIdentity = {};
+  rows.forEach(function (row) { byIdentity[row.identity] = row.phone_number || ""; });
+  const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+  return {
+    ok: true,
+    myPhoneNumber: byIdentity[identity] || "",
+    peerPhoneNumber: byIdentity[peerIdentity] || ""
+  };
+}
+
+async function setMyPhoneNumber(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const phoneNumber = String((payload && payload.phoneNumber) || "").trim().slice(0, 40);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const url = base + "/rest/v1/chat_contact_info?on_conflict=identity";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({ identity: identity, phone_number: phoneNumber, updated_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true, myPhoneNumber: phoneNumber };
+}
+
+// ---------- 真推播通知（Web Push，RFC8291 aes128gcm + RFC8292 VAPID）。
+// 刻意不用第三方 web-push 套件——那套件內部用 Node 的 crypto 模組
+// （createECDH/createCipheriv 等），Cloudflare Workers 沒有 Node crypto，
+// 只有標準 WebCrypto（crypto.subtle）。這裡整段用 crypto.subtle 重新實作，
+// 已經用本機腳本驗證過「加密→用標準流程解密」能還原出原始明文，證明
+// HKDF/AES-128-GCM 這幾步沒有算錯，但沒有辦法在這個環境實際打一次
+// Google/Mozilla 的真推播服務——最終還是要使用者在真機上允許通知權限、
+// 實際收一次推播才算完全驗證過。----------
+
+function b64urlEncode(bytes) {
+  var bin = "";
+  var arr = new Uint8Array(bytes);
+  for (var i = 0; i < arr.length; i += 1) bin += String.fromCharCode(arr[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDecode(str) {
+  var padded = String(str).replace(/-/g, "+").replace(/_/g, "/");
+  while (padded.length % 4) padded += "=";
+  var bin = atob(padded);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function concatBytes(arrays) {
+  var total = arrays.reduce(function (sum, a) { return sum + a.length; }, 0);
+  var out = new Uint8Array(total);
+  var offset = 0;
+  arrays.forEach(function (a) { out.set(a, offset); offset += a.length; });
+  return out;
+}
+
+// RFC8292：VAPID JWT，ES256（ECDSA P-256 + SHA-256），header/claims 都是
+// base64url 過的 JSON，簽章是 WebCrypto 原生輸出的 r||s（IEEE P1363 格式，
+// 剛好就是 JWS ES256 要的格式，不需要額外轉換）。
+async function buildVapidJwt(env, endpoint) {
+  var aud = new URL(endpoint).origin;
+  var header = { typ: "JWT", alg: "ES256" };
+  var claims = {
+    aud: aud,
+    exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
+    sub: env.VAPID_SUBJECT || "mailto:admin@jonaminz.com"
+  };
+  var signingInput =
+    b64urlEncode(new TextEncoder().encode(JSON.stringify(header))) + "." +
+    b64urlEncode(new TextEncoder().encode(JSON.stringify(claims)));
+
+  var jwk = JSON.parse(env.VAPID_PRIVATE_KEY_JWK);
+  var privateKey = await crypto.subtle.importKey(
+    "jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]
+  );
+  var signature = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" }, privateKey, new TextEncoder().encode(signingInput)
+  );
+  return signingInput + "." + b64urlEncode(signature);
+}
+
+// RFC8291：Message Encryption for Web Push（aes128gcm content-encoding）。
+// 回傳可以直接當 fetch body 送出去的 bytes（RFC8188 header + 密文+authTag）。
+async function encryptWebPushPayload(subscription, plaintextObj) {
+  var plaintext = new TextEncoder().encode(JSON.stringify(plaintextObj));
+  var uaPublicRaw = b64urlDecode(subscription.p256dh); // 訂閱者的公鑰，65 bytes 未壓縮格式
+  var authSecret = b64urlDecode(subscription.auth); // 16 bytes
+
+  var uaPublicKey = await crypto.subtle.importKey(
+    "raw", uaPublicRaw, { name: "ECDH", namedCurve: "P-256" }, true, []
+  );
+  var ephemeralKeyPair = await crypto.subtle.generateKey(
+    { name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]
+  );
+  var asPublicRaw = new Uint8Array(await crypto.subtle.exportKey("raw", ephemeralKeyPair.publicKey));
+
+  var sharedSecretBits = await crypto.subtle.deriveBits(
+    { name: "ECDH", public: uaPublicKey }, ephemeralKeyPair.privateKey, 256
+  );
+  var ecdhSecret = new Uint8Array(sharedSecretBits);
+
+  var salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // 第一段 HKDF：用 auth_secret 當 salt，ecdh 共享金鑰當 IKM，"WebPush: info"
+  // + 0x00 + 訂閱者公鑰 + 我方臨時公鑰 當 info，取 32 bytes 當第二段用的 IKM。
+  var ecdhKeyMaterial = await crypto.subtle.importKey("raw", ecdhSecret, "HKDF", false, ["deriveBits"]);
+  var webpushInfo = concatBytes([
+    new TextEncoder().encode("WebPush: info"),
+    new Uint8Array([0]),
+    uaPublicRaw,
+    asPublicRaw
+  ]);
+  var ikmBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: authSecret, info: webpushInfo }, ecdhKeyMaterial, 256
+  );
+  var ikm = new Uint8Array(ikmBits);
+
+  // 第二段 HKDF：用內容加密的隨機 salt（跟上面的 auth_secret 是不同變數）、
+  // 上一步算出來的 ikm，分別取 16 bytes 的 CEK 跟 12 bytes 的 nonce。
+  var ikmKeyMaterial = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  var cekBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: salt, info: new TextEncoder().encode("Content-Encoding: aes128gcm\0") },
+    ikmKeyMaterial, 128
+  );
+  var nonceBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: salt, info: new TextEncoder().encode("Content-Encoding: nonce\0") },
+    ikmKeyMaterial, 96
+  );
+
+  var cek = await crypto.subtle.importKey("raw", cekBits, { name: "AES-GCM" }, false, ["encrypt"]);
+  // 單一 record（訊息夠短，不用分段）：明文尾端補一個 0x02 當 last-record
+  // 分隔符（RFC8188），沒有額外 padding 需求。
+  var padded = concatBytes([plaintext, new Uint8Array([2])]);
+  var ciphertextBits = await crypto.subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(nonceBits) }, cek, padded);
+  var ciphertext = new Uint8Array(ciphertextBits);
+
+  var recordSize = new Uint8Array(4);
+  new DataView(recordSize.buffer).setUint32(0, 4096, false);
+  var keyIdLength = new Uint8Array([asPublicRaw.length]);
+  var rfc8188Header = concatBytes([salt, recordSize, keyIdLength, asPublicRaw]);
+
+  return concatBytes([rfc8188Header, ciphertext]);
+}
+
+function getVapidPublicKey(env) {
+  if (!env.VAPID_PUBLIC_KEY) {
+    return { ok: false, code: "VAPID_NOT_CONFIGURED", error: "VAPID public key not configured" };
+  }
+  return { ok: true, publicKey: env.VAPID_PUBLIC_KEY };
+}
+
+async function savePushSubscription(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const subscription = payload && payload.subscription;
+  const endpoint = subscription && String(subscription.endpoint || "").trim();
+  const p256dh = subscription && subscription.keys && String(subscription.keys.p256dh || "").trim();
+  const auth = subscription && subscription.keys && String(subscription.keys.auth || "").trim();
+  if (!endpoint || !p256dh || !auth) {
+    return { ok: false, code: "SUBSCRIPTION_REQUIRED", error: "subscription.endpoint/keys.p256dh/keys.auth are required" };
+  }
+
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const url = base + "/rest/v1/chat_push_subscriptions?on_conflict=identity,endpoint";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({
+      identity: identity, endpoint: endpoint, p256dh: p256dh, auth: auth, updated_at: new Date().toISOString()
+    })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+async function removePushSubscription(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const endpoint = String((payload && payload.endpoint) || "").trim();
+  if (!endpoint) {
+    return { ok: false, code: "ENDPOINT_REQUIRED", error: "endpoint is required" };
+  }
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const url = base + "/rest/v1/chat_push_subscriptions?identity=eq." + identity + "&endpoint=eq." + encodeURIComponent(endpoint);
+  const response = await fetch(url, { method: "DELETE", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+// 對某個 identity 名下所有裝置送一次推播——這支是「盡力而為」的背景動作，
+// 呼叫端（sendChatMessage／shareCurrentContent）不應該因為推播寄不出去
+// 就讓訊息本身送失敗，所以整支函式自己吞掉所有錯誤，不 throw。
+async function sendPushToIdentity(env, identity, senderLabel, bodyText) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY_JWK) return;
+  try {
+    const base = env.SUPABASE_URL.replace(/\/+$/, "");
+    const url = base + "/rest/v1/chat_push_subscriptions?identity=eq." + identity + "&select=endpoint,p256dh,auth";
+    const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+    if (!response.ok) return;
+    const subscriptions = await response.json();
+
+    await Promise.all(subscriptions.map(async function (sub) {
+      try {
+        const jwt = await buildVapidJwt(env, sub.endpoint);
+        const encryptedBody = await encryptWebPushPayload(sub, {
+          title: senderLabel,
+          body: bodyText,
+          tag: "jonaminz-chat"
+        });
+        const pushResponse = await fetch(sub.endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Content-Encoding": "aes128gcm",
+            TTL: "86400",
+            Authorization: "vapid t=" + jwt + ", k=" + env.VAPID_PUBLIC_KEY
+          },
+          body: encryptedBody
+        });
+        // 404/410：訂閱已經失效（使用者移除通知權限／清了瀏覽器資料），
+        // 清掉這筆過期訂閱，避免之後每次送訊息都白打一次失敗的請求。
+        if (pushResponse.status === 404 || pushResponse.status === 410) {
+          await fetch(
+            base + "/rest/v1/chat_push_subscriptions?identity=eq." + identity + "&endpoint=eq." + encodeURIComponent(sub.endpoint),
+            { method: "DELETE", headers: supabaseHeaders(env) }
+          ).catch(function () {});
+        }
+      } catch (error) {
+        // 單一裝置推播失敗不影響其他裝置或訊息本身。
+      }
+    }));
+  } catch (error) {
+    // 整段推播失敗（例如查訂閱清單就出錯）不影響訊息本身。
+  }
 }
 
 async function handleGoogleStart(env, url) {

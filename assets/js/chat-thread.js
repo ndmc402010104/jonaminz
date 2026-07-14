@@ -55,6 +55,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
   var HISTORY_PAGE_SIZE = 50;
   var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
   var QUICK_REACTION = "👍";
+  // 2026-07-14（第十五輪）：輸入中心跳——使用者打字時最多每 2.5 秒呼叫一次
+  // setTypingState，不是每個按鍵都送；Worker 端只看「最後一次回報時間」
+  // 是不是在 4 秒內，兩邊搭配起來就是一個不需要 WebSocket 也能動的輸入中
+  // 指示器，跟已讀/送達同一種「用 polling 頻率換取簡單架構」的取捨。
+  var TYPING_HEARTBEAT_MS = 2500;
+  var REACTION_SET = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
   var EMOJI_SET = [
     "😀", "😂", "😍", "😘",
     "😢", "😭", "😎", "🥰",
@@ -184,6 +190,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var sharedItems = {};
     var activeSharedItemId = null;
     var editingMessageId = null;
+    var replyingToMessageId = null;
+    var lastTypingSentAt = 0;
+    var myPhoneNumber = "";
+    var peerPhoneNumber = "";
+    var pushSubscribed = false;
     var els = {};
     // 2026-07-14（第十四輪）：歷史分頁——往上捲動載入更早的訊息，
     // 累加在 olderMessages 裡，每次 render() 都跟最新一次 poll 回應
@@ -249,7 +260,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.peerName.textContent = peerLabel;
 
       var lastMessage = messages[messages.length - 1];
-      els.peerStatus.textContent = lastMessage ? "最後訊息 " + formatTime(lastMessage.created_at) : "還沒有訊息";
+      var peerTyping = Boolean(data.typing && data.typing[peer]);
+      if (peerTyping) {
+        els.peerStatus.textContent = "正在輸入...";
+      } else {
+        els.peerStatus.textContent = lastMessage ? "最後訊息 " + formatTime(lastMessage.created_at) : "還沒有訊息";
+      }
 
       var peerLastActivity = 0;
       messages.forEach(function (m) {
@@ -300,9 +316,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
       // 一個時間窗，不會自己累積歷史，靠這裡把 olderMessages 接在前面。
       var messages = olderMessages.concat(data.messages || []);
       var readState = data.readState || {};
+      var deliveryState = data.deliveryState || {};
       sharedItems = data.sharedItems || {};
       var myRead = readState[identity] || {};
       var otherRead = readState[otherIdentity()] || {};
+      var otherDelivery = deliveryState[otherIdentity()] || {};
+      var messagesById = {};
+      messages.forEach(function (mm) { messagesById[mm.id] = mm; });
 
       renderNotifPanel(unreadCount);
 
@@ -370,6 +390,48 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var readByOther = mine && otherRead.lastReadMessageId === m.id;
         var deleted = Boolean(m.deleted_at);
         var canEditOrDelete = mine && !deleted && m.kind !== "shared_item";
+        var canReplyOrReact = !deleted;
+
+        // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
+        // 那則訊息如果還在目前已載入的範圍內（olderMessages/data.messages
+        // merge 起來的 messagesById），畫出小小的引用預覽；不在範圍內
+        // （例如引用了很久以前還沒往上捲到的訊息）就退回通用的「回覆訊息」
+        // 提示，不強求一定要找得到。
+        var replyQuoteHtml = "";
+        if (!deleted && m.reply_to_message_id) {
+          var quoted = messagesById[m.reply_to_message_id];
+          if (quoted) {
+            var quotedLabel = quoted.sender_identity === identity ? "我" : (IDENTITY_LABEL[quoted.sender_identity] || quoted.sender_identity);
+            var quotedSnippet = quoted.kind === "shared_item" ? "[分享的內容]" : (quoted.deleted_at ? "此訊息已刪除" : quoted.body);
+            replyQuoteHtml = '<div class="jonaminz-chat-reply-quote">' + escapeHtml(quotedLabel) + "：" +
+              escapeHtml(String(quotedSnippet || "").slice(0, 60)) + "</div>";
+          } else {
+            replyQuoteHtml = '<div class="jonaminz-chat-reply-quote is-unknown">回覆訊息</div>';
+          }
+        }
+
+        // 表情反應：chat_message_reactions 是 listChatMessages／
+        // loadOlderChatMessages 用 PostgREST resource embedding 一起帶出來
+        // 的陣列，這裡按 emoji 分組計數，順便記住「我自己是不是也點過這個」
+        // 好加上 is-mine 樣式。
+        var reactionsHtml = "";
+        var reactionRows = m.chat_message_reactions || [];
+        if (reactionRows.length) {
+          var reactionGroups = {};
+          reactionRows.forEach(function (r) {
+            reactionGroups[r.emoji] = reactionGroups[r.emoji] || { count: 0, mine: false };
+            reactionGroups[r.emoji].count += 1;
+            if (r.identity === identity) reactionGroups[r.emoji].mine = true;
+          });
+          reactionsHtml = '<div class="jonaminz-chat-reactions">' +
+            Object.keys(reactionGroups).map(function (emoji) {
+              var g = reactionGroups[emoji];
+              return '<button type="button" class="jonaminz-chat-reaction-pill' + (g.mine ? " is-mine" : "") + '" ' +
+                'data-react-toggle data-message-id="' + escapeHtml(m.id) + '" data-emoji="' + emoji + '">' +
+                emoji + " " + g.count + "</button>";
+            }).join("") +
+            "</div>";
+        }
 
         var bodyHtml;
         if (deleted) {
@@ -378,6 +440,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var item = sharedItems[m.shared_item_id];
           var viewerSeen = Boolean(item.seenState && item.seenState[identity]);
           bodyHtml =
+            '<div class="jonaminz-chat-bubble-col">' +
             '<div class="jonaminz-chat-shared-card' + (viewerSeen ? "" : " is-unseen") + '" ' +
             'data-shared-card data-item-id="' + escapeHtml(item.id) + '" ' +
             'data-item-url="' + escapeHtml(item.url) + '">' +
@@ -386,15 +449,25 @@ title/url（見 `requestHostContext()`，宿主端實作在
             (viewerSeen ? "" : '<div class="jonaminz-chat-shared-card-unseen">尚未查看</div>') +
             '<button type="button" class="jonaminz-chat-shared-card-discuss" data-discuss-btn ' +
             'data-item-id="' + escapeHtml(item.id) + '" data-item-title="' + escapeHtml(item.title) + '">討論</button>' +
-            "</div>";
+            "</div>" + reactionsHtml + "</div>";
         } else {
-          bodyHtml = '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) +
-            (m.edited_at ? '<span class="jonaminz-chat-edited-tag">已編輯</span>' : "") + "</div>";
+          // 2026-07-14（第十五輪修正）：.jonaminz-chat-message 是 flex row
+          // （大頭貼跟內容並排），回覆引用／泡泡／表情反應如果各自是直接
+          // 子元素會被當成三個並排的 flex item 疊在一起，不是想要的「引用
+          // 在上、泡泡在中、反應在下」直向堆疊。用一個 column 容器包起來，
+          // 對 flex row 來說這個容器才是唯一的 flex item，內部照一般 block
+          // 排版直向堆疊。
+          bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
+            '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) +
+            (m.edited_at ? '<span class="jonaminz-chat-edited-tag">已編輯</span>' : "") + "</div>" +
+            reactionsHtml + "</div>";
         }
 
         html +=
           '<div class="jonaminz-chat-message" data-mine="' + mine + '" data-message-id="' + escapeHtml(m.id) + '"' +
           (canEditOrDelete ? " data-editable=\"true\"" : "") +
+          (deleted ? ' data-deleted="true"' : "") +
+          (canReplyOrReact ? " data-reactable=\"true\"" : "") +
           (!deleted && m.kind !== "shared_item" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
           bodyHtml +
@@ -404,6 +477,19 @@ title/url（見 `requestHostContext()`，宿主端實作在
           html +=
             '<div class="jonaminz-chat-read-receipt"><div class="jonaminz-chat-message-avatar is-tiny">' +
             escapeHtml(initialOf(otherIdentity())) + "</div></div>";
+        }
+
+        // 送達／已讀三態：只在「整串對話裡我自己送出的最後一則」下面顯示
+        // 一個狀態字（已送出／已送達／已讀），不是每則訊息都顯示——避免
+        // 畫面太吵，也符合這個功能最常被在意的情境（我剛剛送出的這則，
+        // 對方到底收到了沒）。用時間戳比大小，不用訊息 id 比對，天生就
+        // 不受分頁/排序影響。
+        if (mine && !deleted && index === messages.length - 1) {
+          var msgTime = new Date(m.created_at).getTime();
+          var otherReadAt = otherRead.lastReadAt ? new Date(otherRead.lastReadAt).getTime() : 0;
+          var otherDeliveredAt = otherDelivery.lastDeliveredAt ? new Date(otherDelivery.lastDeliveredAt).getTime() : 0;
+          var tickLabel = otherReadAt >= msgTime ? "已讀" : (otherDeliveredAt >= msgTime ? "已送達" : "已送出");
+          html += '<div class="jonaminz-chat-delivery-tick">' + tickLabel + "</div>";
         }
       });
 
@@ -503,7 +589,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var clientMessageId = identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2);
         var sendPayload = { token: token, body: body, clientMessageId: clientMessageId };
         if (activeSharedItemId) sendPayload.sharedItemId = activeSharedItemId;
-        request = window.JonaminzBackend.sendChatMessage(sendPayload);
+        if (replyingToMessageId) sendPayload.replyToMessageId = replyingToMessageId;
+        request = window.JonaminzBackend.sendChatMessage(sendPayload).then(function (result) {
+          setReplyTarget(null);
+          return result;
+        });
       }
 
       request
@@ -556,7 +646,21 @@ title/url（見 `requestHostContext()`，宿主端實作在
       }
     }
 
-    // ---- 長按訊息跳出選單（複製／編輯／刪除）----
+    // 2026-07-14（第十五輪）：回覆／引用——跟討論/編輯橫幅同一種寫法，
+    // composer 上方出現可關閉的提示，doSendText() 送出時把 replyingToMessageId
+    // 一併帶給 sendChatMessage，送完自動清掉（見 doSendText 內的 .then）。
+    function setReplyTarget(messageId, previewText) {
+      replyingToMessageId = messageId;
+      if (!els.replyBanner) return;
+      if (messageId) {
+        els.replyTitle.textContent = "回覆：" + (previewText || "");
+        els.replyBanner.hidden = false;
+      } else {
+        els.replyBanner.hidden = true;
+      }
+    }
+
+    // ---- 長按訊息跳出選單（複製／編輯／刪除／回覆／表情反應）----
     function closeContextMenu() {
       if (els.contextMenu) els.contextMenu.hidden = true;
     }
@@ -565,10 +669,22 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (!els.contextMenu) return;
       var messageId = messageEl.dataset.messageId;
       var editable = messageEl.dataset.editable === "true";
+      var reactable = messageEl.dataset.reactable === "true";
       var copyText = messageEl.dataset.copyText;
       var items = [];
+      if (reactable) {
+        items.push('<div class="jonaminz-chat-context-reactions">' +
+          REACTION_SET.map(function (emoji) {
+            return '<button type="button" data-menu-react data-message-id="' + escapeHtml(messageId) +
+              '" data-emoji="' + emoji + '">' + emoji + "</button>";
+          }).join("") + "</div>");
+      }
       if (copyText) {
         items.push('<button type="button" data-menu-copy data-text="' + escapeHtml(copyText) + '">複製</button>');
+      }
+      if (copyText) {
+        items.push('<button type="button" data-menu-reply data-message-id="' + escapeHtml(messageId) +
+          '" data-text="' + escapeHtml(copyText) + '">回覆</button>');
       }
       if (editable) {
         items.push('<button type="button" data-menu-edit data-message-id="' + escapeHtml(messageId) +
@@ -645,6 +761,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           'aria-label="更多功能" aria-haspopup="true">+</button>' +
           '<div class="jonaminz-chat-plus-panel" data-plus-panel hidden>' +
           '<button type="button" data-share-current>分享目前內容</button>' +
+          '<button type="button" data-pick-image>分享圖片（相機／相簿）</button>' +
+          '<input type="file" accept="image/*" data-image-input hidden>' +
           "</div>"
         : '<button type="button" class="jonaminz-chat-plus-btn" data-plus disabled ' +
           'title="附件與更多動作——之後開放" aria-label="更多功能（尚未開放）">+</button>';
@@ -659,10 +777,29 @@ title/url（見 `requestHostContext()`，宿主端實作在
         "</div>" +
         '<div class="jonaminz-chat-head-actions">' +
         '<button type="button" class="jonaminz-chat-head-icon-btn" data-search-toggle aria-label="搜尋訊息">🔍</button>' +
+        '<div class="jonaminz-chat-notif-wrap">' +
         '<button type="button" class="jonaminz-chat-head-icon-btn" data-notif-toggle aria-label="最近動態">' +
         '🔔<span class="jonaminz-chat-notif-dot" data-notif-dot hidden></span></button>' +
-        "</div>" +
         '<div class="jonaminz-chat-notif-panel" data-notif-panel hidden></div>' +
+        "</div>" +
+        '<div class="jonaminz-chat-notif-wrap">' +
+        '<button type="button" class="jonaminz-chat-head-icon-btn" data-shared-list-toggle aria-label="所有分享內容">🗂</button>' +
+        '<div class="jonaminz-chat-notif-panel" data-shared-list-panel hidden></div>' +
+        "</div>" +
+        '<div class="jonaminz-chat-notif-wrap">' +
+        '<button type="button" class="jonaminz-chat-head-icon-btn" data-settings-toggle aria-label="設定">⚙️</button>' +
+        '<div class="jonaminz-chat-notif-panel jonaminz-chat-settings-panel" data-settings-panel hidden>' +
+        '<div class="jonaminz-chat-settings-row">' +
+        '<label for="jclMyPhone">我的電話號碼</label>' +
+        '<input id="jclMyPhone" type="tel" data-my-phone placeholder="09xx-xxx-xxx">' +
+        '<button type="button" data-save-phone>儲存</button>' +
+        "</div>" +
+        '<button type="button" class="jonaminz-chat-settings-call-btn" data-call-btn>📞 撥打給對方</button>' +
+        '<button type="button" class="jonaminz-chat-settings-push-btn" data-push-toggle>開啟推播通知</button>' +
+        '<p class="jonaminz-chat-settings-note" data-push-status></p>' +
+        "</div>" +
+        "</div>" +
+        "</div>" +
         "</section>" +
         '<div class="jonaminz-chat-search-bar" data-search-bar hidden>' +
         '<input type="search" data-search-input placeholder="搜尋訊息...">' +
@@ -678,6 +815,15 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<div class="jonaminz-chat-discuss-banner jonaminz-chat-edit-banner" data-edit-banner hidden>' +
         '<span data-edit-title>編輯訊息</span>' +
         '<button type="button" data-edit-cancel aria-label="取消編輯">✕</button>' +
+        "</div>" +
+        '<div class="jonaminz-chat-discuss-banner jonaminz-chat-reply-banner" data-reply-banner hidden>' +
+        '<span data-reply-title></span>' +
+        '<button type="button" data-reply-cancel aria-label="取消回覆">✕</button>' +
+        "</div>" +
+        '<div class="jonaminz-chat-discuss-banner jonaminz-chat-image-preview-banner" data-image-preview-banner hidden>' +
+        '<img data-image-preview-thumb alt="預覽圖片">' +
+        '<span>圖片已選好，等 OneDrive 接上這步才能真的送出</span>' +
+        '<button type="button" data-image-preview-cancel aria-label="取消">✕</button>' +
         "</div>" +
         '<div class="jonaminz-chat-context-menu" data-context-menu hidden></div>' +
         '<div class="jonaminz-chat-composer">' +
@@ -716,6 +862,20 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.notifDot = root.querySelector("[data-notif-dot]");
       els.notifPanel = root.querySelector("[data-notif-panel]");
       els.contextMenu = root.querySelector("[data-context-menu]");
+      els.replyBanner = root.querySelector("[data-reply-banner]");
+      els.replyTitle = root.querySelector("[data-reply-title]");
+      els.imageInput = root.querySelector("[data-image-input]");
+      els.imagePreviewBanner = root.querySelector("[data-image-preview-banner]");
+      els.imagePreviewThumb = root.querySelector("[data-image-preview-thumb]");
+      els.sharedListToggle = root.querySelector("[data-shared-list-toggle]");
+      els.sharedListPanel = root.querySelector("[data-shared-list-panel]");
+      els.settingsToggle = root.querySelector("[data-settings-toggle]");
+      els.settingsPanel = root.querySelector("[data-settings-panel]");
+      els.myPhoneInput = root.querySelector("[data-my-phone]");
+      els.savePhoneBtn = root.querySelector("[data-save-phone]");
+      els.callBtn = root.querySelector("[data-call-btn]");
+      els.pushToggleBtn = root.querySelector("[data-push-toggle]");
+      els.pushStatus = root.querySelector("[data-push-status]");
 
       els.emojiPanel.innerHTML = EMOJI_SET.map(function (emoji) {
         return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
@@ -728,6 +888,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
           els.plusPanel.hidden = !els.plusPanel.hidden;
         });
         els.plusPanel.addEventListener("click", function (event) {
+          if (event.target.closest("[data-pick-image]")) {
+            closePlusPanel();
+            if (els.imageInput) els.imageInput.click();
+            return;
+          }
           if (!event.target.closest("[data-share-current]")) return;
           closePlusPanel();
           els.status.textContent = "正在取得目前內容...";
@@ -747,6 +912,29 @@ title/url（見 `requestHostContext()`，宿主端實作在
               els.status.textContent = "分享失敗：" + (error.message || String(error));
             });
         });
+        // 2026-07-14（第十五輪）：圖片分享——這輪只做「調用手機相機/相簿
+        // 權限＋本機預覽」，使用者明確要求儲存位置下一輪才接 OneDrive，
+        // 這裡刻意不呼叫任何送出/上傳 action，只示範權限流程能動。
+        if (els.imageInput) {
+          els.imageInput.addEventListener("change", function () {
+            var file = els.imageInput.files && els.imageInput.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+              if (els.imagePreviewThumb) els.imagePreviewThumb.src = String(reader.result || "");
+              if (els.imagePreviewBanner) els.imagePreviewBanner.hidden = false;
+            };
+            reader.readAsDataURL(file);
+            els.imageInput.value = "";
+          });
+        }
+        if (els.imagePreviewBanner) {
+          els.imagePreviewBanner.addEventListener("click", function (event) {
+            if (!event.target.closest("[data-image-preview-cancel]")) return;
+            els.imagePreviewBanner.hidden = true;
+            if (els.imagePreviewThumb) els.imagePreviewThumb.src = "";
+          });
+        }
         document.addEventListener("click", function (event) {
           if (!els.plusPanel.hidden && !event.target.closest(".jonaminz-chat-plus-wrap")) {
             closePlusPanel();
@@ -773,6 +961,15 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var unseenLabel = card.querySelector(".jonaminz-chat-shared-card-unseen");
           if (unseenLabel) unseenLabel.remove();
           window.open(card.dataset.itemUrl, "_blank", "noopener");
+          return;
+        }
+        // 點已經存在的表情反應 pill 也能直接 toggle（不用特地長按開選單），
+        // 跟大部分聊天 App 一樣「點自己已經點過的反應」是最常見的取消方式。
+        var pill = event.target.closest("[data-react-toggle]");
+        if (pill) {
+          window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: pill.dataset.messageId, emoji: pill.dataset.emoji })
+            .then(function () { return poll(); })
+            .catch(function () {});
         }
       });
 
@@ -812,6 +1009,21 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
       if (els.contextMenu) {
         els.contextMenu.addEventListener("click", function (event) {
+          var reactBtn = event.target.closest("[data-menu-react]");
+          if (reactBtn) {
+            closeContextMenu();
+            window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: reactBtn.dataset.messageId, emoji: reactBtn.dataset.emoji })
+              .then(function () { return poll(); })
+              .catch(function () {});
+            return;
+          }
+          var replyBtn = event.target.closest("[data-menu-reply]");
+          if (replyBtn) {
+            setReplyTarget(replyBtn.dataset.messageId, replyBtn.dataset.text);
+            closeContextMenu();
+            els.input.focus();
+            return;
+          }
           var copyBtn = event.target.closest("[data-menu-copy]");
           if (copyBtn) {
             try { navigator.clipboard.writeText(copyBtn.dataset.text || ""); } catch (error) {}
@@ -851,6 +1063,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (els.discussBanner) {
         els.discussBanner.addEventListener("click", function (event) {
           if (event.target.closest("[data-discuss-clear]")) setDiscussTarget(null, "");
+        });
+      }
+
+      if (els.replyBanner) {
+        els.replyBanner.addEventListener("click", function (event) {
+          if (event.target.closest("[data-reply-cancel]")) setReplyTarget(null);
         });
       }
 
@@ -908,6 +1126,148 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
       }
 
+      // ---- Shared 獨立瀏覽（樣板）：列出這個房間全部分享過的內容，不只
+      // 未讀的——比 App 內通知面板更完整的版本，等 OneDrive 圖片分享做好
+      // 之後這裡會擴充成真的獨立瀏覽畫面，這輪先做這個樣板。----
+      function renderSharedListPanel() {
+        if (!els.sharedListPanel) return;
+        var items = Object.keys(sharedItems).map(function (id) { return sharedItems[id]; })
+          .sort(function (a, b) { return new Date(b.lastSharedAt) - new Date(a.lastSharedAt); });
+        if (!items.length) {
+          els.sharedListPanel.innerHTML = '<div class="jonaminz-chat-notif-item is-empty">還沒有分享過的內容</div>';
+          return;
+        }
+        els.sharedListPanel.innerHTML = items.map(function (item) {
+          var seen = Boolean(item.seenState && item.seenState[identity]);
+          return '<div class="jonaminz-chat-notif-item" data-shared-list-item data-item-id="' + escapeHtml(item.id) +
+            '" data-item-url="' + escapeHtml(item.url) + '">' +
+            (seen ? "" : "🔴 ") + escapeHtml(item.source) + " · " + escapeHtml(item.title) +
+            (item.shareCount > 1 ? ' <span class="jonaminz-chat-notif-item-meta">(分享 ' + item.shareCount + ' 次)</span>' : "") +
+            "</div>";
+        }).join("");
+      }
+
+      if (els.sharedListToggle && els.sharedListPanel) {
+        els.sharedListToggle.addEventListener("click", function (event) {
+          event.stopPropagation();
+          if (els.sharedListPanel.hidden) renderSharedListPanel();
+          els.sharedListPanel.hidden = !els.sharedListPanel.hidden;
+        });
+        els.sharedListPanel.addEventListener("click", function (event) {
+          var item = event.target.closest("[data-shared-list-item]");
+          if (!item) return;
+          window.JonaminzBackend.markSharedItemSeen({ token: token, itemId: item.dataset.itemId }).catch(function () {});
+          window.open(item.dataset.itemUrl, "_blank", "noopener");
+          els.sharedListPanel.hidden = true;
+        });
+        document.addEventListener("click", function (event) {
+          if (!els.sharedListPanel.hidden && !event.target.closest(".jonaminz-chat-notif-wrap")) {
+            els.sharedListPanel.hidden = true;
+          }
+        });
+      }
+
+      // ---- 設定面板：我的電話號碼（後台可編輯，取代寫死）／撥打給對方
+      // （語音通話「偷吃步」改用真實手機撥號取代）／推播通知開關。----
+      function urlBase64ToUint8Array(base64String) {
+        var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+        var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+        var rawData = atob(base64);
+        var outputArray = new Uint8Array(rawData.length);
+        for (var i = 0; i < rawData.length; i += 1) outputArray[i] = rawData.charCodeAt(i);
+        return outputArray;
+      }
+
+      function refreshPushStatus() {
+        if (!els.pushStatus) return;
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+          els.pushStatus.textContent = "此瀏覽器不支援推播通知";
+          return;
+        }
+        if (Notification.permission === "denied") {
+          els.pushStatus.textContent = "通知權限被封鎖，需要到瀏覽器設定手動開啟";
+        } else if (pushSubscribed) {
+          els.pushStatus.textContent = "這台裝置已開啟推播通知";
+        } else {
+          els.pushStatus.textContent = "尚未開啟這台裝置的推播通知";
+        }
+      }
+
+      if (els.settingsToggle && els.settingsPanel) {
+        els.settingsToggle.addEventListener("click", function (event) {
+          event.stopPropagation();
+          var opening = els.settingsPanel.hidden;
+          els.settingsPanel.hidden = !els.settingsPanel.hidden;
+          if (opening) {
+            if (els.myPhoneInput) els.myPhoneInput.value = myPhoneNumber;
+            refreshPushStatus();
+          }
+        });
+        document.addEventListener("click", function (event) {
+          if (!els.settingsPanel.hidden && !event.target.closest(".jonaminz-chat-notif-wrap")) {
+            els.settingsPanel.hidden = true;
+          }
+        });
+      }
+
+      if (els.savePhoneBtn) {
+        els.savePhoneBtn.addEventListener("click", function () {
+          var value = (els.myPhoneInput && els.myPhoneInput.value.trim()) || "";
+          window.JonaminzBackend.setMyPhoneNumber({ token: token, phoneNumber: value })
+            .then(function (result) {
+              myPhoneNumber = result.myPhoneNumber || value;
+              els.status.textContent = "電話號碼已儲存";
+              setTimeout(function () { if (els.status.textContent === "電話號碼已儲存") els.status.textContent = ""; }, 2000);
+            })
+            .catch(function (error) {
+              els.status.textContent = "儲存失敗：" + (error.message || String(error));
+            });
+        });
+      }
+
+      if (els.callBtn) {
+        els.callBtn.addEventListener("click", function () {
+          if (!peerPhoneNumber) {
+            els.status.textContent = "對方還沒有設定電話號碼";
+            return;
+          }
+          window.location.href = "tel:" + peerPhoneNumber;
+        });
+      }
+
+      if (els.pushToggleBtn) {
+        els.pushToggleBtn.addEventListener("click", function () {
+          if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+            refreshPushStatus();
+            return;
+          }
+          els.pushStatus.textContent = "正在開啟推播通知...";
+          Notification.requestPermission()
+            .then(function (permission) {
+              if (permission !== "granted") throw new Error("使用者未允許通知權限");
+              return navigator.serviceWorker.register("/sw.js");
+            })
+            .then(function (registration) {
+              return window.JonaminzBackend.getVapidPublicKey({}).then(function (result) {
+                return registration.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: urlBase64ToUint8Array(result.publicKey)
+                });
+              });
+            })
+            .then(function (subscription) {
+              return window.JonaminzBackend.savePushSubscription({ token: token, subscription: subscription.toJSON() });
+            })
+            .then(function () {
+              pushSubscribed = true;
+              refreshPushStatus();
+            })
+            .catch(function (error) {
+              els.pushStatus.textContent = "開啟失敗：" + (error.message || String(error));
+            });
+        });
+      }
+
       // 2026-07-14：點送出按鈕原本會讓輸入框失焦（鍵盤收起來），送出流程
       // 跑完才在 doSendText() 尾端 els.input.focus() 拉回來，手機上看起來
       // 就是「鍵盤消失一下又跳出來」的閃爍。根因是 <button> 預設在
@@ -933,6 +1293,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.input.addEventListener("input", function () {
         updateComposerAction();
         autoGrowInput();
+        // 輸入中心跳：不用 debounce 延遲（那樣使用者停下來一小段時間對方
+        // 才看得到"正在輸入"），改成「最多每 2.5 秒送一次」的節流——打字
+        // 期間持續是 true，跟已讀/送達一樣是「用 polling 頻率換簡單架構」
+        // 的模式，不需要 WebSocket。
+        if (els.input.value.trim() && Date.now() - lastTypingSentAt > TYPING_HEARTBEAT_MS) {
+          lastTypingSentAt = Date.now();
+          window.JonaminzBackend.setTypingState({ token: token }).catch(function () {});
+        }
       });
       els.input.addEventListener("keydown", function (event) {
         if (event.key === "Enter" && !event.shiftKey) {
@@ -969,6 +1337,25 @@ title/url（見 `requestHostContext()`，宿主端實作在
     poll().then(function () {
       if (!destroyed) pollTimer = setInterval(poll, POLL_INTERVAL_MS);
     });
+
+    // 聯絡電話（後台可編輯）跟推播訂閱現況——都是「錦上添花」的次要資訊，
+    // 失敗不影響訊息主線，各自獨立 catch。
+    window.JonaminzBackend.getContactInfo({ token: token })
+      .then(function (result) {
+        myPhoneNumber = result.myPhoneNumber || "";
+        peerPhoneNumber = result.peerPhoneNumber || "";
+      })
+      .catch(function () {});
+    try {
+      if ("serviceWorker" in navigator && "PushManager" in window) {
+        navigator.serviceWorker.getRegistration().then(function (registration) {
+          if (!registration) return null;
+          return registration.pushManager.getSubscription();
+        }).then(function (subscription) {
+          pushSubscribed = Boolean(subscription);
+        }).catch(function () {});
+      }
+    } catch (error) {}
 
     return {
       destroy: function () {

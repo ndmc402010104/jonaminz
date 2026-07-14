@@ -1244,15 +1244,43 @@ System App：
   `editChatMessage`／`deleteChatMessage`／`loadOlderChatMessages`／
   `searchChatMessages`。全站（不只聊天室）目前沒有深色模式機制——這是
   查證後的現況，不是這次沒做。細節見 CHANGELOG 同日條目。
-- 沒做：typing indicator、一般訊息反應（reaction）、一般訊息回覆
-  （reply）、貼圖面板、圖片/相片分享、語音訊息、檔案/OneDrive 附件、
-  電話、視訊、Shared 獨立瀏覽列表、送往其他 App 的 destinations
-  registry、後台首頁摘要、系統推播通知、Android 原生系統層級聊天
-  泡泡（Overlay）、真正的 WebSocket/Realtime 推播、端對端加密、
-  送達→已讀三態勾勾——這些多半在交接包的「不准做」清單裡，或屬於
-  使用者任務書明確排除的範圍，或需要全新基礎設施（Storage bucket、
-  Service Worker+VAPID、原生 Capacitor plugin、金鑰交換）不是這次
-  規模能穩妥做完的，刻意不碰。
+- **第十五輪（同日晚間）——checklist 沒做/部分項目第二輪補完**：
+  輸入中指示器（心跳式，前端最多每 2.5 秒呼叫一次 `setTypingState`，
+  Worker 只看最後回報時間是否在 4 秒內）、送達→已讀三態（`chat_room_members`
+  新增 `last_delivered_message_id`/`last_delivered_at`，`listChatMessages`
+  被呼叫這件事本身就等於「送達」，順手更新）、表情反應（終於接上
+  `chat_message_reactions` 這張早就存在但沒人用的表——長按選單快速反應，
+  PostgREST resource embedding 一次把每則訊息的反應帶出來）、回覆/引用
+  （終於用上 `reply_to_message_id` 這個既有欄位）、聯絡電話設定＋通話
+  「偷吃步」（新表 `chat_contact_info`，每人自己編輯自己的電話號碼，
+  通話按鈕直接 `tel:` 撥打對方號碼，語音/視訊通話都改用這個取代）、
+  Shared 獨立瀏覽樣板（🗂 圖示列出全部分享過的內容，不只未讀的）、
+  App 內通知面板裁切 bug 修正（改成跟 `.jonaminz-chat-plus-wrap` 同一種
+  「按鈕自己包一層 relative wrap」寫法）、真推播通知（Web Push
+  RFC8291/RFC8292，`crypto.subtle` 手刻 aes128gcm 加密＋VAPID JWT，因為
+  Cloudflare Workers 沒有 Node crypto、`web-push` 套件用不了；本機驗證
+  加密可以正確解密回原文、JWT 簽章可以驗簽通過，但**沒有在真機上實測
+  收到過一次真推播**，這是唯一還沒完全過關的部分）。圖片分享**只做了
+  一半**：`<input type=file accept=image/* capture>` 呼叫手機相機/相簿
+  權限＋本機預覽，使用者明確指示這輪不接 Supabase 儲存、下一輪才接
+  OneDrive，所以目前選好圖片後沒有任何送出/上傳動作。新表見
+  `backend/supabase/chat_features_v2_schema.sql`（已套用到 jonaminz-db）；
+  新增 Worker action：`setTypingState`／`toggleMessageReaction`／
+  `getContactInfo`／`setMyPhoneNumber`／`getVapidPublicKey`／
+  `savePushSubscription`／`removePushSubscription`；新增 `sw.js`（站台
+  根目錄，Service Worker）。VAPID 金鑰已用 `wrangler secret put` 設定。
+  開發過程中截圖比對發現並修掉一個 bug：`.jonaminz-chat-message` 是
+  flex row，回覆引用/泡泡/反應如果不包一層 `.jonaminz-chat-bubble-col`
+  （flex column）會被當成並排的 row item 疊在一起。細節見 CHANGELOG
+  同日「第十五次」條目。
+- 沒做：貼圖面板、圖片實際上傳/儲存（下一輪接 OneDrive）、檔案附件、
+  Shared 獨立瀏覽列表的完整版（目前只有樣板）、送往其他 App 的
+  destinations registry、後台首頁摘要、Android 原生系統層級聊天泡泡
+  （Overlay，需要 Capacitor 原生 plugin，工程量級不同，下一輪）、真正的
+  WebSocket/Realtime 推播（目前是 polling，Web Push 只解決「App 關閉時
+  的系統通知」，不是即時雙向連線）、端對端加密——這些多半在交接包的
+  「不准做」清單裡，或屬於使用者任務書明確排除/延後的範圍，或需要全新
+  基礎設施不是這次規模能穩妥做完的，刻意不碰。
 - `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
   `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
   Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo

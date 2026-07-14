@@ -74,7 +74,13 @@ Playwright 實測發現：一旦拖動距離超出這個 iframe 原本 64x64 的
 
   var TOKEN_KEY = "jonaminz.sessionToken";
   var WORKER_URL = "https://jonaminz-backend.ndmc402010104.workers.dev/api/action";
-  var POLL_MS = 12000;
+  // 2026-07-14：原本 12 秒是「反正只是算未讀角標，不用跟面板一樣即時」
+  // 的刻意取捨，但使用者實際感受到「泡泡關著跟開著速度差很多」——這支
+  // 跟面板（chat-thread.js，1.5 秒）各自獨立輪詢，兩人自用的請求量體
+  // 完全負擔得起拉近到接近的頻率，改成 4 秒（沒有拉到跟面板一樣的 1.5
+  // 秒，是因為這裡沒有畫面在讓使用者「盯著看」，未讀角標晚 1-2 個輪詢
+  // 週期出現不影響體驗，但没必要繼续维持 12 秒那麼大的落差）。
+  var POLL_MS = 4000;
   var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
   var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
 

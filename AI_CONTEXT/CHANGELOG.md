@@ -20,6 +20,136 @@
 
 ---
 
+## 2026-07-14（晚間，第十五次）— checklist 沒做/部分項目第二輪補完：typing／三態已讀／reactions／回覆／聯絡電話／真推播／Shared 樣板
+
+- **任務**：使用者對照 checklist 逐項要求：輸入中指示器要做、送達→已讀
+  三態要做、系統推播真的要做（做了才算聊天 App）、表情反應跟回覆要做、
+  圖片分享先做「調用手機權限＋預覽」但儲存位置留給下一輪接 OneDrive
+  （明確表示這輪不要用 Supabase 存圖片）、語音/視訊通話「偷吃步」改成
+  真的撥打對方手機號碼（`tel:` 連結），電話號碼要能在後台編輯不要寫死、
+  Shared 獨立瀏覽畫面先做樣板、修掉「App 內通知面板還是被切到」、順便
+  查證關泡泡/開泡泡輪詢速度不同的原因。Android 原生系統泡泡跟語音通話
+  的「真的打電話」以外的部分仍排在下一輪。
+- **變更**：
+  - **修正通知面板被切到的 bug**（`chat-thread.js`／兩份 `page-chat*.css`）：
+    根因是 `.jonaminz-chat-notif-panel` 原本相對整個 `.jonaminz-chat-head`
+    定位，內容短時面板寬度縮到 `min-width`，導致整塊往左飄、疊在訊息串
+    上面。改成跟既有 `.jonaminz-chat-plus-wrap`／`.jonaminz-chat-plus-panel`
+    同一種寫法——鈴鐺按鈕自己包一層 `.jonaminz-chat-notif-wrap`
+    （`position:relative`），面板改成 `right:0` 相對這個包裹層定位，永遠
+    貼齊鈴鐺右下角。用 Playwright 截圖比對過修前/修後。
+  - **輪詢速度**：`pages/chat-launcher/index.html`（Iframe A，泡泡收合時
+    的背景輪詢）從 12 秒調到 4 秒——跟面板的 1.5 秒本來就是刻意分開的
+    兩套頻率（面板是使用者正在看的畫面、泡泡只是算未讀角標），但 12 秒
+    落差太大會讓使用者感覺到「關泡泡明顯比較慢」，兩人自用的請求量體
+    完全負擔得起拉近。
+  - **資料庫新檔案** `backend/supabase/chat_features_v2_schema.sql`（已用
+    `mcp__claude_ai_Supabase__apply_migration` 直接套用到 `jonaminz-db`）：
+    `chat_typing_state`（輸入中）、`chat_room_members` 加
+    `last_delivered_message_id`/`last_delivered_at`（送達狀態）、
+    `chat_push_subscriptions`（推播訂閱，`identity`+`endpoint` 複合鍵支援
+    多裝置）、`chat_contact_info`（聯絡電話，`identity` 當 primary key）。
+  - **Worker 新增七個 action**（`worker.js`）：`setTypingState`（心跳式，
+    前端最多每 2.5 秒送一次，Worker 只看「最後回報時間是否在 4 秒內」）；
+    `toggleMessageReaction`（`chat_message_reactions` 這張表原本就存在但
+    一直沒有任何 action 在用——這輪終於接上，一人一則訊息只有一個反應，
+    再點同一個 emoji＝取消）；`getContactInfo`/`setMyPhoneNumber`（後台
+    可編輯的聯絡電話，每個人只能改自己的號碼，identity 來自登入 session
+    不是自報）；`getVapidPublicKey`/`savePushSubscription`/
+    `removePushSubscription`（真推播）。`listChatMessages`／
+    `loadOlderChatMessages` 的訊息 select 統一抽成 `CHAT_MESSAGE_SELECT`
+    常數，多帶 `reply_to_message_id`（既有欄位，這輪第一次真的用上）跟
+    `chat_message_reactions(identity,emoji)`（PostgREST resource
+    embedding，一次查詢帶出每則訊息的反應，不用前端另外問）；同時算
+    `typing`／`deliveryState` 一起回傳，`listChatMessages` 本身被呼叫這件
+    事就等於「我方已送達到這個時間點」，順手 PATCH 更新，不需要前端另外
+    回報。`sendChatMessage`／`shareCurrentContent` 送出後對另一方做一次
+    `sendPushToIdentity`（best-effort，失敗不影響訊息本身）。
+  - **真推播（Web Push, RFC8291 + RFC8292 VAPID）**：Cloudflare Workers
+    沒有 Node crypto，`web-push` 這類套件在這裡用不了，整段用
+    `crypto.subtle` 重新實作 aes128gcm 加密＋ES256 JWT 簽章。**本機驗證**：
+    寫了一支 Node 腳本模擬瀏覽器端標準解密流程，把 Worker 的加密函式
+    輸出拿去解密，能完整還原原始明文（HKDF/AES-128-GCM 沒有算錯）；VAPID
+    JWT 簽章也另外驗證過能被對應公鑰驗簽通過。**沒辦法在這個環境實際
+    打一次 FCM/Mozilla 的真推播服務**，最終還是要使用者在真機上允許
+    通知權限、真的收一次推播才算完全驗證。新增 `sw.js`（放網站根目錄，
+    scope 才能蓋到整站，不是只有 `pages/chat*/` 底下）。VAPID 金鑰已生成
+    並用 `wrangler secret put` 寫入三個 Worker secret
+    （`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY_JWK`/`VAPID_SUBJECT`）。
+  - **`assets/js/chat-thread.js` 大量新增**：
+    - 輸入中指示器：打字時心跳呼叫 `setTypingState`，對方的
+      `renderHead()` 狀態列顯示「正在輸入...」取代「最後訊息 HH:MM」。
+    - 送達／已讀三態：整串對話裡「我方最後一則訊息」下面顯示狀態字
+      （已送出／已送達／已讀），比較時間戳而不是訊息 id，不受分頁影響。
+    - 表情反應：長按選單新增一排快速反應（👍❤️😂😮😢🙏），也可以直接
+      點已存在的反應 pill 快速 toggle；訊息下方顯示分組計數的 pill，
+      自己點過的有 `is-mine` 樣式。
+    - 回覆／引用：長按選單新增「回覆」，composer 上方出現可關閉的引用
+      橫幅（跟討論/編輯橫幅同一種寫法），送出時 `sendChatMessage` 帶
+      `replyToMessageId`；渲染時如果被引用的訊息還在目前已載入範圍內就
+      畫出小引用預覽，不在範圍內就顯示通用的「回覆訊息」。
+    - 設定面板（⚙）：我的電話號碼輸入＋儲存、「撥打給對方」按鈕（讀
+      對方存的電話，`window.location.href = "tel:" + 號碼`）、推播通知
+      開關（`Notification.requestPermission` → 註冊 `/sw.js` →
+      `PushManager.subscribe` → 存回 Worker）。
+    - Shared 獨立瀏覽樣板（🗂）：列出這個房間全部分享過的內容（不只
+      未讀的），點了標記已看過並開新分頁——比 App 內通知完整的版本，
+      這輪先做這個樣板，等 OneDrive 圖片分享做好後再擴充成真的獨立畫面。
+    - 圖片分享（僅權限＋預覽，不接儲存）：「+」選單新增「分享圖片（相機
+      ／相簿）」，用 `<input type=file accept=image/* capture>` 呼叫手機
+      相機/相簿權限，選好後用 `FileReader` 讀成 data URL 本機預覽，
+      composer 上方出現橫幅明講「等 OneDrive 接上這步才能真的送出」——
+      刻意不呼叫任何送出/上傳 action，使用者明確要求儲存位置下一輪才
+      接 OneDrive，這輪不能用 Supabase 存圖片內容。
+  - **修正一個渲染 bug（開發過程中自己抓到並修掉，沒有流出）**：
+    `.jonaminz-chat-message` 是 `display:flex` 的一行（大頭貼＋內容並排），
+    回覆引用／泡泡／表情反應如果各自當成直接子元素會被當成三個並排的
+    row item 疊在一起（截圖比對時發現引用文字幾乎看不見、疊在泡泡下面）
+    ——加一層 `.jonaminz-chat-bubble-col`（`display:flex;
+    flex-direction:column`）把這三塊包成單一 flex item，改完重新截圖
+    確認引用框正確顯示在泡泡上方、表情反應正確顯示在泡泡下方。
+  - CSS（兩份 `page-chat*.css`）補上：`.jonaminz-chat-bubble-col`、
+    `.jonaminz-chat-reply-quote`、`.jonaminz-chat-reactions`／
+    `-reaction-pill`、`.jonaminz-chat-delivery-tick`、
+    `.jonaminz-chat-context-reactions`、`.jonaminz-chat-settings-panel`
+    及相關子元素、`.jonaminz-chat-image-preview-banner img`、
+    `.jonaminz-chat-notif-wrap`（通知面板定位修正）。
+- **驗證**：`esbuild --bundle` 確認 `worker.js` 沒有語法/eval 問題；
+  `wrangler deploy` 後 curl 逐一打新 action，2 個踩到 Cloudflare 邊緣傳播
+  延遲（`getVapidPublicKey`/`setMyPhoneNumber` 一開始回「Unknown
+  action」），等 8 秒後全部正常——這是這個專案第 N 次遇到的已知模式，
+  不是程式錯誤。**用 Supabase 直連插入一筆臨時測試 session**（TTL 10
+  分鐘，測完立刻刪除）打了一輪真實 API：`listChatMessages` 確認
+  `chat_message_reactions` embedding 不會讓訊息主線壞掉、
+  `toggleMessageReaction` 加/取消net-zero 驗證過（在真實訊息上點一個
+  反應再點一次移除，確認沒有留下痕跡）、`setTypingState`／
+  `getContactInfo` 都正常。Playwright（沿用今天稍早的 host harness 手法）
+  逐項驗證前端：輸入中文字顯示、送達已讀三態文字、既有反應 pill 正確
+  顯示、長按選單含反應列跟回覆按鈕、回覆送出後畫面正確顯示引用框（且
+  抓到並修掉了上述的 flex 堆疊 bug）、設定面板（電話號碼欄位/推播狀態
+  文字）、Shared 瀏覽樣板列出項目、圖片 picker 選檔後正確預覽且
+  plus-panel 正確關閉。
+- **狀態變化**：checklist 「部分」清單裡的送達/已讀三態、即時性
+  （typing）跟「沒做」清單裡的表情反應、回覆、系統推播、聯絡電話/通話
+  全部從「沒做」變成「已完成（推播需要真機驗證）」；圖片分享保留在
+  「沒做」但改成「已做一半（picker 完成、儲存下一輪）」，明確排除 Android
+  原生系統泡泡（下一輪）。
+- **遺留**：
+  1. **推播需要使用者在真機上實測一次**——本機加密驗證只證明 Worker 端
+     邏輯符合 RFC 規範，沒有實際打過 Google/Mozilla 的推播服務，第一次
+     真的收到通知才算完全過關。
+  2. OneDrive 圖片上傳（含實際送出訊息、儲存、下載顯示）留給下一輪；
+     這輪的 picker/預覽是為了先驗證「調用手機權限」這條路能動。
+  3. Android 原生系統層級聊天泡泡留給下一輪（需要 Capacitor 原生
+     plugin，工程量級跟這次的網頁改動不同）。
+  4. 設定面板／Shared 瀏覽面板／通知面板／搜尋列現在同時有 4 個獨立
+     `.jonaminz-chat-notif-wrap` 下拉選單，彼此各自獨立開關、沒有「開一個
+     自動關掉其他」的機制——目前沒看到視覺衝突（各自定位不重疊），先不
+     處理，之後如果面板變多再考慮統一管理。
+- **版本**：`v0.27.0-202607141920`（`version.js`）。
+
+---
+
 ## 2026-07-14（下午，第十四次）— 對照成熟聊天 App 的功能盤點清單，能做的一次做完
 
 - **任務**：使用者要求對照 WhatsApp／Messenger／iMessage 這類成熟聊天

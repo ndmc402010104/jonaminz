@@ -152,6 +152,34 @@
     return call("searchChatMessages", payload, options);
   }
 
+  function setTypingState(payload, options) {
+    return call("setTypingState", payload, options);
+  }
+
+  function toggleMessageReaction(payload, options) {
+    return call("toggleMessageReaction", payload, options);
+  }
+
+  function getContactInfo(payload, options) {
+    return call("getContactInfo", payload, options);
+  }
+
+  function setMyPhoneNumber(payload, options) {
+    return call("setMyPhoneNumber", payload, options);
+  }
+
+  function getVapidPublicKey(payload, options) {
+    return call("getVapidPublicKey", payload, options);
+  }
+
+  function savePushSubscription(payload, options) {
+    return call("savePushSubscription", payload, options);
+  }
+
+  function removePushSubscription(payload, options) {
+    return call("removePushSubscription", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -172,6 +200,13 @@
     editChatMessage: editChatMessage,
     deleteChatMessage: deleteChatMessage,
     loadOlderChatMessages: loadOlderChatMessages,
-    searchChatMessages: searchChatMessages
+    searchChatMessages: searchChatMessages,
+    setTypingState: setTypingState,
+    toggleMessageReaction: toggleMessageReaction,
+    getContactInfo: getContactInfo,
+    setMyPhoneNumber: setMyPhoneNumber,
+    getVapidPublicKey: getVapidPublicKey,
+    savePushSubscription: savePushSubscription,
+    removePushSubscription: removePushSubscription
   };
 })();

@@ -63,10 +63,16 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   border-radius: 50%;
   background: var(--color-primary-2);
 }
+/* 2026-07-14（修正）：通知面板原本 right 是相對整個 .jonaminz-chat-head
+   （含頭貼/名稱那一整排）算的，內容短時面板寬度縮到 min-width，導致
+   面板整塊往左飄到頭貼下方、疊在訊息串上面，看起來像被切掉/蓋住——
+   跟 .jonaminz-chat-plus-wrap／.jonaminz-chat-plus-panel 同一種寫法，
+   改成相對「鈴鐺按鈕自己的包裹層」定位，面板永遠貼齊鈴鐺右下角。 */
+.jonaminz-chat-notif-wrap { position: relative; flex: 0 0 auto; }
 .jonaminz-chat-notif-panel {
   position: absolute;
   top: 100%;
-  right: var(--space-4);
+  right: 0;
   min-width: 220px;
   max-width: 300px;
   margin-top: 6px;
@@ -360,6 +366,108 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   padding-right: 3px;
   margin-top: -6px;
 }
+
+/* ---- 2026-07-14（第十五輪）：回覆引用／表情反應／送達已讀三態／
+   長按選單的快速反應列／圖片預覽／設定面板（電話號碼＋通話＋推播）。
+   跟 page-chat-panel.css 同一份規則，只是這裡是整頁版外殼。---- */
+/* .jonaminz-chat-message 本身是 flex row（大頭貼＋內容並排），回覆引用／
+   泡泡／表情反應要用這個 column 容器包成單一 flex item，才會直向堆疊
+   而不是被當成三個並排的 row item。 */
+.jonaminz-chat-bubble-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble-col { align-items: flex-end; }
+
+.jonaminz-chat-reply-quote {
+  padding: 4px 8px;
+  margin-bottom: 3px;
+  border-left: 3px solid var(--color-primary-2);
+  background: var(--color-bg-lobby);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 引用框浮在訊息串背景（--color-bg-lobby）上面，不是疊在泡泡漸層上面，
+   所以「我方訊息」不需要換成白色調——那是給疊在漸層上面用的配色，疊在
+   淺色背景上反而洗白到看不清楚。兩邊統一同一套配色，只靠 column 的
+   align-items:flex-end 讓它跟著自己那則泡泡靠右對齊。 */
+.jonaminz-chat-reply-quote.is-unknown { font-style: italic; }
+
+.jonaminz-chat-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+.jonaminz-chat-message[data-mine="true"] .jonaminz-chat-reactions { justify-content: flex-end; }
+.jonaminz-chat-reaction-pill {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  padding: 1px 7px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.jonaminz-chat-reaction-pill.is-mine {
+  border-color: var(--color-primary-2);
+  background: var(--color-accent);
+  color: var(--color-primary);
+}
+
+.jonaminz-chat-delivery-tick {
+  text-align: right;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  padding-right: 2px;
+}
+
+.jonaminz-chat-context-reactions {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+.jonaminz-chat-context-reactions button {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.jonaminz-chat-context-reactions button:hover { background: var(--color-bg-lobby); }
+
+.jonaminz-chat-image-preview-banner img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+
+.jonaminz-chat-settings-panel { min-width: 240px; max-width: 300px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.jonaminz-chat-settings-row { display: flex; flex-direction: column; gap: 4px; }
+.jonaminz-chat-settings-row label { font-size: 11px; color: var(--color-text-muted); }
+.jonaminz-chat-settings-row input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 13px;
+  background: var(--color-bg-lobby);
+  color: var(--color-text);
+}
+.jonaminz-chat-settings-row button,
+.jonaminz-chat-settings-call-btn,
+.jonaminz-chat-settings-push-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.jonaminz-chat-settings-note { font-size: 10px; color: var(--color-text-muted); margin: 0; }
+.jonaminz-chat-notif-item-meta { color: var(--color-text-muted); font-weight: 400; }
 
 /* ---- Shared 分享內容模組（2026-07-14）：內容卡＋討論橫幅。整頁版的
    「+」維持 disabled（分享目前內容只在攜帶版有意義，見
