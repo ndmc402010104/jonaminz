@@ -1128,17 +1128,23 @@ System App：
   邏輯（`assets/js/chat-thread.js`），避免兩套實作 drift。攜帶版**現在
   是兩個完全獨立的 iframe**（不是單一 iframe）：
   - `pages/chat-launcher/`：只有大頭貼，永遠存在、固定小圓形，不掛
-    `chat-thread.js`（自己有一支獨立輕量輪詢算 peer/未讀數/在線狀態）。
-  - `pages/chat-panel/`：面板本體，只有點過大頭貼才由宿主建立，掛
-    `chat-thread.js`，sheet handle 切半版/全版，沒有自己的收合按鈕
-    （收合是點大頭貼觸發宿主把這個 iframe整個移除）。
+    `chat-thread.js`（自己有一支獨立輕量輪詢算 peer/未讀數/在線狀態），
+    **純展示元件、不處理任何 pointer 事件**（第七輪之後，見下方）。
+  - `pages/chat-panel/`：面板本體，**跟大頭貼同時建立**（第七輪之後不
+    再等點擊才建立），掛 `chat-thread.js` 一直在背景 poll，開關只是切換
+    CSS 可見度（`jcl-panel-hidden`），sheet handle 切半版/全版。
   兩個 iframe 各自對 `<iframe>` 元素套 `border-radius`／`box-shadow`
   （宿主端裁形狀，不依賴 iframe 內部透明——這是連續修正中途才抓到的
   真正 Android bug 根因，見下方教訓）。`assets/js/chat-launcher.js`／
-  `sdk-src/sdk.js` 同時管理兩個 iframe，大頭貼位置永遠固定、不受面板
-  是否展開或多高影響。外部專案（travel，透過 SDK 的
-  `chat.launcher@1`）自動獲得同樣的雙 iframe 體驗。SDK 最終 release
-  `cc31508c3fd4`。
+  `sdk-src/sdk.js` 同時管理兩個 iframe＋第七輪新增的拖動覆蓋層，大頭貼
+  位置預設固定、不受面板是否展開或多高影響。外部專案（travel，透過
+  SDK 的 `chat.launcher@1`）自動獲得同樣的體驗。SDK 最終 release
+  `8d3dbba4716b`。
+  - **第七輪（同日）新增行為**：(1) 大頭貼可以自由拖動，放開時如果只是
+    小幅移動（點一下）就回彈固定角落＋開關面板；大幅移動（真的拖動）
+    就留在放開的位置，不開面板。拖動不持久化，重新整理頁面回到預設
+    右下角。(2) 面板一開始就建立、背景持續 poll，開關只是顯示/隱藏，
+    使用者點開時內容已經是最新的，不會有「載入中」的空檔。
   - **教訓（值得記住，別重蹈覆轍）**：一開始把大頭貼跟面板塞進「同一個
     iframe、靠內部視圖切換」，即使裁形狀本身的技巧是對的，也因為
     「一個 iframe 只能裁一種形狀」逼得展開時要把大頭貼縮成面板內部的
@@ -1156,6 +1162,16 @@ System App：
     後面。之後任何時候改這兩個 embed 頁的 HTML/CSS，記得這條路徑本來
     就無法只靠 bump version.js 解決——真正保證新內容送達的是這個
     per-page-load 的 cache-buster。
+  - **教訓＃3（第七輪）**：想讓大頭貼可拖動時，第一版把 pointerdown/
+    move/up 判斷放在 `pages/chat-launcher/` 自己的 iframe 文件裡（靠
+    `setPointerCapture` + postMessage 回報位移給宿主）。Playwright 實測
+    抓到：拖動距離一旦超出這個 iframe 原本 64x64 的範圍，位移回報就開始
+    失準（只剩實際位移的一半左右）——**pointer capture 沒辦法保證可靠
+    跨 iframe 邊界持續轉發**，這是瀏覽器行為的真實邊界，不是測試假象。
+    只要互動需要追蹤「超出元素自身邊界」的手勢（拖動、滑動），就不能把
+    判斷邏輯放在 iframe 內部，要放在宿主自己的 document 裡（這次的解法
+    是在 iframe 正上方蓋一個透明、z-index 更高、位置同步的覆蓋層
+    `<div>`，所有 pointer 事件在宿主自己的文件裡發生）。
 - 沒做：typing indicator、訊息反應（reaction）、回覆（reply）、貼圖
   面板、附件、Shared 收件匣、Android Overlay——這些多半在交接包的
   「不准做」清單裡，或屬於 roadmap Phase 2 的 P3（另一個獨立決定），

@@ -20,6 +20,41 @@
 
 ---
 
+## 2026-07-14（下午，第七次）— 大頭貼可拖動 + 面板背景 keep-alive，拖動判斷從 iframe 內部移到宿主覆蓋層
+
+- **任務**：使用者提兩個新需求：(1) 大頭貼要能在畫面上自由拖動（參考
+  Android 原生「聊天泡泡」互動模型），點一下（非拖動）才回彈固定角落
+  並開關面板；(2) 點開面板不該看到「載入中」，應該「隨時 realtime 都是
+  最新的，點擊只是展示」。
+- **變更**：
+  1. 面板 iframe（`pages/chat-panel/`）現在跟大頭貼同時建立、一開始就
+     掛著在背景跑 `chat-thread.js` 自己的 poll，開關面板只是切換 CSS
+     可見度（新增 `jcl-panel-hidden` class），不再每次 create/remove
+     整個 iframe——使用者點開時內容已經是最新的，沒有重新載入的空檔。
+  2. 大頭貼拖動：**第一版**把拖動手勢判斷放在 `pages/chat-launcher/`
+     自己的 iframe 文件裡（pointerdown/move/up 同一個 document，量出
+     位移後 postMessage 給宿主）。**Playwright 實測發現這個做法有真的
+     bug**：拖動距離一旦超出 iframe 原本 64x64 的範圍，
+     `setPointerCapture` 對後續 pointermove 的位移回報就開始失準（量到
+     的位移只剩實際移動量的一半左右）——這是「pointer capture 能不能
+     可靠跨 iframe 邊界持續轉發」這個瀏覽器行為的真實邊界，不是測試
+     假象，拖動距離越大風險越高。**改成**：拖動/點擊判斷整個移到宿主
+     頁面自己的 document——在大頭貼 iframe 正上方蓋一個透明、z-index
+     更高、位置永遠同步的覆蓋層 `<div>`，pointer 事件全程只在宿主自己
+     的文件裡發生，沒有跨 frame 邊界，重測後位置精準（拖動 -150/-200px
+     測出來剛好落在預期位置，不再失真）。大頭貼 iframe
+     （`pages/chat-launcher/`）本身因此變回純展示元件，不處理任何
+     pointer 事件。
+  3. `assets/js/chat-launcher.js`／`sdk/sdk-src/sdk.js` 同步這兩項改動。
+     重新生成 SDK release（`sdk-8d3dbba4716b.js`），`sdk-versions.json`
+     升到 revision 13。
+- **狀態變化**：無新的未完成項；這是既有兩個獨立 iframe 架構之上的
+  UX 補強，不影響訊息/已讀/未讀那條主線。
+- **遺留**：拖動後的位置目前不持久化（重新整理頁面會回到預設右下角）
+  ——使用者只提到「可以移動」，沒有要求記住位置，故意先不做，簡單
+  勝過過度設計；之後如果要記住，`localStorage` 存最後位置即可。
+- **版本**：v0.24.5-202607141404
+
 ## 2026-07-14（下午，第六次）— iframe src 補上 cache-buster，避免手機還在看第五次修正之前的舊 HTML
 
 - **任務**：兩個獨立 iframe 架構（見下方「第五次」紀錄）部署上線後，

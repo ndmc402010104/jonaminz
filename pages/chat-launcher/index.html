@@ -30,14 +30,28 @@ pages/identity-relay/ 同一個模式：不走 entry-core.js／config.json 的
    使用者點這裡的大頭貼之後宿主才會建立它，收合時宿主直接把它移除，
    不是像這次之前那樣自己內部切換 hidden 狀態）。
 
-點擊只 postMessage `{action:"toggle"}` 給宿主——這裡完全不知道面板現在
-是不是開著、開著的話是半版還是全版，那些狀態現在都在宿主（負責同時
-管理兩個 iframe）跟面板 iframe 自己身上，這裡只負責「大頭貼長什麼樣子
-＋通知宿主使用者點了它」，職責單純到不可能再因為跟面板耦合而出這類
-bug。
+這裡完全不知道面板現在是不是開著、開著的話是半版還是全版，那些狀態
+現在都在宿主（負責同時管理兩個 iframe）跟面板 iframe 自己身上，這裡
+只負責「大頭貼長什麼樣子」，職責單純到不可能再因為跟面板耦合而出這類
+bug。（原本這裡靠點擊 postMessage `{action:"toggle"}` 通知宿主，第七次
+修正之後連這個都不需要了，見下方說明——宿主改用覆蓋層直接判斷互動。）
 
-postMessage 用 "*"：跟 identity-relay 同一個理由——內容只有一個固定的
-"toggle" 字串，不含 token，外洩了也不能拿去做任何事。
+2026-07-14（第七次修正，後來又改了一版）：使用者要求大頭貼在畫面上可以
+自由拖動（像 Android 原生「聊天泡泡」那樣），點一下（不是拖動）才回彈
+固定角落＋開關面板。**第一版**曾經把拖動手勢判斷整個放在這個 iframe
+自己的文件裡（覺得同一個 document 沒有跨 frame 事件冒泡問題），但
+Playwright 實測發現：一旦拖動距離超出這個 iframe 原本 64x64 的範圍，
+`setPointerCapture` 對後續 pointermove 的位移回報就開始失準（量到的
+位移只剩實際移動量的一半左右）——這不是 Playwright 的測試假象，是
+真的碰到「pointer capture 是否能可靠跨 iframe 邊界持續轉發」這個瀏覽器
+行為的邊界，拖動距離越大風險越高，不能冒險上真機。**改成**：拖動手勢
+判斷整個移到宿主頁面（`assets/js/chat-launcher.js`／`sdk-src/sdk.js`）
+自己一個蓋在這個 iframe 上面、z-index 更高的透明 `<div>` 覆蓋層上——
+覆蓋層是宿主自己文件裡的普通元素，pointer capture 不必跨任何 iframe
+邊界，全程只在宿主自己的 document 裡發生，沒有前述的失準風險。這裡
+（大頭貼 iframe 本身）因此**不再需要自己的 pointer/click 邏輯**，變回
+單純顯示大頭貼＋在線狀態＋未讀角標的展示元件，互動完全交給宿主的
+覆蓋層決定。
 -->
 <html lang="zh-Hant">
 <head>
@@ -48,7 +62,7 @@ postMessage 用 "*"：跟 identity-relay 同一個理由——內容只有一個
 <link rel="stylesheet" href="/pages/chat-launcher/assets/css/page-chat-launcher.css">
 </head>
 <body>
-<button type="button" class="jcl-avatar-btn jcl-avatar-btn--big" id="launcher" aria-label="開啟 Chat">
+<button type="button" class="jcl-avatar-btn jcl-avatar-btn--big" id="launcher" aria-label="開啟 Chat" disabled>
   <span id="avatarText"></span>
   <span class="jcl-presence"></span>
   <span class="jcl-badge" id="badge"></span>
@@ -71,15 +85,10 @@ postMessage 用 "*"：跟 identity-relay 同一個理由——內容只有一個
   try { token = window.localStorage.getItem(TOKEN_KEY); } catch (error) { token = null; }
   if (!token) return; // 沒登入：整頁維持看不到大頭貼，跟嵌入端的粗篩一致
 
-  launcher.addEventListener("click", function () {
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ source: "jonaminz-chat-launcher", action: "toggle" }, "*");
-      }
-    } catch (error) {
-      // 不燒房子：postMessage 失敗頂多是面板開不了，不影響大頭貼本身顯示。
-    }
-  });
+  // 這裡不再有任何 pointer/click 邏輯——拖動判斷與點擊開關面板都交給
+  // 宿主頁面自己蓋在這個 iframe 上面的透明覆蓋層處理（見檔頭說明）。
+  // 這支 script 現在只負責大頭貼長什麼樣子（大頭字母／在線狀態／未讀
+  // 角標），完全不管使用者怎麼跟它互動。
 
   function initialOf(id) {
     var label = IDENTITY_LABEL[id] || id || "?";
