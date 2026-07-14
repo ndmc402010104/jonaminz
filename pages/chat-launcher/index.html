@@ -81,7 +81,7 @@ Playwright 實測發現：一旦拖動距離超出這個 iframe 原本 64x64 的
   // 秒，是因為這裡沒有畫面在讓使用者「盯著看」，未讀角標晚 1-2 個輪詢
   // 週期出現不影響體驗，但没必要繼续维持 12 秒那麼大的落差）。
   var POLL_MS = 4000;
-  var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+  var PRESENCE_WINDOW_MS = 2 * 60 * 1000; // 跟 chat-thread.js 的心跳制在線判定一致
   var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
 
   var launcher = document.getElementById("launcher");
@@ -126,18 +126,11 @@ Playwright 實測發現：一旦拖動距離超出這個 iframe 原本 64x64 的
         launcher.setAttribute("aria-label", "開啟與 " + peerLabel + " 的 Chat");
         launcher.classList.add("is-visible");
 
-        var peerLastActivity = 0;
-        messages.forEach(function (m) {
-          if (m.sender_identity === peer) {
-            var t = new Date(m.created_at).getTime();
-            if (t > peerLastActivity) peerLastActivity = t;
-          }
-        });
-        if (peerRead.lastReadAt) {
-          var readAt = new Date(peerRead.lastReadAt).getTime();
-          if (readAt > peerLastActivity) peerLastActivity = readAt;
-        }
-        var isOnline = peerLastActivity > 0 && (Date.now() - peerLastActivity) < PRESENCE_WINDOW_MS;
+        // 在線＝對方的可見心跳（presence.last_seen_at）在 2 分鐘內——
+        // 2026-07-15 跟 chat-thread.js 一起重做，舊的「最後訊息/已讀在
+        // 5 分鐘內」判定只要有在聊就永遠在線，作廢。
+        var peerSeenAt = data.presence && data.presence[peer] ? new Date(data.presence[peer]).getTime() : 0;
+        var isOnline = peerSeenAt > 0 && (Date.now() - peerSeenAt) < PRESENCE_WINDOW_MS;
         launcher.classList.toggle("is-online", isOnline);
 
         var myReadIndex = -1;

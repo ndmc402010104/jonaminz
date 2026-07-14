@@ -19,6 +19,11 @@ create table if not exists chat_typing_state (
 alter table chat_room_members add column if not exists last_delivered_message_id uuid;
 alter table chat_room_members add column if not exists last_delivered_at timestamptz;
 
+-- 在線心跳（2026-07-15 第二十七輪）：面板「真的可見」時每 30 秒心跳
+-- 一次，在線＝2 分鐘內有心跳。舊判定（最後訊息/已讀在 5 分鐘內）只要
+-- 有在聊就永遠在線、從沒出現過離線，作廢。
+alter table chat_room_members add column if not exists last_seen_at timestamptz;
+
 alter table chat_room_members
   drop constraint if exists chat_room_members_last_delivered_message_fk;
 alter table chat_room_members

@@ -472,6 +472,18 @@ button, textarea { font: inherit; }
 /* 樂觀 UI 的「傳送中」泡泡（2026-07-15）：半透明表示還沒確認送達。 */
 .jonaminz-chat-message.is-pending { opacity: 0.55; }
 
+/* 純 emoji 訊息（1~3 個）：不畫泡泡框、直接放大（FB/LINE 慣例）——
+   塞在小方框裡不置中很阿雜（2026-07-15 真機回饋）。「我方」的泡泡
+   漸層背景也要一起蓋掉。 */
+.jonaminz-chat-bubble.is-emoji-only,
+.jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble.is-emoji-only {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  font-size: 34px;
+  line-height: 1.15;
+}
+
 /* 點一下訊息顯示確切時間（2026-07-15）。 */
 .jonaminz-chat-time-peek {
   font-size: 10px;

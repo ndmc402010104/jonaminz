@@ -45,7 +45,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
   // 調快到 1500——2 個人的私人聊天室這個頻率的成本完全可以忽略，換來
   // 接收速度快一倍。
   var POLL_INTERVAL_MS = 1500;
-  var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+  // 2026-07-15（第二十七輪）：在線＝2 分鐘內有「面板真的可見」的心跳
+  // （poll 帶 visible:true 時 Worker 每 30 秒記一次 last_seen_at）。
+  // 舊判定（最後訊息/已讀在 5 分鐘內）只要有在聊就永遠在線、從沒出現
+  // 過離線，作廢。
+  var PRESENCE_WINDOW_MS = 2 * 60 * 1000;
   // 2026-07-14：時間分隔線原本只要「格式化後的 HH:MM 字串」跟上一則不同
   // 就插一次，等於只要跨過一分鐘就會冒出時間，訊息密集時滿版都是時間，
   // 使用者要的是像 FB 那樣——真的隔了一段時間才顯示。改成看「距離上一條
@@ -72,6 +76,24 @@ title/url（見 `requestHostContext()`，宿主端實作在
   // ——訊息裡「還有其他文字」的情況不觸發，避免正常聊天句子裡帶到連結
   // 就被硬轉成卡片。
   var BARE_URL_RE = /^https?:\/\/\S+$/i;
+
+  // 2026-07-15（第二十七輪）：整則訊息只有 1~3 個 emoji 時不畫泡泡框、
+  // 直接放大顯示（FB/LINE 慣例）——原本塞在小方框裡不置中很阿雜。
+  // 涵蓋 ZWJ 組合（👨‍👩‍👧）、變體選擇子、膚色修飾符；不支援
+  // unicode property escapes 的舊瀏覽器直接當一般訊息，不炸。
+  function isEmojiOnly(text) {
+    var t = String(text || "").trim();
+    if (!t || t.length > 16) return false;
+    try {
+      return new RegExp(
+        "^(?:\\p{Extended_Pictographic}[\\uFE0F\\u{1F3FB}-\\u{1F3FF}]?" +
+        "(?:\\u200D\\p{Extended_Pictographic}[\\uFE0F\\u{1F3FB}-\\u{1F3FF}]?)*){1,3}$",
+        "u"
+      ).test(t);
+    } catch (error) {
+      return false;
+    }
+  }
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -286,18 +308,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
         els.peerStatus.textContent = lastMessage ? "最後訊息 " + formatTime(lastMessage.created_at) : "還沒有訊息";
       }
 
-      var peerLastActivity = 0;
-      messages.forEach(function (m) {
-        if (m.sender_identity === peer) {
-          var t = new Date(m.created_at).getTime();
-          if (t > peerLastActivity) peerLastActivity = t;
-        }
-      });
-      if (peerRead.lastReadAt) {
-        var readAt = new Date(peerRead.lastReadAt).getTime();
-        if (readAt > peerLastActivity) peerLastActivity = readAt;
-      }
-      var isOnline = peerLastActivity > 0 && (Date.now() - peerLastActivity) < PRESENCE_WINDOW_MS;
+      // 在線＝對方的可見心跳在 2 分鐘內（見檔頭 PRESENCE_WINDOW_MS 註解）。
+      var peerSeenAt = data.presence && data.presence[peer] ? new Date(data.presence[peer]).getTime() : 0;
+      var isOnline = peerSeenAt > 0 && (Date.now() - peerSeenAt) < PRESENCE_WINDOW_MS;
       els.avatar.classList.toggle("is-online", isOnline);
       els.avatar.classList.toggle("no-presence", !isOnline);
 
@@ -487,8 +500,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
           // 在上、泡泡在中、反應在下」直向堆疊。用一個 column 容器包起來，
           // 對 flex row 來說這個容器才是唯一的 flex item，內部照一般 block
           // 排版直向堆疊。
+          var emojiOnly = isEmojiOnly(m.body);
           bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
-            '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) +
+            '<div class="jonaminz-chat-bubble' + (emojiOnly ? " is-emoji-only" : "") + '">' + escapeHtml(m.body) +
             (m.edited_at ? '<span class="jonaminz-chat-edited-tag">已編輯</span>' : "") + "</div>" +
             reactionsHtml + "</div>";
         }
@@ -627,7 +641,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
 
     function poll() {
-      return window.JonaminzBackend.listChatMessages({ token: token })
+      // visible:true＝面板真的展開、使用者正在看——Worker 拿它記在線心跳。
+      return window.JonaminzBackend.listChatMessages({ token: token, visible: isVisible === true })
         .then(function (data) {
           if (destroyed) return;
           render(data);

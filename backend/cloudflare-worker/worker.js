@@ -1157,7 +1157,7 @@ async function listChatMessages(env, payload) {
     "&select=" + CHAT_MESSAGE_SELECT;
   const membersUrl =
     base + "/rest/v1/chat_room_members?room_id=eq." + roomId +
-    "&select=identity,last_read_message_id,last_read_at,last_delivered_message_id,last_delivered_at";
+    "&select=identity,last_read_message_id,last_read_at,last_delivered_message_id,last_delivered_at,last_seen_at";
   // Shared 分享內容：跟訊息平行查這個房間目前所有 Shared item（連同各自
   // 的已讀狀態），前端靠 message.shared_item_id 對到這個 map 畫內容卡。
   // 這兩張表（chat_shared_items／chat_shared_item_seen）要等使用者手動
@@ -1201,29 +1201,44 @@ async function listChatMessages(env, payload) {
 
   const readState = {};
   const deliveryState = {};
+  const presence = {};
   members.forEach(function (m) {
     readState[m.identity] = { lastReadMessageId: m.last_read_message_id, lastReadAt: m.last_read_at };
     deliveryState[m.identity] = { lastDeliveredMessageId: m.last_delivered_message_id, lastDeliveredAt: m.last_delivered_at };
+    presence[m.identity] = m.last_seen_at || null;
   });
 
   // 送達（三態已讀的中間態）：這支 action 本身就是「我方裝置正在跟伺服器
   // 要訊息」，所以呼叫這支 action 這個事實本身就等於「我方已經送達到這個
   // 時間點的所有訊息」——不需要前端另外回報一次。只在真的有訊息、且比
   // 目前記錄的還新時才寫入，避免每次 1.5 秒 poll 都無意義地 PATCH 一次。
+  //
+  // 在線心跳（2026-07-15 第二十七輪）：payload.visible=true 代表「面板
+  // 真的展開、使用者正在看」——每 30 秒把 last_seen_at 心跳一次（節流，
+  // 不是每次 1.5 秒 poll 都寫）。在線的定義從「最後訊息/已讀在 5 分鐘內」
+  // （只要有在聊就永遠在線，從沒出現過離線）改成「2 分鐘內有可見心跳」。
+  const patchBody = {};
   const newestMessage = messages[messages.length - 1];
   if (newestMessage && deliveryState[identity] && deliveryState[identity].lastDeliveredMessageId !== newestMessage.id) {
+    patchBody.last_delivered_message_id = newestMessage.id;
+    patchBody.last_delivered_at = new Date().toISOString();
+    deliveryState[identity] = { lastDeliveredMessageId: newestMessage.id, lastDeliveredAt: patchBody.last_delivered_at };
+  }
+  if (payload && payload.visible === true) {
+    const lastSeen = presence[identity] ? new Date(presence[identity]).getTime() : 0;
+    if (Date.now() - lastSeen > 30 * 1000) {
+      patchBody.last_seen_at = new Date().toISOString();
+      presence[identity] = patchBody.last_seen_at;
+    }
+  }
+  if (Object.keys(patchBody).length) {
     try {
       await fetch(
         base + "/rest/v1/chat_room_members?room_id=eq." + roomId + "&identity=eq." + identity,
-        {
-          method: "PATCH",
-          headers: supabaseHeaders(env),
-          body: JSON.stringify({ last_delivered_message_id: newestMessage.id, last_delivered_at: new Date().toISOString() })
-        }
+        { method: "PATCH", headers: supabaseHeaders(env), body: JSON.stringify(patchBody) }
       );
-      deliveryState[identity] = { lastDeliveredMessageId: newestMessage.id, lastDeliveredAt: new Date().toISOString() };
     } catch (error) {
-      // 送達狀態寫入失敗不影響訊息本身能不能顯示，靜靜失敗即可。
+      // 送達/心跳寫入失敗不影響訊息本身能不能顯示，靜靜失敗即可。
     }
   }
 
@@ -1276,6 +1291,7 @@ async function listChatMessages(env, payload) {
     messages: messages,
     readState: readState,
     deliveryState: deliveryState,
+    presence: presence,
     typing: typing,
     sharedItems: sharedItems
   };
