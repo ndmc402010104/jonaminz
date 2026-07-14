@@ -20,6 +20,27 @@
 
 ---
 
+## 2026-07-14（中午）— Phase 2 roadmap 定稿（換模型交接用）
+
+- **任務**：使用者要換到別的模型繼續開發，要求先把 roadmap 定好。
+- **變更**：新增 `docs/roadmap-202607-phase2.md`——P0（使用者自己的
+  動作：核准 travel contract、Chat 兩身分互測、APK 安裝）→ P1（修
+  KNOWN_ISSUES #12 capability 改名，需先裁決）→ P2（Chat 半版/全版
+  懸浮面板，iframe 架構已鋪好路）→ P3（Travel 書本生成 或 Chat 進階
+  功能，二選一問使用者）→ P4（等條件成熟：功能合約/skhpsv2/ADPF/
+  Minz Phase 2/真即時）。附接手必讀清單、新工作流程工具說明
+  （Stop hook/Supabase 授權/部署規則）、重複踩過的陷阱備忘。
+- **同日稍早的流程建設（不在 repo 內，記錄備查）**：`程式碼/.claude/`
+  建立 Stop hook（計畫沒做完擋提前收工，已實測會擋）；Supabase 直連
+  授權定案為「org 全域、每次 AskUserQuestion 問過才執行」（使用者
+  本人貼設定生效，已實測查詢成功）；claude.ai Supabase MCP 連接器
+  已接上可用。
+- **狀態變化**：無程式碼變更，純交接文件。
+- **遺留**：見 roadmap 本body——它就是遺留清單的正式版。
+- **版本**：無程式碼變更
+
+---
+
 ## 2026-07-14（上午～中午）— Chat launcher SDK 化（合約分級架構第一個落地案例）＋MD 盤點
 
 - **任務**：使用者裁決外部專案的要求分兩級——「功能合約」（要有行為，
