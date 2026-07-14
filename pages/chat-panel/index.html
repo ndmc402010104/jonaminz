@@ -91,7 +91,15 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
   // 是隱藏的，不能讓「poll 到新訊息」就自動標記已讀。等宿主真的把面板
   // 打開時會 postMessage visibility:true 過來，chat-thread.js 內部收到
   // 才會真的標記已讀。
-  window.JonaminzChatThread.mount(threadRoot, { token: token, startVisible: false });
+  //
+  // 2026-07-15（第二十四輪）：?standalone=1——App 的泡泡（系統 Bubbles
+  // 的 BubbleActivity／懸浮泡泡的 BubbleOverlayService）用原生 WebView
+  // 把這頁當「頂層頁面」直接載入，不是 iframe：沒有宿主會送 visibility
+  // 訊息，開著就等於使用者正在看（要 startVisible:true 才會正常標記
+  // 已讀）；半版/全版 handle 沒有宿主可通知，藏起來。
+  var standalone = /[?&]standalone=1/.test(window.location.search);
+  if (standalone) handle.style.display = "none";
+  window.JonaminzChatThread.mount(threadRoot, { token: token, startVisible: standalone });
 })();
 </script>
 </body>

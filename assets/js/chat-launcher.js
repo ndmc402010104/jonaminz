@@ -511,6 +511,35 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       } catch (error) {}
     }
 
+    // 2026-07-15（第二十四輪補）：懸浮泡泡運作期間，App 網頁裡這顆
+    // 大頭貼要讓位（同時兩顆泡泡很怪）。開 App、切回 App、按下「懸浮
+    // 泡泡」成功當下都同步一次；懸浮泡泡被拖到 ✕ 關掉後，下次切回
+    // App 會自動把這顆放回來。
+    var inAppLauncherHidden = false;
+    function setInAppLauncherHidden(hidden) {
+      if (hidden === inAppLauncherHidden) return;
+      inAppLauncherHidden = hidden;
+      if (hidden) setPanelOpen(false);
+      launcherFrame.style.display = hidden ? "none" : "";
+      overlay.style.display = hidden ? "none" : "";
+      if (hidden) panelFrame.classList.add("jcl-panel-hidden");
+    }
+
+    function syncOverlayBubbleState() {
+      var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.JonaminzNative;
+      if (!plugin || typeof plugin.isOverlayBubbleActive !== "function") return;
+      plugin.isOverlayBubbleActive()
+        .then(function (result) {
+          setInAppLauncherHidden(Boolean(result && result.active));
+        })
+        .catch(function () {});
+    }
+
+    syncOverlayBubbleState();
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") syncOverlayBubbleState();
+    });
+
     function handleBubbleRequest(mode) {
       var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.JonaminzNative;
       if (!plugin) {
@@ -525,7 +554,12 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       var request = mode === "overlay" ? plugin.openOverlayBubble() : plugin.openBubble();
       Promise.resolve(request)
         .then(function (result) {
-          replyBubbleResult({ status: (result && result.status) || "opened" });
+          var status = (result && result.status) || "opened";
+          replyBubbleResult({ status: status });
+          // 懸浮泡泡開起來的當下就把 App 內這顆大頭貼收掉。
+          if (mode === "overlay" && status === "opened") {
+            setInAppLauncherHidden(true);
+          }
         })
         .catch(function (error) {
           replyBubbleResult({ status: "unsupported", error: (error && error.message) || "開啟失敗" });

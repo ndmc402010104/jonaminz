@@ -20,6 +20,44 @@
 
 ---
 
+## 2026-07-15（凌晨，第二十四次）— 懸浮泡泡打磨：拖到 ✕ 關閉、圓形泡泡、圓角面板、standalone 聊天頁
+
+- **任務**：使用者實測懸浮泡泡回報「關不掉而且好粗糙XD」。第一版的
+  關閉鈕藏在 IMPORTANCE_MIN 的常駐通知裡（Samsung 會摺疊進看不到的
+  靜音區）；泡泡是方形 launcher 圖直接貼上、面板是生硬方框載整個網站
+  頁面（含 header/footer）。
+- **變更**：
+  - **關閉手勢重做**（`BubbleOverlayService`）：拖動泡泡時螢幕底部
+    出現 ✕ 目標（Messenger 同款），拖近會放大提示、放開＝關閉服務；
+    常駐通知改 IMPORTANCE_LOW（不再被摺疊）＋通知文字提示拖曳關閉。
+  - **視覺打磨**：泡泡改圓形（米紙色圓底＋launcher 前景圖徽放大 1.5x
+    ——adaptive 前景自帶 108dp 格線大留白）；聊天面板包進 20dp 圓角
+    容器（clipToOutline）、置底置中（Gravity.BOTTOM，y=88dp）。
+  - **面板內容換頁**：`pages/chat-panel/index.html` 新增
+    `?standalone=1` 模式——原生 WebView 把面板頁當頂層頁面載入時沒有
+    宿主送 visibility 訊息，standalone 下 startVisible:true（不然
+    永遠不標記已讀）＋藏掉半版/全版 handle。懸浮泡泡面板跟系統泡泡的
+    `BubbleActivity` 都改載這頁（原本載 /pages/chat/ 整頁版，有站台
+    header/footer 很醜）。
+  - **tel: 修通**：兩個泡泡 WebView 的 WebViewClient 都加「非 http(s)
+    scheme 交給系統 Intent」——原本極簡 WebView 對 tel: 直接
+    ERR_UNKNOWN_URL_SCHEME，泡泡裡按撥打沒反應。
+  - 泡泡吸邊時順便夾住上下界（不會被拖出畫面）。
+- **驗證**：APK 建置成功、SendUserFile 交付（無線偵錯休眠 adb 連不上）。
+  真機驗收待使用者：拖到 ✕ 關閉、圓形泡泡外觀、面板圓角＋乾淨頁面、
+  泡泡內撥打電話。
+- **追加（同凌晨）——懸浮泡泡運作期間收掉 App 內那顆網頁大頭貼**：
+  使用者指出兩顆泡泡同時存在很怪。原生側：`BubbleOverlayService` 加
+  `running` 靜態旗標、外掛加 `isOverlayBubbleActive()`；網頁側
+  （`chat-launcher.js`）：開 App／切回 App（visibilitychange）／按下
+  「懸浮泡泡」成功當下都同步一次，運作中就把大頭貼＋覆蓋層＋面板整組
+  藏起來，懸浮泡泡被拖到 ✕ 關掉後下次切回 App 自動放回來。
+- **遺留**：window.open（分享卡開新視窗）在泡泡 WebView 仍不支援；
+  泡泡位置不持久化。
+- **版本**：`v0.31.1-202607150136`（`version.js`）。
+
+---
+
 ## 2026-07-15（凌晨，第二十三次）— 設定面板兩顆泡泡按鈕：系統泡泡一鍵開＋Messenger 式懸浮泡泡
 
 - **任務**：使用者要求設定面板加「開啟泡泡視窗」按鈕，並提到之前跟
