@@ -136,6 +136,22 @@
     return call("markSharedItemSeen", payload, options);
   }
 
+  function editChatMessage(payload, options) {
+    return call("editChatMessage", payload, options);
+  }
+
+  function deleteChatMessage(payload, options) {
+    return call("deleteChatMessage", payload, options);
+  }
+
+  function loadOlderChatMessages(payload, options) {
+    return call("loadOlderChatMessages", payload, options);
+  }
+
+  function searchChatMessages(payload, options) {
+    return call("searchChatMessages", payload, options);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -152,6 +168,10 @@
     sendChatMessage: sendChatMessage,
     markChatRead: markChatRead,
     shareCurrentContent: shareCurrentContent,
-    markSharedItemSeen: markSharedItemSeen
+    markSharedItemSeen: markSharedItemSeen,
+    editChatMessage: editChatMessage,
+    deleteChatMessage: deleteChatMessage,
+    loadOlderChatMessages: loadOlderChatMessages,
+    searchChatMessages: searchChatMessages
   };
 })();

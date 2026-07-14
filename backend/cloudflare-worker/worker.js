@@ -252,6 +252,22 @@ export default {
         return json(await markSharedItemSeen(env, payload), 200);
       }
 
+      if (action === "editChatMessage") {
+        return json(await editChatMessage(env, payload), 200);
+      }
+
+      if (action === "deleteChatMessage") {
+        return json(await deleteChatMessage(env, payload), 200);
+      }
+
+      if (action === "loadOlderChatMessages") {
+        return json(await loadOlderChatMessages(env, payload), 200);
+      }
+
+      if (action === "searchChatMessages") {
+        return json(await searchChatMessages(env, payload), 200);
+      }
+
       return json({ ok: false, error: "Unknown action: " + action }, 400);
     } catch (error) {
       return json({ ok: false, error: error.message || String(error) }, 500);
@@ -1425,6 +1441,154 @@ async function markSharedItemSeen(env, payload) {
     throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
   }
   return { ok: true };
+}
+
+// ---------- 2026-07-14（第十四輪）：對照成熟聊天 App 慣例補的功能——
+// 訊息編輯/刪除、歷史分頁、全文搜尋。全部沿用既有的
+// requireSession/resolveChatRoomId 慣例，不另起爐灶。----------
+
+async function editChatMessage(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const messageId = String((payload && payload.messageId) || "").trim();
+  const body = String((payload && payload.body) || "").trim();
+  if (!messageId) {
+    return { ok: false, code: "MESSAGE_ID_REQUIRED", error: "messageId is required" };
+  }
+  if (!body) {
+    return { ok: false, code: "BODY_REQUIRED", error: "body is required" };
+  }
+  if (body.length > 4000) {
+    return { ok: false, code: "BODY_TOO_LONG", error: "body must be 4000 characters or fewer" };
+  }
+
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  // 篩選條件直接帶 sender_identity=eq.<identity>——不是自己的訊息這個
+  // filter 撞不到任何列，PATCH 影響 0 筆，不用另外先查一次確認擁有權。
+  const url = base + "/rest/v1/chat_messages?id=eq." + encodeURIComponent(messageId) +
+    "&sender_identity=eq." + identity + "&deleted_at=is.null";
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify({ body: body, edited_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  if (!rows[0]) {
+    return { ok: false, code: "NOT_FOUND_OR_FORBIDDEN", error: "message not found or not editable" };
+  }
+  return { ok: true, message: rows[0] };
+}
+
+async function deleteChatMessage(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const messageId = String((payload && payload.messageId) || "").trim();
+  if (!messageId) {
+    return { ok: false, code: "MESSAGE_ID_REQUIRED", error: "messageId is required" };
+  }
+
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const url = base + "/rest/v1/chat_messages?id=eq." + encodeURIComponent(messageId) +
+    "&sender_identity=eq." + identity;
+  // 軟刪除：body 清空、deleted_at 蓋上時間戳，前端看到 deleted_at 就畫
+  // 「此訊息已刪除」的樣式，不是真的從資料庫移除這一列（保留稽核軌跡）。
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify({ body: "", deleted_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  if (!rows[0]) {
+    return { ok: false, code: "NOT_FOUND_OR_FORBIDDEN", error: "message not found or not deletable" };
+  }
+  return { ok: true, message: rows[0] };
+}
+
+async function loadOlderChatMessages(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const beforeMessageId = String((payload && payload.beforeMessageId) || "").trim();
+  if (!beforeMessageId) {
+    return { ok: false, code: "BEFORE_MESSAGE_ID_REQUIRED", error: "beforeMessageId is required" };
+  }
+
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const PAGE_SIZE = 50;
+
+  // 用「錨點訊息的 created_at」當分頁游標（不是用 id，因為 UUID 沒有
+  // 時間順序）——先查那則訊息本身的時間，再抓更早的一頁。
+  const anchorUrl = base + "/rest/v1/chat_messages?id=eq." + encodeURIComponent(beforeMessageId) +
+    "&select=created_at&limit=1";
+  const anchorRes = await fetch(anchorUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!anchorRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + anchorRes.status + " " + (await anchorRes.text()));
+  }
+  const anchorRows = await anchorRes.json();
+  if (!anchorRows[0]) {
+    return { ok: true, messages: [], hasMore: false };
+  }
+  const anchorCreatedAt = anchorRows[0].created_at;
+
+  const olderUrl = base + "/rest/v1/chat_messages?room_id=eq." + roomId +
+    "&created_at=lt." + encodeURIComponent(anchorCreatedAt) +
+    "&order=created_at.desc,id.desc&limit=" + (PAGE_SIZE + 1) +
+    "&select=id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id,shared_item_id";
+  const olderRes = await fetch(olderUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!olderRes.ok) {
+    throw new Error("Supabase read failed: HTTP " + olderRes.status + " " + (await olderRes.text()));
+  }
+  const olderRowsDesc = await olderRes.json();
+  const hasMore = olderRowsDesc.length > PAGE_SIZE;
+  const page = olderRowsDesc.slice(0, PAGE_SIZE).reverse(); // 換回正序（舊到新）給前端
+
+  return { ok: true, messages: page, hasMore: hasMore };
+}
+
+async function searchChatMessages(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+
+  const query = String((payload && payload.query) || "").trim();
+  if (!query) {
+    return { ok: true, messages: [] };
+  }
+  if (query.length > 200) {
+    return { ok: false, code: "QUERY_TOO_LONG", error: "query must be 200 characters or fewer" };
+  }
+
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  // ilike 簡單子字串搜尋——這個聊天室的量級（兩人、幾百則訊息）用不到
+  // 全文索引那種規模的搜尋引擎，PostgREST 的 ilike 就夠用。PostgREST 的
+  // like/ilike 篩選用 * 當萬用字元（不是 %，URL 裡 % 是保留字元）。
+  const url = base + "/rest/v1/chat_messages?room_id=eq." + roomId +
+    "&deleted_at=is.null&body=ilike." + encodeURIComponent("*" + query + "*") +
+    "&order=created_at.desc&limit=50" +
+    "&select=id,sender_identity,body,kind,created_at,shared_item_id";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return { ok: true, messages: rows };
 }
 
 async function handleGoogleStart(env, url) {

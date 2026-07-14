@@ -41,13 +41,18 @@ title/url（見 `requestHostContext()`，宿主端實作在
 (function () {
   "use strict";
 
-  var POLL_INTERVAL_MS = 3000;
+  // 2026-07-14（第十四輪）：對照成熟聊天 App 慣例做系統性審查，把 3000
+  // 調快到 1500——2 個人的私人聊天室這個頻率的成本完全可以忽略，換來
+  // 接收速度快一倍。
+  var POLL_INTERVAL_MS = 1500;
   var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
   // 2026-07-14：時間分隔線原本只要「格式化後的 HH:MM 字串」跟上一則不同
   // 就插一次，等於只要跨過一分鐘就會冒出時間，訊息密集時滿版都是時間，
   // 使用者要的是像 FB 那樣——真的隔了一段時間才顯示。改成看「距離上一條
   // 分隔線」的實際毫秒差，超過這個門檻才插新的分隔線。
   var TIME_DIVIDER_GAP_MS = 15 * 60 * 1000;
+  var LONG_PRESS_MS = 480;
+  var HISTORY_PAGE_SIZE = 50;
   var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
   var QUICK_REACTION = "👍";
   var EMOJI_SET = [
@@ -56,6 +61,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
     "👍", "👌", "🙏", "👏",
     "❤️", "🔥", "🎉", "😱"
   ];
+  // 一般文字訊息如果整則「就只是一個網址」，直接當成分享內容處理（跟
+  // Discord/Slack/iMessage 一樣：貼一個純網址會變成預覽卡，不是純文字）
+  // ——訊息裡「還有其他文字」的情況不觸發，避免正常聊天句子裡帶到連結
+  // 就被硬轉成卡片。
+  var BARE_URL_RE = /^https?:\/\/\S+$/i;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
@@ -75,6 +85,50 @@ title/url（見 `requestHostContext()`，宿主端實作在
   function initialOf(id) {
     var label = IDENTITY_LABEL[id] || id || "?";
     return label.charAt(0).toUpperCase();
+  }
+
+  // 純網址訊息沒有「目前頁面 title」可以借用（不像「分享目前內容」那樣
+  // 有宿主頁面可以問），照抄交接包原型的 titleFromUrl() 猜法：網域＋
+  // 最後一段路徑，猜不到就用網域本身。
+  function titleFromUrl(url) {
+    try {
+      var u = new URL(url);
+      var host = u.hostname.replace(/^www\./, "");
+      var segments = u.pathname.split("/").filter(Boolean);
+      var last = segments.length ? segments[segments.length - 1].replace(/[-_]/g, " ") : "";
+      return last ? host + " " + last : host;
+    } catch (error) {
+      return url;
+    }
+  }
+
+  // 新訊息音效——用 Web Audio API 現場合成一個短「叮」聲，不用另外準備
+  // 音檔（也不用煩惱音檔要放哪裡/CSP）。使用者自己送出的訊息不會觸發，
+  // 只有真的收到對方訊息才響。
+  function playNotificationTone() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.24);
+      osc.onended = function () { ctx.close(); };
+    } catch (error) {
+      // 音效播不出來不影響訊息本身，靜靜失敗就好。
+    }
+    try {
+      if (navigator.vibrate) navigator.vibrate(60);
+    } catch (error) {}
   }
 
   // Shared 分享內容模組：面板（這支跑在 pages/chat-panel/ iframe 裡時）
@@ -129,13 +183,48 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var destroyed = false;
     var sharedItems = {};
     var activeSharedItemId = null;
+    var editingMessageId = null;
     var els = {};
+    // 2026-07-14（第十四輪）：歷史分頁——往上捲動載入更早的訊息，
+    // 累加在 olderMessages 裡，每次 render() 都跟最新一次 poll 回應
+    // merge 起來畫（poll 本身只回傳最近一個時間窗，不會自己累積歷史）。
+    var olderMessages = [];
+    var hasMoreHistory = true;
+    var loadingOlder = false;
+    var lastPollData = null;
+    var hasRenderedOnce = false;
+    var readObserver = null;
+    var contextMenuOpenedAt = 0;
 
     function maybeMarkRead() {
       if (!isVisible) return;
       if (!lastMessageId || lastMessageId === lastReadMarkedId) return;
       lastReadMarkedId = lastMessageId;
       window.JonaminzBackend.markChatRead({ token: token, messageId: lastMessageId }).catch(function () {});
+    }
+
+    // 2026-07-14（第十四輪）：已讀原本是「render() 跑過＋isVisible 為真」
+    // 就整批標記已讀，現在改成「最新那一則訊息真的捲進畫面裡」才算——
+    // 用 IntersectionObserver 盯著訊息串裡最後一個 .jonaminz-chat-message
+    // 元素，它真的進入可視範圍時才呼叫 maybeMarkRead()。使用者捲上去看
+    // 舊訊息、最新一則不在畫面裡時，不會被錯誤標記已讀。不支援
+    // IntersectionObserver 的環境（極舊瀏覽器）退回舊的「可見就標記」
+    // 行為，不讓已讀功能整個失效。
+    function setupReadObserver() {
+      if (typeof IntersectionObserver !== "function") {
+        maybeMarkRead();
+        return;
+      }
+      if (readObserver) readObserver.disconnect();
+      var messageEls = els.thread.querySelectorAll(".jonaminz-chat-message");
+      var lastEl = messageEls[messageEls.length - 1];
+      if (!lastEl) return;
+      readObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) maybeMarkRead();
+        });
+      }, { root: els.thread, threshold: 0.6 });
+      readObserver.observe(lastEl);
     }
 
     window.addEventListener("message", function (event) {
@@ -198,22 +287,37 @@ title/url（見 `requestHostContext()`，宿主端實作在
         unreadCount: unreadCount,
         lastMessage: lastMessage || null
       });
+
+      return unreadCount;
     }
 
     function render(data) {
       identity = data.identity;
-      renderHead(data);
+      lastPollData = data;
+      var unreadCount = renderHead(data);
 
-      var messages = data.messages || [];
+      // 跟已經往上捲動載入的歷史訊息 merge 起來——poll() 本身只回傳最近
+      // 一個時間窗，不會自己累積歷史，靠這裡把 olderMessages 接在前面。
+      var messages = olderMessages.concat(data.messages || []);
       var readState = data.readState || {};
       sharedItems = data.sharedItems || {};
       var myRead = readState[identity] || {};
       var otherRead = readState[otherIdentity()] || {};
 
+      renderNotifPanel(unreadCount);
+
       if (!messages.length) {
         els.thread.innerHTML = '<p class="jonaminz-chat-empty">還沒有訊息，說句話開始吧。</p>';
         return;
       }
+
+      // 2026-07-14：真的有「對方送來的新訊息」才播提示音——排除自己剛
+      // 送出的訊息、也排除第一次載入時把既有訊息全部當成「新的」誤觸發。
+      var newestMessage = messages[messages.length - 1];
+      if (hasRenderedOnce && newestMessage.id !== lastMessageId && newestMessage.sender_identity !== identity) {
+        playNotificationTone();
+      }
+      hasRenderedOnce = true;
 
       // 找出「我方已讀到哪一則」的 index，之後才知道未讀分隔線要插在哪。
       var myReadIndex = -1;
@@ -264,9 +368,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
           : "";
 
         var readByOther = mine && otherRead.lastReadMessageId === m.id;
+        var deleted = Boolean(m.deleted_at);
+        var canEditOrDelete = mine && !deleted && m.kind !== "shared_item";
 
         var bodyHtml;
-        if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
+        if (deleted) {
+          bodyHtml = '<div class="jonaminz-chat-bubble is-deleted">此訊息已刪除</div>';
+        } else if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
           var item = sharedItems[m.shared_item_id];
           var viewerSeen = Boolean(item.seenState && item.seenState[identity]);
           bodyHtml =
@@ -280,11 +388,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
             'data-item-id="' + escapeHtml(item.id) + '" data-item-title="' + escapeHtml(item.title) + '">討論</button>' +
             "</div>";
         } else {
-          bodyHtml = '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) + "</div>";
+          bodyHtml = '<div class="jonaminz-chat-bubble">' + escapeHtml(m.body) +
+            (m.edited_at ? '<span class="jonaminz-chat-edited-tag">已編輯</span>' : "") + "</div>";
         }
 
         html +=
-          '<div class="jonaminz-chat-message" data-mine="' + mine + '">' +
+          '<div class="jonaminz-chat-message" data-mine="' + mine + '" data-message-id="' + escapeHtml(m.id) + '"' +
+          (canEditOrDelete ? " data-editable=\"true\"" : "") +
+          (!deleted && m.kind !== "shared_item" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
           bodyHtml +
           "</div>";
@@ -296,8 +407,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
         }
       });
 
+      var loadMoreHtml = hasMoreHistory
+        ? '<button type="button" class="jonaminz-chat-load-more" data-load-more>' +
+          (loadingOlder ? "載入中..." : "載入更早的訊息") + "</button>"
+        : "";
+
       var wasNearBottom = els.thread.scrollHeight - els.thread.scrollTop - els.thread.clientHeight < 80;
-      els.thread.innerHTML = html;
+      els.thread.innerHTML = loadMoreHtml + html;
       if (wasNearBottom || !lastMessageId) els.thread.scrollTop = els.thread.scrollHeight;
 
       var newestId = messages[messages.length - 1].id;
@@ -308,9 +424,35 @@ title/url（見 `requestHostContext()`，宿主端實作在
       // poll（見第七次修正），所以「render() 被呼叫過」不再等於「使用者
       // 真的有看到」——面板收合在背景時一樣會 poll/render，不能在這時候
       // 就標記已讀。已讀只在 isVisible 為真（面板真的展開，或整頁版一律
-      // 視為可見）時才觸發，見 maybeMarkRead()／mount() 的 visibility
-      // 訊息處理。
-      maybeMarkRead();
+      // 視為可見）時才觸發；且要等「最新那則訊息真的捲進畫面」才算，見
+      // setupReadObserver()。
+      setupReadObserver();
+    }
+
+    // 2026-07-14（第十四輪）：往上捲動載入更早的訊息，累加進
+    // olderMessages，再用最後一次 poll 的資料重新 render()（不用整個
+    // 重新打一次 listChatMessages）。往上插內容會讓瀏覽器把使用者原本
+    // 看的位置往下推，補償 scrollTop 讓畫面看起來沒有跳動。
+    function loadOlder() {
+      if (loadingOlder || !hasMoreHistory) return;
+      var anchor = (olderMessages[0] || (lastPollData && lastPollData.messages && lastPollData.messages[0]));
+      if (!anchor) return;
+      loadingOlder = true;
+      if (lastPollData) render(lastPollData); // 先畫「載入中...」的 load-more 按鈕
+      window.JonaminzBackend.loadOlderChatMessages({ token: token, beforeMessageId: anchor.id })
+        .then(function (data) {
+          if (destroyed) return;
+          var prevScrollHeight = els.thread.scrollHeight;
+          olderMessages = (data.messages || []).concat(olderMessages);
+          hasMoreHistory = Boolean(data.hasMore);
+          loadingOlder = false;
+          if (lastPollData) render(lastPollData);
+          els.thread.scrollTop = els.thread.scrollHeight - prevScrollHeight;
+        })
+        .catch(function () {
+          loadingOlder = false;
+          if (lastPollData) render(lastPollData);
+        });
     }
 
     function poll() {
@@ -346,10 +488,25 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (!body || sending) return;
       sending = true;
       els.action.disabled = true;
-      var clientMessageId = identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2);
-      var sendPayload = { token: token, body: body, clientMessageId: clientMessageId };
-      if (activeSharedItemId) sendPayload.sharedItemId = activeSharedItemId;
-      window.JonaminzBackend.sendChatMessage(sendPayload)
+
+      var request;
+      if (editingMessageId) {
+        // 編輯模式：改叫 editChatMessage，不是送一則新訊息。
+        var messageIdBeingEdited = editingMessageId;
+        request = window.JonaminzBackend.editChatMessage({ token: token, messageId: messageIdBeingEdited, body: body })
+          .then(function () { setEditTarget(null); });
+      } else if (BARE_URL_RE.test(body)) {
+        // 整則訊息就是一個網址：當成分享內容處理，跟 Discord/Slack/
+        // iMessage 一樣貼純網址會變成預覽卡，不是純文字泡泡。
+        request = window.JonaminzBackend.shareCurrentContent({ token: token, url: body, title: titleFromUrl(body) });
+      } else {
+        var clientMessageId = identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+        var sendPayload = { token: token, body: body, clientMessageId: clientMessageId };
+        if (activeSharedItemId) sendPayload.sharedItemId = activeSharedItemId;
+        request = window.JonaminzBackend.sendChatMessage(sendPayload);
+      }
+
+      request
         .then(function () {
           return poll();
         })
@@ -382,6 +539,106 @@ title/url（見 `requestHostContext()`，宿主端實作在
       }
     }
 
+    // 2026-07-14（第十四輪）：編輯訊息——跟討論橫幅同一種寫法，composer
+    // 上方出現可關閉的提示，輸入框先填回原本的文字，送出時 doSendText()
+    // 會改叫 editChatMessage 而不是 sendChatMessage。
+    function setEditTarget(messageId, bodyText) {
+      editingMessageId = messageId;
+      if (!els.editBanner) return;
+      if (messageId) {
+        els.editBanner.hidden = false;
+        els.input.value = bodyText || "";
+        updateComposerAction();
+        autoGrowInput();
+        els.input.focus();
+      } else {
+        els.editBanner.hidden = true;
+      }
+    }
+
+    // ---- 長按訊息跳出選單（複製／編輯／刪除）----
+    function closeContextMenu() {
+      if (els.contextMenu) els.contextMenu.hidden = true;
+    }
+
+    function openContextMenu(messageEl, x, y) {
+      if (!els.contextMenu) return;
+      var messageId = messageEl.dataset.messageId;
+      var editable = messageEl.dataset.editable === "true";
+      var copyText = messageEl.dataset.copyText;
+      var items = [];
+      if (copyText) {
+        items.push('<button type="button" data-menu-copy data-text="' + escapeHtml(copyText) + '">複製</button>');
+      }
+      if (editable) {
+        items.push('<button type="button" data-menu-edit data-message-id="' + escapeHtml(messageId) +
+          '" data-text="' + escapeHtml(copyText || "") + '">編輯</button>');
+        items.push('<button type="button" data-menu-delete data-message-id="' + escapeHtml(messageId) + '">刪除</button>');
+      }
+      if (!items.length) return;
+      els.contextMenu.innerHTML = items.join("");
+      els.contextMenu.hidden = false;
+      contextMenuOpenedAt = Date.now();
+      var menuWidth = els.contextMenu.offsetWidth || 120;
+      var menuHeight = els.contextMenu.offsetHeight || 40;
+      var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
+      var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
+      els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
+      els.contextMenu.style.top = Math.max(6, Math.min(y, maxTop)) + "px";
+    }
+
+    // ---- 搜尋 ----
+    var searchDebounceTimer = null;
+    function performSearch(query) {
+      if (!els.searchResults) return;
+      if (!query) {
+        els.searchResults.hidden = true;
+        els.searchResults.innerHTML = "";
+        return;
+      }
+      window.JonaminzBackend.searchChatMessages({ token: token, query: query })
+        .then(function (data) {
+          var results = data.messages || [];
+          if (!results.length) {
+            els.searchResults.innerHTML = '<p class="jonaminz-chat-empty">沒有符合的訊息</p>';
+          } else {
+            els.searchResults.innerHTML = results.map(function (m) {
+              var mine = m.sender_identity === identity;
+              var label = mine ? "我" : (IDENTITY_LABEL[otherIdentity()] || otherIdentity());
+              var snippet = m.kind === "shared_item" ? "[分享的內容]" : m.body;
+              return '<div class="jonaminz-chat-search-result">' +
+                '<span class="jonaminz-chat-search-result-meta">' + escapeHtml(label) + " · " +
+                escapeHtml(formatTime(m.created_at)) + "</span>" +
+                '<span class="jonaminz-chat-search-result-body">' + escapeHtml(snippet) + "</span>" +
+                "</div>";
+            }).join("");
+          }
+          els.searchResults.hidden = false;
+        })
+        .catch(function () {});
+    }
+
+    // ---- 輕量級通知面板：未讀數＋還沒看過的分享內容，都是既有資料
+    // 直接算出來，不用另外開一支 Worker action。----
+    function renderNotifPanel(unreadCount) {
+      if (!els.notifPanel) return;
+      var unseenShared = Object.keys(sharedItems)
+        .map(function (id) { return sharedItems[id]; })
+        .filter(function (item) { return !(item.seenState && item.seenState[identity]); });
+      var hasActivity = unreadCount > 0 || unseenShared.length > 0;
+      if (els.notifDot) els.notifDot.hidden = !hasActivity;
+
+      var html = "";
+      if (unreadCount > 0) {
+        html += '<div class="jonaminz-chat-notif-item">' + unreadCount + " 則未讀訊息</div>";
+      }
+      unseenShared.forEach(function (item) {
+        html += '<div class="jonaminz-chat-notif-item" data-notif-shared data-item-id="' +
+          escapeHtml(item.id) + '">📎 ' + escapeHtml(item.title) + "</div>";
+      });
+      els.notifPanel.innerHTML = html || '<div class="jonaminz-chat-notif-item is-empty">沒有新動態</div>';
+    }
+
     function buildUI() {
       var plusButtonHtml = inPanel
         ? '<button type="button" class="jonaminz-chat-plus-btn" data-plus ' +
@@ -400,12 +657,29 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<p class="jonaminz-chat-status" data-status>載入中...</p>' +
         '<span class="jonaminz-chat-instance-badge">Chat Library &middot; couple-chat</span>' +
         "</div>" +
+        '<div class="jonaminz-chat-head-actions">' +
+        '<button type="button" class="jonaminz-chat-head-icon-btn" data-search-toggle aria-label="搜尋訊息">🔍</button>' +
+        '<button type="button" class="jonaminz-chat-head-icon-btn" data-notif-toggle aria-label="最近動態">' +
+        '🔔<span class="jonaminz-chat-notif-dot" data-notif-dot hidden></span></button>' +
+        "</div>" +
+        '<div class="jonaminz-chat-notif-panel" data-notif-panel hidden></div>' +
         "</section>" +
-        '<div class="jonaminz-chat-thread" data-thread><p class="jonaminz-chat-empty">載入中...</p></div>' +
+        '<div class="jonaminz-chat-search-bar" data-search-bar hidden>' +
+        '<input type="search" data-search-input placeholder="搜尋訊息...">' +
+        '<button type="button" data-search-close aria-label="關閉搜尋">✕</button>' +
+        "</div>" +
+        '<div class="jonaminz-chat-search-results" data-search-results hidden></div>' +
+        '<div class="jonaminz-chat-thread" data-thread role="log" aria-live="polite" aria-label="訊息串">' +
+        '<p class="jonaminz-chat-empty">載入中...</p></div>' +
         '<div class="jonaminz-chat-discuss-banner" data-discuss-banner hidden>' +
         '<span data-discuss-title></span>' +
         '<button type="button" data-discuss-clear aria-label="取消討論">✕</button>' +
         "</div>" +
+        '<div class="jonaminz-chat-discuss-banner jonaminz-chat-edit-banner" data-edit-banner hidden>' +
+        '<span data-edit-title>編輯訊息</span>' +
+        '<button type="button" data-edit-cancel aria-label="取消編輯">✕</button>' +
+        "</div>" +
+        '<div class="jonaminz-chat-context-menu" data-context-menu hidden></div>' +
         '<div class="jonaminz-chat-composer">' +
         '<div class="jonaminz-chat-plus-wrap">' + plusButtonHtml + "</div>" +
         '<div class="jonaminz-chat-input-shell">' +
@@ -417,7 +691,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<button type="button" class="jonaminz-chat-action-btn" data-action ' +
         'aria-label="快速送出 ' + QUICK_REACTION + '">' + QUICK_REACTION + "</button>" +
         "</div>" +
-        '<p class="jonaminz-chat-status-line" data-page-status></p>';
+        '<p class="jonaminz-chat-status-line" data-page-status aria-live="polite"></p>';
 
       els.avatar = root.querySelector("[data-avatar]");
       els.peerName = root.querySelector("[data-peer-name]");
@@ -432,6 +706,16 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.plusPanel = root.querySelector("[data-plus-panel]");
       els.discussBanner = root.querySelector("[data-discuss-banner]");
       els.discussTitle = root.querySelector("[data-discuss-title]");
+      els.editBanner = root.querySelector("[data-edit-banner]");
+      els.searchToggle = root.querySelector("[data-search-toggle]");
+      els.searchBar = root.querySelector("[data-search-bar]");
+      els.searchInput = root.querySelector("[data-search-input]");
+      els.searchClose = root.querySelector("[data-search-close]");
+      els.searchResults = root.querySelector("[data-search-results]");
+      els.notifToggle = root.querySelector("[data-notif-toggle]");
+      els.notifDot = root.querySelector("[data-notif-dot]");
+      els.notifPanel = root.querySelector("[data-notif-panel]");
+      els.contextMenu = root.querySelector("[data-context-menu]");
 
       els.emojiPanel.innerHTML = EMOJI_SET.map(function (emoji) {
         return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
@@ -471,6 +755,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
       }
 
       els.thread.addEventListener("click", function (event) {
+        var loadMoreBtn = event.target.closest("[data-load-more]");
+        if (loadMoreBtn) {
+          loadOlder();
+          return;
+        }
         var discussBtn = event.target.closest("[data-discuss-btn]");
         if (discussBtn) {
           setDiscussTarget(discussBtn.dataset.itemId, discussBtn.dataset.itemTitle);
@@ -487,9 +776,135 @@ title/url（見 `requestHostContext()`，宿主端實作在
         }
       });
 
+      // 2026-07-14（第十四輪）：往上捲到接近頂端就自動載入更早的訊息
+      // （標準的「無限捲動往上」慣例），load-more 按鈕留著給不想靠捲動
+      // 觸發的人手動點。
+      els.thread.addEventListener("scroll", function () {
+        closeContextMenu();
+        if (els.thread.scrollTop < 60) loadOlder();
+      });
+
+      // ---- 長按訊息跳出複製／編輯／刪除選單 ----
+      var longPressTimer = null;
+      var longPressStart = null;
+      function cancelLongPress() {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        longPressStart = null;
+      }
+      els.thread.addEventListener("pointerdown", function (event) {
+        if (event.target.closest("[data-discuss-btn], [data-shared-card], [data-load-more]")) return;
+        var messageEl = event.target.closest(".jonaminz-chat-message");
+        if (!messageEl) return;
+        longPressStart = { x: event.clientX, y: event.clientY };
+        longPressTimer = setTimeout(function () {
+          openContextMenu(messageEl, longPressStart.x, longPressStart.y);
+          longPressTimer = null;
+        }, LONG_PRESS_MS);
+      });
+      els.thread.addEventListener("pointermove", function (event) {
+        if (!longPressStart) return;
+        var dx = event.clientX - longPressStart.x;
+        var dy = event.clientY - longPressStart.y;
+        if (Math.sqrt(dx * dx + dy * dy) > 10) cancelLongPress();
+      });
+      els.thread.addEventListener("pointerup", cancelLongPress);
+      els.thread.addEventListener("pointercancel", cancelLongPress);
+
+      if (els.contextMenu) {
+        els.contextMenu.addEventListener("click", function (event) {
+          var copyBtn = event.target.closest("[data-menu-copy]");
+          if (copyBtn) {
+            try { navigator.clipboard.writeText(copyBtn.dataset.text || ""); } catch (error) {}
+            closeContextMenu();
+            return;
+          }
+          var editBtn = event.target.closest("[data-menu-edit]");
+          if (editBtn) {
+            setEditTarget(editBtn.dataset.messageId, editBtn.dataset.text);
+            closeContextMenu();
+            return;
+          }
+          var deleteBtn = event.target.closest("[data-menu-delete]");
+          if (deleteBtn) {
+            closeContextMenu();
+            if (!window.confirm("確定要刪除這則訊息嗎？")) return;
+            window.JonaminzBackend.deleteChatMessage({ token: token, messageId: deleteBtn.dataset.messageId })
+              .then(function () { return poll(); })
+              .catch(function (error) {
+                els.status.textContent = "刪除失敗：" + (error.message || String(error));
+              });
+          }
+        });
+        document.addEventListener("click", function (event) {
+          if (els.contextMenu.hidden) return;
+          if (event.target.closest(".jonaminz-chat-context-menu")) return;
+          // 防呆：長按放開的那個手勢，同一時間也會在底下的訊息元素上
+          // 冒出一個合成的 click 事件——如果不擋，選單剛開就被這個
+          // 「點在選單外面」的判斷立刻關掉。跟 chat-launcher.js 的
+          // 點外關閉面板是同一個坑、同一個修法（開啟後短時間內不接受
+          // 「點外面關閉」）。
+          if (Date.now() - contextMenuOpenedAt < 300) return;
+          closeContextMenu();
+        });
+      }
+
       if (els.discussBanner) {
         els.discussBanner.addEventListener("click", function (event) {
           if (event.target.closest("[data-discuss-clear]")) setDiscussTarget(null, "");
+        });
+      }
+
+      if (els.editBanner) {
+        els.editBanner.addEventListener("click", function (event) {
+          if (event.target.closest("[data-edit-cancel]")) {
+            setEditTarget(null);
+            els.input.value = "";
+            updateComposerAction();
+            autoGrowInput();
+          }
+        });
+      }
+
+      if (els.searchToggle && els.searchBar) {
+        els.searchToggle.addEventListener("click", function () {
+          els.searchBar.hidden = !els.searchBar.hidden;
+          if (!els.searchBar.hidden) {
+            els.searchInput.focus();
+          } else {
+            els.searchResults.hidden = true;
+            els.searchInput.value = "";
+          }
+        });
+        els.searchClose.addEventListener("click", function () {
+          els.searchBar.hidden = true;
+          els.searchResults.hidden = true;
+          els.searchInput.value = "";
+        });
+        els.searchInput.addEventListener("input", function () {
+          clearTimeout(searchDebounceTimer);
+          var query = els.searchInput.value.trim();
+          searchDebounceTimer = setTimeout(function () { performSearch(query); }, 300);
+        });
+      }
+
+      if (els.notifToggle && els.notifPanel) {
+        els.notifToggle.addEventListener("click", function (event) {
+          event.stopPropagation();
+          els.notifPanel.hidden = !els.notifPanel.hidden;
+        });
+        els.notifPanel.addEventListener("click", function (event) {
+          var item = event.target.closest("[data-notif-shared]");
+          if (!item) return;
+          var card = els.thread.querySelector('[data-shared-card][data-item-id="' + item.dataset.itemId + '"]');
+          if (card) {
+            card.scrollIntoView({ block: "center" });
+          }
+          els.notifPanel.hidden = true;
+        });
+        document.addEventListener("click", function (event) {
+          if (!els.notifPanel.hidden && !event.target.closest(".jonaminz-chat-notif-panel, [data-notif-toggle]")) {
+            els.notifPanel.hidden = true;
+          }
         });
       }
 

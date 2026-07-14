@@ -20,6 +20,80 @@
 
 ---
 
+## 2026-07-14（下午，第十四次）— 對照成熟聊天 App 的功能盤點清單，能做的一次做完
+
+- **任務**：使用者要求對照 WhatsApp／Messenger／iMessage 這類成熟聊天
+  App 的常見功能整理一份 checklist（已完成/部分/沒做/刻意排除），接著
+  要求「能優化多少都做」——把清單裡「沒做」跟「部分」的項目盡量一次
+  補完，圖片分享／語音訊息／推播通知／原生系統泡泡／真即時
+  WebSocket／端對端加密這幾項因為需要全新基礎設施（Storage bucket、
+  Service Worker、原生 plugin、金鑰交換），這次刻意跳過。
+- **變更**：
+  - **Worker 新增四個 action**（`backend/cloudflare-worker/worker.js`）：
+    `editChatMessage`／`deleteChatMessage`（篩選條件直接帶
+    `sender_identity=eq.<identity>`，不是自己的訊息 filter 撞不到任何
+    列，不用另外查一次確認擁有權；刪除是軟刪除，`deleted_at` 蓋時間戳、
+    `body` 清空，保留稽核軌跡不是真的砍列）、`loadOlderChatMessages`
+    （用錨點訊息的 `created_at` 當分頁游標，一頁 50 則）、
+    `searchChatMessages`（PostgREST `ilike` 子字串搜尋，兩人聊天室的
+    量級用不到全文索引引擎）。`assets/js/backend-client.js` 加對應
+    wrapper。
+  - **`assets/js/chat-thread.js` 大量新增**：
+    - 訊息編輯／刪除：長按自己的訊息跳出選單（複製／編輯／刪除），
+      編輯會把文字填回輸入框、composer 上方出現可關閉的編輯橫幅
+      （跟討論橫幅同一種寫法）；刪除的訊息顯示「此訊息已刪除」。
+    - 長按選單同時提供「複製」（任何文字訊息都能複製，不限自己的）。
+    - 歷史訊息分頁：往上捲到接近頂端自動載入更早的 50 則（也留一顆
+      手動按鈕），累加在 `olderMessages`，每次 poll 都跟最新資料
+      merge，往上插入內容時補償 `scrollTop` 避免畫面跳動。
+    - 全文搜尋：頁首新增搜尋圖示，debounce 300ms 呼叫
+      `searchChatMessages`，結果顯示寄件人/時間/摘要。
+    - 一般訊息如果整則就是一個網址，自動當成分享內容處理（跟
+      Discord/Slack/iMessage 一樣，純網址會變成預覽卡，不是純文字），
+      標題用交接包原型的 `titleFromUrl()` 猜法（網域＋最後一段路徑）。
+    - 新訊息提示：真的收到「對方」的新訊息才用 Web Audio API 現場
+      合成一個短「叮」聲＋`navigator.vibrate()`，自己送出的訊息不會觸發，
+      第一次載入也不會誤觸發。
+    - 輕量級通知面板：頁首新增🔔圖示，面板列出未讀數＋還沒看過的
+      Shared 分享項目，都是既有資料算出來的，沒有另外開 Worker action。
+    - 已讀判定改精確：原本「render() 跑過就整批標記已讀」改成用
+      `IntersectionObserver` 盯著最後一則訊息，真的捲進畫面才算已讀，
+      使用者捲上去看歷史時不會被錯誤標記。
+    - 輪詢間隔從 3000ms 調到 1500ms，2 人聊天室這個頻率成本可忽略。
+  - CSS（`page-chat-panel.css`／`page-chat.css`）補上以上新元件的樣式：
+    頭部圖示按鈕、通知面板、搜尋列/結果、長按選單、載入更早按鈕、
+    已刪除訊息樣式、已編輯標籤。
+  - 無障礙：訊息串加 `role="log"`/`aria-live="polite"`，新按鈕都有
+    `aria-label`。
+  - **深色模式查證**：發現全站（不只是聊天室）目前完全沒有深色模式
+    機制（`assets/css/reservoir/02-tokens.css` 沒有任何
+    `prefers-color-scheme`/`data-theme` 規則）——這是全站現況，不是
+    聊天室特別缺這塊；聊天室自己的 CSS 已經全部走 token 變數（少數
+    寫死的 `#fff`／`#35c66b` 是文字色/在線綠點這類跟主題無關的固定
+    色），如果之後全站真的要做深色模式，聊天室不用額外改。
+  - **多裝置一致性查證**：資料集中在 Supabase、各裝置各自獨立
+    polling，Playwright 模擬兩個分頁（一個先載入歷史分頁、另一個送出
+    新訊息）確認歷史不會消失、新訊息正確 merge、沒有重複——架構上這
+    本來就該正確，這次補了實測。
+- **驗證**：Playwright 逐項驗證：純網址轉分享卡、一般文字正常送出、
+  長按跳選單、編輯、刪除（含 confirm 對話框）、搜尋（含空結果與有
+  結果兩種情況）、歷史分頁（訊息數量正確累加）、通知面板開關、
+  多裝置 merge 一致性。過程中抓到一個真的 bug：長按放開的手勢會在
+  底下訊息元素上多冒出一個合成 click，被「點外面關閉選單」的邏輯
+  誤判成立刻關閉剛開的選單——修法跟 `chat-launcher.js` 的點外關閉
+  面板同一招（開啟後 300ms 內不接受「點外面關閉」判定）。
+  `esbuild` bundle-check `worker.js` 乾淨無 eval/new Function。
+- **狀態變化**：對照成熟聊天 App 的 checklist（Artifact）：新增完成
+  ~12 項，重新發布更新後的版本。
+- **遺留**：圖片/相片分享、語音訊息、推播通知、App 內建通知列表更完整
+  版本（目前是輕量級面板）、Android 原生系統層級聊天泡泡、真正的
+  WebSocket/Realtime 推播、端對端加密——都需要全新基礎設施（Storage
+  bucket、Service Worker+VAPID、原生 Capacitor plugin、金鑰交換），
+  這次刻意不做，之後如果要做需要另外規劃。送達→已讀三態勾勾這次也
+  跳過，因為在目前 1.5 秒 polling 的架構下「送達」跟「已讀」時間差通常
+  是毫秒級，價值跟工程成本不成比例，優先度排在其他項目之後。
+- **版本**：v0.26.0-202607141735
+
 ## 2026-07-14（下午，第十三次）— 未讀角標/在線小綠點正確修法：SVG clipPath 讓角標畫在圓圈外面
 
 - **任務**：第十輪把角標「縮進去」避開圓形裁切，使用者當場指出這是

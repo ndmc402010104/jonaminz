@@ -1232,12 +1232,27 @@ System App：
   `assets/js/chat-thread.js` 的「+」在面板情境變成功能選單。細節見
   `AI_CONTEXT/CHANGELOG.md` 同日條目（含一次部署順序踩坑：Worker 先
   deploy、schema 後套用，差點讓既有收發訊息壞掉，已修成容錯）。
+- **第十四輪（同日）——對照成熟聊天 App 慣例的系統性補強**：
+  訊息編輯／刪除（軟刪除，`deleted_at`/`edited_at` 欄位早就在
+  schema 裡，這次才真的用上）、長按訊息跳出複製/編輯/刪除選單、
+  歷史訊息分頁（往上捲動載入更早 50 則）、全文搜尋、一般訊息貼純網址
+  自動變成分享卡（跟 Discord/Slack/iMessage 同款慣例）、新訊息提示音
+  （Web Audio API 現場合成，沒有另外準備音檔）＋震動、輕量級通知面板
+  （未讀數＋還沒看過的分享內容，都是既有資料算出來）、已讀判定改用
+  `IntersectionObserver`（真的捲到最後一則才算，不是 render() 跑過
+  就整批算已讀）、輪詢間隔 3000→1500ms。新增 Worker action：
+  `editChatMessage`／`deleteChatMessage`／`loadOlderChatMessages`／
+  `searchChatMessages`。全站（不只聊天室）目前沒有深色模式機制——這是
+  查證後的現況，不是這次沒做。細節見 CHANGELOG 同日條目。
 - 沒做：typing indicator、一般訊息反應（reaction）、一般訊息回覆
-  （reply）、貼圖面板、附件、電話、視訊、OneDrive、Shared 獨立瀏覽
-  列表、送往其他 App 的 destinations registry、後台首頁摘要、Android
-  Overlay——這些多半在交接包的「不准做」清單裡，或屬於使用者這次任務書
-  明確排除的範圍，或 roadmap Phase 2 的 P3（另一個獨立決定），刻意
-  不碰。
+  （reply）、貼圖面板、圖片/相片分享、語音訊息、檔案/OneDrive 附件、
+  電話、視訊、Shared 獨立瀏覽列表、送往其他 App 的 destinations
+  registry、後台首頁摘要、系統推播通知、Android 原生系統層級聊天
+  泡泡（Overlay）、真正的 WebSocket/Realtime 推播、端對端加密、
+  送達→已讀三態勾勾——這些多半在交接包的「不准做」清單裡，或屬於
+  使用者任務書明確排除的範圍，或需要全新基礎設施（Storage bucket、
+  Service Worker+VAPID、原生 Capacitor plugin、金鑰交換）不是這次
+  規模能穩妥做完的，刻意不碰。
 - `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
   `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
   Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo
