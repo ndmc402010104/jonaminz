@@ -20,6 +20,65 @@
 
 ---
 
+## 2026-07-14（上午，稍晚）— Chat 補技術驗證，抓到並修好一個真實 bug
+
+- **任務**：使用者選定下一步方向是「Chat 補技術驗證」——交接包
+  `AGENT/ACCEPTANCE_TESTS.md` 訂的 AT-01~AT-10 驗收清單，這次視覺重做
+  之前一直沒有真的逐條核對過，先確認技術地基（身分/持久化/未讀/已讀/
+  安全）站得住，不是只看畫面順眼。
+- **驗證方式**：沒有真實登入 session（同前次限制），能靠讀程式碼＋
+  schema 直接證明的項目（AT-01/AT-02/AT-09）用程式碼核對；需要真的兩個
+  身分互動才能驗證的項目（AT-03/04/05 的即時性/畫面呈現）目前只能請
+  使用者親自跑一次兩身分對傳，還沒有人做過。
+- **程式碼核對結果**：
+  - AT-01（身分）：`sendChatMessage`/`listChatMessages`/`markChatRead`
+    全部從 `requireSession(env, payload)` 拿 identity，從不讀
+    `payload.identity` 之類的自報欄位，沒有 session 一律
+    `LOGIN_REQUIRED`——冒充對方身分在程式碼層面就不可能，不是靠前端
+    自律。
+  - AT-02（持久化）：`chat_messages.created_at` schema 是
+    `default now()`，Worker 的 insert body 從不帶 created_at，時間永遠
+    伺服器決定；`unique(room_id, sender_identity, client_message_id)`
+    ＋ Worker 對 409 的處理（回既有那筆而非報錯）確認重送真的 idempotent。
+  - AT-09（安全）：全 repo grep `assets/`／`pages/` 沒有任何
+    Supabase URL／secret 字樣，前端從頭到尾只跟 Worker 講話；五張
+    chat_* 表 RLS 開啟且沒有任何 public policy，只有 `service_role`
+    拿得到 grant；`worker.js` 沒有任何 log 語句印出 token。
+  - **AT-08（isolation）的架構備忘（不是 bug，是給下一棒的提醒）**：
+    目前只有一個房間（`couple-chat`/`jonathan-minz`），`resolveChatRoomId()`
+    寫死指到這一間，所以「couple-chat 不能讀到 skhps-chat」現在是
+    「根本不存在第二間房」讓它自動成立，**不是**程式碼真的查
+    `chat_room_members` 驗證過某身分是不是這個房間的成員。之後如果
+    真的要開第二個房間（`skhps-chat` 之類），`listChatMessages`／
+    `sendChatMessage`／`markChatRead` 三支都要補上真正的 membership
+    查詢，不能只靠「反正只有兩個身分」這個現在成立、以後不一定成立
+    的假設。
+  - AT-06（typing）／AT-07（reaction）：維持交接包本來就允許的範圍
+    收斂，這次刻意沒做，不算沒驗證到。
+- **抓到並修好的真實 bug（`pages/chat/assets/js/app.js` 的未讀分隔線
+  邏輯）**：驗證 AT-04「自己訊息不增加自己的未讀」時，追蹤
+  `markChatRead` 的呼叫時機發現一個競態——`render()` 是先用**這次 poll
+  抓到、尚未更新**的 `readState` 算分隔線位置，才在同一次呼叫的最後去
+  發 `markChatRead`（非同步、不等待）。如果使用者剛送出一則新訊息，
+  分隔線邏輯原本只看「index 剛好等於我方已讀 index + 1」，沒有排除
+  「這個位置剛好是我自己剛送出的訊息」的情況——會讓「未讀訊息」分隔線
+  在自己剛打的訊息上面閃一下（下一輪 3 秒 poll、`markChatRead` 生效後
+  才會消失）。改成先找「已讀 index 之後第一則**對方**傳來的訊息」才放
+  分隔線，跳過中間任何自己送出的訊息。用 Playwright 針對這個確切的
+  競態情境（先讓 app 完成初次 poll 追上最新訊息，再模擬使用者緊接著
+  送出一則新訊息，檢查同一次 render 有沒有把分隔線畫在自己這則訊息
+  上面）驗證修好，`dividerCount` 從會出現變成正確維持 0。既有的「對方
+  真的有未讀訊息」正向案例（上次視覺驗證那批截圖）沒有受影響。
+- **遺留（需要使用者實際操作）**：AT-03（polling 間隔下的真實同步
+  體感）、AT-04/05 的視覺呈現在兩個真實身分之間的實際互動，還沒有人
+  拿兩個瀏覽器/身分真的對傳過一輪。這部分的具體操作步驟已在對話中
+  交給使用者，不在這裡重複。
+- **狀態變化**：Chat 技術地基的「靜態可驗證」部分全部核對過，多修好
+  一個真實 bug；「動態互動」部分待使用者跑一輪回報。
+- **版本**：v0.22.3-202607140937
+
+---
+
 ## 2026-07-14（上午）— Chat 畫面照交接包 UX 重做（大頭貼入口／已讀未讀／分組訊息）
 
 - **任務**：使用者要求「再確認 chat 的交接包，先做成展示的畫面」——跟

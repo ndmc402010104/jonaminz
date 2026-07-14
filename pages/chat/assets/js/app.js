@@ -113,9 +113,20 @@ channel，這點如果之後要做更準的在線狀態需要另外設計。
       }
     }
 
+    // 分隔線要插在「第一則對方傳來的未讀訊息」前面，不能只看 index 差一位——
+    // 我方已讀到 myReadIndex 之後，如果緊接著是自己送出的新訊息（poll() 送出
+    // 後、markChatRead 生效前那個當下的畫面），這則不該被當成「未讀」，不然
+    // 會有一瞬間在自己剛送出的訊息上面冒出「未讀訊息」分隔線。
+    var firstUnreadIndex = -1;
+    if (myReadIndex >= 0) {
+      for (var u = myReadIndex + 1; u < messages.length; u += 1) {
+        if (messages[u].sender_identity !== identity) { firstUnreadIndex = u; break; }
+      }
+    }
+
     var html = "";
     var lastTimeLabel = "";
-    var dividerInserted = myReadIndex < 0; // 沒有已讀紀錄（第一次進來）就不畫分隔線
+    var dividerInserted = firstUnreadIndex < 0; // 沒有已讀紀錄或沒有對方的未讀訊息就不畫分隔線
 
     messages.forEach(function (m, index) {
       var mine = m.sender_identity === identity;
@@ -125,7 +136,7 @@ channel，這點如果之後要做更準的在線狀態需要另外設計。
         lastTimeLabel = timeLabel;
       }
 
-      if (!dividerInserted && index === myReadIndex + 1) {
+      if (!dividerInserted && index === firstUnreadIndex) {
         html += '<div class="jonaminz-chat-unread-divider"><span>未讀訊息</span></div>';
         dividerInserted = true;
       }
