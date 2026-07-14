@@ -20,6 +20,48 @@
 
 ---
 
+## 2026-07-15（早上，第二十八次）— 鍵盤擠壓根治（adjustNothing＋原生 inset 管道）、懸浮泡泡照系統版型重排、composer 對齊
+
+- **任務**：使用者強烈回饋三件（過程中明確表達不滿「說要改的地方一個
+  沒改」「AI 大方向都很好，修這種地方就是弄不好」——記取：手感層的
+  細節不能自己宣稱修好，UX 決策要對齊使用者指定的參考即系統泡泡）：
+  (1) App 裡打字鍵盤彈出，背景頁面還是被擠上來——第二十一輪的「鎖
+  捲動」修法**層次錯了**：Capacitor App 是 adjustResize，鍵盤會把整個
+  WebView 視窗壓扁，鎖捲動根本擋不住；(2) 懸浮泡泡的面板跟泡泡「應該
+  互斥、不應該誰壓到誰」＝照系統泡泡的版型：泡泡在頂部自己的區域、
+  聊天視窗從它下面開始，兩者互不重疊；(3) composer 整排對齊度都有
+  問題（不只 emoji 選單）。
+- **變更**：
+  - **鍵盤根治**（跨兩個 repo）：MainActivity manifest 改
+    `windowSoftInputMode="adjustNothing"`——鍵盤彈出時 WebView 視窗
+    完全不縮放、背景頁面一動也不動；原生加 IME inset 監聽
+    （`setupKeyboardInsetPipe`，ime-navBar 的差值換算 dp）把鍵盤高度
+    寫進頁面 `--jonaminz-keyboard-inset` CSS 變數；`chat-launcher.js`
+    的面板高度公式扣掉這個變數（一般瀏覽器 fallback 0px 行為不變），
+    鍵盤出現時**只有面板自己縮**、下緣抬到鍵盤上方。`chat-thread.js`
+    加 window resize 監聽捲回底部（adjustNothing 下 visualViewport
+    不變、變的是 iframe 高度）。BubbleActivity 明示 adjustResize
+    （它自己就是整個視窗，縮放是對的）。已知取捨：App 內「整頁版」
+    chat 頁與後台表單頁在鍵盤下的行為需另行處理（目前 App 內主用
+    面板，暫不影響）。
+  - **懸浮泡泡照系統版型重排**：全螢幕透明根容器＋聊天卡片從頂部
+    76dp 泡泡列的下緣開始（`topMargin`）——泡泡跟卡片各佔各的區域、
+    結構上不可能重疊（上一版「留 84dp 空隙」在 Fold 上被系統 insets
+    吃掉導致覆蓋）。開面板泡泡飛到頂列右側、關閉飛回；點卡片外（頂部
+    空白）收回（根容器 onClick，卡片 clickable 消化內部點擊）；展開/
+    收合動畫 pivot 在卡片右上（泡泡方向）。
+  - **composer 對齊**（兩份 CSS）：textarea 補 `display:block`（行內
+    元素的 baseline 縫隙讓輸入框比兩側按鈕浮高幾 px——整排歪的元凶）
+    ＋固定 line-height:20px＋調 padding，讓單行高度精確等於按鈕高度
+    （面板版 36px、整頁版 42px）；連同前一補記的 emoji 選單按鈕置中。
+- **驗證**：JS 語法/建置通過；APK 交付（adb 連不上改 SendUserFile）。
+  **鍵盤行為、泡泡版型、對齊手感均需使用者真機驗收**——這輪起不再
+  宣稱「修好」，只陳述「改了什麼機制」。
+- **遺留**：App 內整頁版 chat/後台表單在 adjustNothing 下的鍵盤適配。
+- **版本**：`v0.33.0-202607150744`（`version.js`）。
+
+---
+
 ## 2026-07-15（早上，第二十七次）— emoji 訊息大顯示、在線判定重做成心跳制
 
 - **任務**：使用者裁決日常路線「先用 Android bubble」（懸浮泡泡到上輪

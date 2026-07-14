@@ -1597,6 +1597,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (window.visualViewport) {
         window.visualViewport.addEventListener("resize", scrollThreadToBottom);
       }
+      // App（adjustNothing）情境：鍵盤彈出時 visualViewport 不變，變的是
+      // 面板 iframe 本身被宿主縮高——iframe 內是 window resize 事件。
+      window.addEventListener("resize", scrollThreadToBottom);
 
       els.emojiToggle.addEventListener("click", function (event) {
         event.stopPropagation();
