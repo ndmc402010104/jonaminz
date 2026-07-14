@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 4,
+  "revision": 5,
   "projects": {
     "jonaminz-movies": {
       "environments": {
@@ -9,7 +9,7 @@
     },
     "jonaminz-travel": {
       "environments": {
-        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": [] }
+        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": ["chat.launcher@1"] }
       }
     }
   }

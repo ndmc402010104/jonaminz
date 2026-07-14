@@ -83,8 +83,11 @@ jonaminz/
   index.html                  首頁（簽名式導覽版型），最小入口：只直接載
                               jonaminz-loading.css + entry-core.js，其餘全由 entry-core 疊加
   version.js                  window.JONAMINZ_APP_VERSION（業務版本，顯示在 footer）
-  config.json                 站台設定 + 頁面登錄表（pages: home / admin / admin-theme）
-                              + backend.worker.baseUrl
+  config.json                 站台設定 + 頁面登錄表（2026-07-14 現況：home /
+                              admin / admin-theme / admin-contracts / admin-design /
+                              login / chat / jonathan / jonathan-about / minz 共 10 頁）
+                              + backend.worker.baseUrl。identity-relay 與
+                              chat-launcher 兩個極簡頁刻意不登錄（不走 bootstrap）
   registry.json               外部專案登錄表（externalProjects 目前是空陣列）
   CNAME                       www.jonaminz.com（GitHub Pages 自訂網域）
   dev-server.js               本機預覽伺服器（node dev-server.js → http://localhost:5500/）
@@ -680,7 +683,9 @@ jonaminz/
     pending snapshot」。`backend/cloudflare-worker/`：`contract-validation.js`
     （純函式：canonical hash / cross-field 檢查 / URL 同源檢查，已用 node 跑過
     23 項正反例）、`integration-settings.json`（Integration Settings，S38：git
-    檔案＋Worker 供應，目前 `projects` 為空，尚無真實外部專案登記）、
+    檔案＋Worker 供應；「目前 projects 為空」是 2026-07-10 寫下時的狀態，
+    2026-07-14 現況已有 `jonaminz-movies`＋`jonaminz-travel` 兩筆，後者
+    並授權 `chat.launcher@1`）、
     `worker.js` 的 `submitContract` action（schema 驗證 → cross-field →
     URL/origin → canonical hash 去重 → insert pending snapshot + audit log）、
     `wrangler.toml` 新增 `[vars] JONAMINZ_ENVIRONMENT="prod"`（Worker 自己
@@ -1086,7 +1091,9 @@ jonaminz/
   保護」條目）：`saveThemeCssRules`／`approveContract`／`rejectContract`
   都要求有效登入 session，整個 `/pages/admin/*` 後台也要求登入才能
   進入。這個已知安全缺口已解決。
-- 後台 `/pages/admin/` 首頁本身內容仍是佔位頁（連結卡片），但已加登入保護。
+- ~~後台 `/pages/admin/` 首頁本身內容仍是佔位頁~~ **已過期，2026-07-14
+  訂正**：2026-07-13 已改版成「安靜的家」（迎接區＋動態入口卡＋安靜
+  清單，見 §3 與 CHANGELOG 同日條目），不再是佔位頁；登入保護不變。
 - Reservoir 願景中的 Slot Engine、Home Portal slots、Global Search、AI Gateway、
   Storage Layer：全部只在願景/規格層面，未實作。
 - Roadmap Phase 1-5 見使用者記憶與 `docs/platform-integration-consensus.md`；

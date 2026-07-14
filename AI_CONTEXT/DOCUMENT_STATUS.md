@@ -1,5 +1,14 @@
 # DOCUMENT_STATUS — 文件狀態總表
 
+**2026-07-14 增補**：這份總表反映 2026-07-12 那次全面盤點的結果，之後
+（07-13～14）大量新工作（大廳/房間視覺、Chat、Travel 外部化、
+chat.launcher capability）已使部分「最後核對日期」欄過期。07-14 針對性
+訂正過的檔案：`PROJECT_STATE.md`（§2 config.json 頁面清單、§4
+integration-settings 現況、§4 admin 佔位頁敘述、§6 版本號、§7
+Jonathan/Minz 錨點）、`FACTS.md`（#17/#27/#28）、`KNOWN_ISSUES.md`
+（新增 #12 capability 命名 bug）、`DECISIONS.md`（新增 §八合約分級）。
+下次全面盤點時應以 git log 為準重建這份總表，不要只信這裡的日期。
+
 本次盤點（2026-07-12）檢查過的所有主要文件，狀態欄位定義：
 
 - **Current**：內容與程式碼／schema 現況一致，可直接信任。

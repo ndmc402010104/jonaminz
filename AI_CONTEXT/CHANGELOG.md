@@ -20,6 +20,73 @@
 
 ---
 
+## 2026-07-14（上午～中午）— Chat launcher SDK 化（合約分級架構第一個落地案例）＋MD 盤點
+
+- **任務**：使用者裁決外部專案的要求分兩級——「功能合約」（要有行為，
+  長相自便）與「視覺合約」（連長相都要一致），並要求 Chat 入口從
+  header.js 拆出來、做成外部專案也能用的平台元件。完整裁決記錄見
+  `DECISIONS.md` §八（39-41 條）。同時要求盤點 MD 過期資料、建立防止
+  計畫中斷的 Claude Code Stop hook（後者在 repo 外的 `程式碼/.claude/`，
+  不在這個 repo 的版控裡）。
+- **架構審查發現（動工前先盤點的結果）**：
+  1. **SDK 至今零真實用戶**——movies/travel 的 index.html 都沒有嵌
+     S21 snippet，整條 SDK→capability 鏈部署了但沒人載入。本輪讓
+     travel 成為第一個真的接上 SDK 的外部專案。
+  2. **跨域 token 限制決定了實作形態**——外部專案讀不到
+     www.jonaminz.com 的 localStorage session，Shadow DOM 方案不可行；
+     改用 identity-relay 已驗證過的「同源小頁面＋iframe」模式，順帶
+     拿到比 Shadow DOM 更強的樣式隔離。
+  3. **既有 bug（未修，記錄待裁決）**：`identity.currentUser@1` 是
+     camelCase，撞上 contract schema 的 kebab-case capabilityId
+     pattern，外部專案永遠無法合法宣告它——見 `KNOWN_ISSUES.md` #12，
+     修法選項列在那裡，需要使用者拍板。新的 `chat.launcher@1` 已刻意
+     取 kebab-case 避開。
+- **變更**：
+  - 新頁 `pages/chat-launcher/`（不走 bootstrap 的極簡 embed 頁）：
+    浮動 Chat 按鈕本體——大頭貼/未讀角標/在線點/12 秒 polling 全部
+    住在這頁，沒登入整頁透明空白。點擊 postMessage 給嵌入端。
+  - `assets/js/chat-launcher.js` 改成薄 iframe 注入器（16 行邏輯），
+    接進 `entry-core.js` 的 shellPromise 清單；`header.js` 的
+    `mountChatBubble()` 整段移除（留一行指路註解）——內部頁面跟外部
+    專案從此共用同一份按鈕實作。
+  - `sdk/sdk-src/sdk.js` 新增 `chat.launcher@1` 自動掛載：**比照
+    applyTokens() 模式而非 identity.currentUser() 的 service 模式**
+    （S32 一經發布永不能撤，這個入口不需要程式化控制，不背永久 API
+    承諾）。授權了就掛 iframe、點擊驗 event.origin 後導去
+    www.jonaminz.com/pages/chat/。新 release hash `bf2aac0c0e08`，
+    `sdk-versions.json` stable/next 皆指過去（revision 7）。
+  - `integration-settings.json` revision 5：travel 的 prod 授權
+    `["chat.launcher@1"]`——**第一個真實的 capability 授權**。
+  - 新文件 `docs/contract-approval-checklist.md`：Contract 核准前的
+    人工檢查清單（含 chat.launcher 目視檢查四項）。
+  - jonaminz-travel repo（另一個 repo，一併改）：index.html 嵌入 S21
+    官方 snippet（原文照抄，data-contract 帶 GitHub Pages 子路徑），
+    contract 加 `capabilities.supports/requests: ["chat.launcher@1"]`，
+    已用 build-time validator 驗證合法。
+- **驗證**：內部路徑——Playwright 假 origin route 掛真檔案，驗 iframe
+  注入/狀態渲染（大頭貼 M、角標 2、在線點）/點擊導頁/未登入不注入，
+  四項全過＋截圖目視。SDK 路徑——Playwright 對真 sdk-src/sdk.js 跑
+  「已授權」（ready＋iframe src 正確＋點擊跳轉正確）與「未授權」
+  （ready＋零 iframe）兩條路皆過。contract schema 用 esbuild 打包
+  build-time validator 實測通過。worker.js esbuild 打包＋node --check
+  乾淨（這輪 Worker 只有兩個 JSON import 變了，沒動任何 action 程式碼）。
+- **MD 盤點（同輪處理）**：修正 PROJECT_STATE §2 config.json 頁面
+  清單（停在三頁的遠古敘述）、§4「integration-settings projects 為空」、
+  §4「admin 首頁仍是佔位頁」；FACTS #17/#27/#28 過期敘述；
+  DOCUMENT_STATUS 加 2026-07-14 增補說明。刪除 `jonaminz-chat交接包/`
+  裡三個檔名錯位的重複下載檔（`README (6).md` 等，逐位元組 diff 確認
+  跟 SOURCE/ux-mvp-v0.11/ 既有檔案完全相同才刪）。
+- **遺留**：(1) push 之後要 wrangler deploy（sdk-versions r7＋
+  integration-settings r5）才會生效，部署前照慣例先問過使用者；
+  (2) travel 的新 contract snapshot 要使用者到 /pages/admin/contracts/
+  核准後，launcher 才會真的出現在 travel 頁面上（S31 交集用的是
+  approved contract）；(3) KNOWN_ISSUES #12 的 identity capability
+  命名 bug 待使用者裁決修法；(4) 功能合約（header/footer 類）只裁決
+  方向沒實作，等真的有外部專案需要（DECISIONS §八 39 條）。
+- **版本**：v0.23.0-202607141045
+
+---
+
 ## 2026-07-14（上午，稍晚）— Chat 補技術驗證，抓到並修好一個真實 bug
 
 - **任務**：使用者選定下一步方向是「Chat 補技術驗證」——交接包

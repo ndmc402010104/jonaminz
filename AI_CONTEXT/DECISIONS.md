@@ -424,3 +424,44 @@ Theme 系統，之後可推廣給其他 first-party app 共用同一套機制。
   用在渲染邏輯裡（`CONTENT_ITEMS` 目前只有一筆完全公開的項目，沒有
   需要區分可見度/存取層級的情境），欄位形狀保留在 `docs/jonathan-page/README.md`
   當未來擴充參考，不是遺漏。
+
+---
+
+## 八、外部專案的合約分級：功能合約 vs 視覺合約（2026-07-14 使用者裁決）
+
+使用者提出：平台對外部專案的要求不是單一強度，該分兩級，且合規與否
+應該是 Contract 核准時真的去驗的事，不是宣告了就算。
+
+39. **功能合約**：外部專案「必須有這個行為，但長相自己決定」。例如
+    header 類要求（要有回主頁的路、要有登入狀態顯示）、footer 類要求、
+    loading gate 類要求（要有，樣式自便）。**實作狀態：方向裁決，
+    具體的功能合約清單與驗證機制尚未定義**——目前沒有任何外部專案
+    真的需要，等真的有需求（很可能是 skhpsv2 接入時）再定義第一批，
+    不預先猜。可能的實作路徑是比照 `identity.currentUser@1` 提供
+    SDK mount 函式（外部專案自己包容器、平台提供功能），跟內部頁面
+    `JonaminzIdentity.mount(container, options)` 同一個精神。
+
+40. **視覺合約**：外部專案「連長相都要一致」。合規方式是**使用平台
+    提供的元件**，不是照規格自己刻——因為同一份程式碼跑出來的長相
+    不會歪，平台改版時所有專案自動跟上，不用逐家重審。第一個實例是
+    `chat.launcher@1`（右下角浮動 Chat 入口）。**已實作（2026-07-14）**：
+    - 元件本體＝`pages/chat-launcher/`（同源小頁面，比照 identity-relay
+      模式：外部網域讀不到 jonaminz 的 session token，只有跑在
+      jonaminz.com 裡的頁面查得到未讀數；iframe 的樣式隔離也比
+      Shadow DOM 強，宿主 CSS 完全碰不進來）。
+    - SDK 端＝自動掛載（`getEffectiveSettings` 回的 capabilities 含
+      `chat.launcher@1` 就掛 iframe），**刻意比照 `applyTokens()` 的
+      模式而不是發布 `window.Jonaminz.chat.*` API**——S32 規定 service
+      一經發布永不能撤，這個入口沒有呼叫端需要程式化控制，不值得背
+      永久 API 承諾。
+    - jonaminz 內部頁面也改用同一個 iframe embed（`assets/js/
+      chat-launcher.js` 是薄注入器，跟 header/footer 等 shell script
+      同一批由 entry-core.js 載入）——全平台只有一份 launcher 實作。
+    - 人工驗收＝`docs/contract-approval-checklist.md`（核准 Contract
+      前照著點一輪；自動化 DOM 檢查刻意不做，等真的出過「裝了但被
+      蓋住」的事故再評估）。
+
+41. **驗證的分工**：自動驗證（schema／URL／origin）擋語法；人工
+    checklist 擋語意（「頁面真的做到了嗎」）；視覺合約靠「平台元件」
+    這個機制本身讓「用了＝合規」幾乎恆真，checklist 只剩查「元件有
+    沒有被宿主蓋住/藏起來」這種平台管不到的事。

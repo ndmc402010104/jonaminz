@@ -389,10 +389,14 @@ ready/shell ready/all-ready/逾時保底/init 失敗）發成 log、更新模組
             // 待辦總表順序③（docs/roadmap-202607.md）：RWD/viewport 量測層，
             // 純廣播不改畫面，跟 header/footer 同一批平行載入即可，不用
             // 特別提早或延後。
-            loadScript("/assets/js/layout-metrics.js")
+            loadScript("/assets/js/layout-metrics.js"),
+            // 2026-07-14：全站浮動 Chat 入口（iframe 注入器），從 header.js
+            // 拆出來的獨立 shell script——「品牌列/身分」跟「Chat 入口」是
+            // 兩個職責，不該糾在同一個檔案。按鈕本體見 pages/chat-launcher/。
+            loadScript("/assets/js/chat-launcher.js")
           ]).then(function () {
             markShellReady();
-            runtimeLog("info", "loading-gate", "shell ready（header/footer/registry-loader/layout-metrics）");
+            runtimeLog("info", "loading-gate", "shell ready（header/footer/registry-loader/layout-metrics/chat-launcher）");
             setProgressTarget(85);
           });
 

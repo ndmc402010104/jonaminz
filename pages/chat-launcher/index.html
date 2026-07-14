@@ -1,0 +1,190 @@
+<!doctype html>
+<!--
+檔案位置：jonaminz/pages/chat-launcher/index.html
+用途：全站/跨專案共用的浮動 Chat 入口「本體」。自己不決定出現在哪裡——
+由嵌入端（jonaminz 內部頁面的 assets/js/chat-launcher.js，或外部專案
+透過 SDK Kernel 的 chat.launcher@1 自動掛載）注入一個小 iframe 指到
+這裡。跟 pages/identity-relay/ 同一個模式：刻意不走 entry-core.js／
+config.json 的水庫 bootstrap，極簡、零依賴、載入速度優先。
+
+為什麼是 iframe 而不是 SDK 直接畫 DOM/Shadow DOM：
+1. 外部專案（ndmc402010104.github.io 等）讀不到 www.jonaminz.com 的
+   localStorage session token（跨域隔離）——只有跑在 jonaminz.com 網域
+   裡的這頁才查得到「現在誰登入、有幾則未讀」。
+2. iframe 的樣式隔離是瀏覽器層級的（宿主頁面的 CSS 完全碰不進來），比
+   Shadow DOM 更強，「長相保證一致」不靠自律。
+3. 內部頁面跟外部專案共用同一份實作，永遠不會有兩邊長得不一樣。
+
+點擊行為：這裡只 postMessage {source:"jonaminz-chat-launcher",
+action:"open"} 給父頁面，由嵌入端自己決定怎麼導頁（內部頁導相對路徑
+/pages/chat/，SDK 導完整網址）——iframe 直接動 window.top 會被跨域
+限制擋，postMessage 是唯一乾淨的路。targetOrigin 用 "*" 的理由跟
+identity-relay 一樣：往外送的內容只有「使用者按了聊天鈕」這個事實，
+不含 token 或任何身分資料，外洩了也不能拿去做任何事。
+
+沒登入（沒 token 或 token 失效）就什麼都不畫，iframe 維持透明空白——
+嵌入端不需要先問過登入狀態才決定要不要嵌，統一由這頁自己判斷。
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light">
+<title>jonaminz chat launcher</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+  .launcher {
+    position: fixed;
+    right: 6px;
+    bottom: 6px;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: none;
+    color: #fff;
+    font: 900 19px system-ui, sans-serif;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: linear-gradient(145deg, #a85c3f, #1f3a5f);
+    box-shadow: 0 8px 24px rgba(38, 34, 32, 0.28);
+    transition: transform 0.16s ease;
+  }
+  .launcher.is-visible { display: flex; }
+  .launcher:hover { transform: translateY(-2px); }
+  .presence {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    right: 2px;
+    bottom: 3px;
+    border-radius: 50%;
+    background: #35c66b;
+    border: 2px solid #fff;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+  }
+  .launcher.is-online .presence { opacity: 1; }
+  .badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #a24a46;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+  }
+  .launcher.has-unread .badge { display: flex; }
+</style>
+</head>
+<body>
+<button type="button" class="launcher" id="launcher" aria-label="開啟 Chat">
+  <span id="avatarText"></span>
+  <span class="presence"></span>
+  <span class="badge" id="badge"></span>
+</button>
+<script>
+(function () {
+  "use strict";
+
+  var WORKER_URL = "https://jonaminz-backend.ndmc402010104.workers.dev/api/action";
+  var TOKEN_KEY = "jonaminz.sessionToken";
+  var POLL_MS = 12000;
+  var PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+  var IDENTITY_LABEL = { jonathan: "Jonathan", minz: "Minz" };
+
+  var launcher = document.getElementById("launcher");
+  var avatarText = document.getElementById("avatarText");
+  var badge = document.getElementById("badge");
+
+  var token = null;
+  try { token = window.localStorage.getItem(TOKEN_KEY); } catch (error) { token = null; }
+  if (!token) return; // 沒登入：整頁維持透明空白
+
+  function initialOf(id) {
+    var label = IDENTITY_LABEL[id] || id || "?";
+    return label.charAt(0).toUpperCase();
+  }
+
+  launcher.addEventListener("click", function () {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: "jonaminz-chat-launcher", action: "open" }, "*");
+      }
+    } catch (error) {
+      // 不燒房子：postMessage 失敗就放棄這次點擊，不炸嵌入它的頁面。
+    }
+  });
+
+  function refresh() {
+    fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "listChatMessages", payload: { token: token } })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          // token 失效或未授權：藏起來，不顯示壞掉的按鈕。
+          launcher.classList.remove("is-visible");
+          return;
+        }
+        var identity = data.identity;
+        var peer = identity === "jonathan" ? "minz" : "jonathan";
+        var messages = data.messages || [];
+        var readState = data.readState || {};
+        var myRead = readState[identity] || {};
+        var peerRead = readState[peer] || {};
+
+        avatarText.textContent = initialOf(peer);
+        launcher.setAttribute("aria-label", "開啟與 " + (IDENTITY_LABEL[peer] || peer) + " 的 Chat");
+        launcher.classList.add("is-visible");
+
+        var peerLastActivity = 0;
+        messages.forEach(function (m) {
+          if (m.sender_identity === peer) {
+            var t = new Date(m.created_at).getTime();
+            if (t > peerLastActivity) peerLastActivity = t;
+          }
+        });
+        if (peerRead.lastReadAt) {
+          var readAt = new Date(peerRead.lastReadAt).getTime();
+          if (readAt > peerLastActivity) peerLastActivity = readAt;
+        }
+        var isOnline = peerLastActivity > 0 && (Date.now() - peerLastActivity) < PRESENCE_WINDOW_MS;
+        launcher.classList.toggle("is-online", isOnline);
+
+        var myReadIndex = -1;
+        if (myRead.lastReadMessageId) {
+          for (var i = 0; i < messages.length; i += 1) {
+            if (messages[i].id === myRead.lastReadMessageId) { myReadIndex = i; break; }
+          }
+        }
+        var unreadCount = 0;
+        if (myReadIndex >= 0) {
+          for (var j = myReadIndex + 1; j < messages.length; j += 1) {
+            if (messages[j].sender_identity === peer) unreadCount += 1;
+          }
+        }
+        launcher.classList.toggle("has-unread", unreadCount > 0);
+        badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+      })
+      .catch(function () {
+        // 網路失敗：保留上一次的畫面狀態，下一輪 poll 再試。
+      });
+  }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+})();
+</script>
+</body>
+</html>
