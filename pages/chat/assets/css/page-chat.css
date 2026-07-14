@@ -474,6 +474,9 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   cursor: default;
 }
 
+/* 樂觀 UI 的「傳送中」泡泡（2026-07-15）：半透明表示還沒確認送達。 */
+.jonaminz-chat-message.is-pending { opacity: 0.55; }
+
 /* 點一下訊息顯示確切時間（2026-07-15）。 */
 .jonaminz-chat-time-peek {
   font-size: 10px;

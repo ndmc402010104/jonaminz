@@ -298,6 +298,34 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       animateTo(function () { applyPosition(snappedLeft, clampedTop); });
     }
 
+    // 2026-07-15（真機回饋）：面板開著時在裡面打字，手機鍵盤跳出會把
+    // 「後面的宿主頁面」整個擠上來/捲動——面板是浮在頁面上的獨立元素，
+    // 宿主內容不該跟著動。面板開啟（手機版）時鎖定宿主頁捲動：body 定住
+    // 在目前的捲動位置（position:fixed + 負 top 的標準手法，單純
+    // overflow:hidden 在部分瀏覽器會把捲動位置歸零），關閉時還原。
+    var savedScrollY = 0;
+    var hostScrollLocked = false;
+    function lockHostScroll() {
+      if (hostScrollLocked) return;
+      hostScrollLocked = true;
+      savedScrollY = window.scrollY || 0;
+      document.body.style.position = "fixed";
+      document.body.style.top = (-savedScrollY) + "px";
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+    }
+    function unlockHostScroll() {
+      if (!hostScrollLocked) return;
+      hostScrollLocked = false;
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      window.scrollTo(0, savedScrollY);
+    }
+
     function setPanelOpen(open) {
       // 防呆：重複呼叫同一個狀態不做事——使用者連續快速點擊時，任何
       // 一次重複觸發都不該再疊加一次 postMessage/動畫。
@@ -305,6 +333,8 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       panelOpen = open;
       lastToggleAt = Date.now();
       panelFrame.classList.toggle("jcl-panel-hidden", !open);
+      if (open && isMobileRwd()) lockHostScroll();
+      else if (!open) unlockHostScroll();
       // 告訴面板自己現在是不是真的看得到——面板一直在背景 poll，不能把
       // 「poll 到新訊息」當成「使用者看到了」，只有這裡真的說可見才算
       // （見 chat-thread.js 的 maybeMarkRead()）。

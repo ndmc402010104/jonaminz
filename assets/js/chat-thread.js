@@ -223,6 +223,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var readObserver = null;
     var contextMenuOpenedAt = 0;
     var timePeekMessageId = null;
+    // 樂觀 UI：已送出但 poll 回應還沒收錄的訊息（{client_message_id, body}）
+    var pendingMessages = [];
 
     function maybeMarkRead() {
       if (!isVisible) return;
@@ -343,15 +345,26 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
       renderNotifPanel(unreadCount);
 
-      if (!messages.length) {
+      // 樂觀 UI（2026-07-15）：poll 回應已經收錄的送出中訊息從 pending
+      // 清單移除（比對 client_message_id，這欄位本來就是為重送冪等而生，
+      // 剛好也是樂觀泡泡跟真實訊息之間唯一穩定的對應鍵）。
+      if (pendingMessages.length) {
+        var confirmedCmids = {};
+        (data.messages || []).forEach(function (mm) { confirmedCmids[mm.client_message_id] = true; });
+        pendingMessages = pendingMessages.filter(function (p) { return !confirmedCmids[p.client_message_id]; });
+      }
+
+      if (!messages.length && !pendingMessages.length) {
         els.thread.innerHTML = '<p class="jonaminz-chat-empty">還沒有訊息，說句話開始吧。</p>';
         return;
       }
 
       // 2026-07-14：真的有「對方送來的新訊息」才播提示音——排除自己剛
       // 送出的訊息、也排除第一次載入時把既有訊息全部當成「新的」誤觸發。
+      // 2026-07-15：加上 isVisible——面板收合在背景時不播（那種情境交給
+      // 系統推播通知，不然通知音跟這個提示音會重疊各響一次）。
       var newestMessage = messages[messages.length - 1];
-      if (hasRenderedOnce && newestMessage.id !== lastMessageId && newestMessage.sender_identity !== identity) {
+      if (hasRenderedOnce && isVisible && newestMessage && newestMessage.id !== lastMessageId && newestMessage.sender_identity !== identity) {
         playNotificationTone();
       }
       hasRenderedOnce = true;
@@ -524,6 +537,18 @@ title/url（見 `requestHostContext()`，宿主端實作在
           (loadingOlder ? "載入中..." : "載入更早的訊息") + "</button>"
         : "";
 
+      // 樂觀 UI（2026-07-15）：還沒被 poll 回應收錄的送出中訊息，畫在
+      // 所有真實訊息後面，半透明＋「傳送中...」——使用者按送出的瞬間
+      // 就看到自己的訊息，不用等 API 往返＋下一次 poll（原本 1~2 秒的
+      // 空窗就是這樣來的）。
+      pendingMessages.forEach(function (p) {
+        html +=
+          '<div class="jonaminz-chat-message is-pending" data-mine="true">' +
+          '<div class="jonaminz-chat-bubble-col">' +
+          '<div class="jonaminz-chat-bubble">' + escapeHtml(p.body) + "</div></div></div>" +
+          '<div class="jonaminz-chat-delivery-tick">傳送中...</div>';
+      });
+
       // 2026-07-15：輸入中原本只換頭部那行小字（「正在輸入...」取代
       // 「最後訊息 HH:MM」），真機上太隱晦、使用者根本沒發現這個功能
       // 存在——補上聊天 App 慣見的「•••」跳動泡泡，畫在訊息串最底部，
@@ -540,9 +565,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.thread.innerHTML = loadMoreHtml + html;
       if (wasNearBottom || !lastMessageId) els.thread.scrollTop = els.thread.scrollHeight;
 
-      var newestId = messages[messages.length - 1].id;
-      if (newestId !== lastMessageId) {
-        lastMessageId = newestId;
+      if (messages.length) {
+        var newestId = messages[messages.length - 1].id;
+        if (newestId !== lastMessageId) {
+          lastMessageId = newestId;
+        }
       }
       // 2026-07-14：面板 iframe 現在跟大頭貼同時建立、background 一直在
       // poll（見第七次修正），所以「render() 被呼叫過」不再等於「使用者
@@ -634,6 +661,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.action.disabled = true;
 
       var request;
+      var pendingCmid = null;
       if (editingMessageId) {
         // 編輯模式：改叫 editChatMessage，不是送一則新訊息。
         var messageIdBeingEdited = editingMessageId;
@@ -648,6 +676,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var sendPayload = { token: token, body: body, clientMessageId: clientMessageId };
         if (activeSharedItemId) sendPayload.sharedItemId = activeSharedItemId;
         if (replyingToMessageId) sendPayload.replyToMessageId = replyingToMessageId;
+        // 樂觀 UI（2026-07-15）：按下送出的瞬間就把訊息畫上畫面（半透明
+        // ＋「傳送中...」），不等 API 往返＋下一次 poll——原本送出後要
+        // 1~2 秒才看得到自己的訊息，體感很 lag。用 client_message_id
+        // 對帳：poll 回應收錄同一個 id 時，樂觀泡泡自動被真實訊息取代。
+        pendingCmid = clientMessageId;
+        pendingMessages.push({ client_message_id: clientMessageId, body: body });
+        if (lastPollData) render(lastPollData);
         request = window.JonaminzBackend.sendChatMessage(sendPayload).then(function (result) {
           setReplyTarget(null);
           return result;
@@ -660,6 +695,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
         })
         .catch(function (error) {
           els.status.textContent = "送出失敗：" + (error.message || String(error));
+          // 樂觀泡泡回滾：送出失敗就把「傳送中」那顆收掉，不要留下一顆
+          // 永遠傳不出去的殘影（訊息文字還在錯誤提示裡，使用者可以重打）。
+          if (pendingCmid) {
+            pendingMessages = pendingMessages.filter(function (p) { return p.client_message_id !== pendingCmid; });
+            if (lastPollData) render(lastPollData);
+          }
         })
         .then(function () {
           sending = false;

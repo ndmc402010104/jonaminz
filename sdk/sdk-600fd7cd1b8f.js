@@ -1,4 +1,12 @@
 /*
+ * 自動產生，不要手動編輯。
+ * 來源：sdk/sdk-src/sdk.js（內容的 sha256 前 12 碼）
+ * 產生方式：node sdk/generate-sdk-release.mjs
+ * immutable：這個檔名就是這份內容的身分，內容不會變、也不該被覆寫。
+ * sdk-src/sdk.js 改了要重跑這支腳本產生新檔名，並自行決定要不要把
+ * backend/cloudflare-worker/sdk-versions.json 的某個 channel 指過來。
+ */
+/*
 檔案位置：jonaminz/sdk/sdk-src/sdk.js
 用途：implementation plan 第 6 項——SDK Kernel。取代第 5 項的 placeholder，
 真的去讀合約、推送給平台、查 Effective Settings，正確 settle S21 官方
