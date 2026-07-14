@@ -20,6 +20,53 @@
 
 ---
 
+## 2026-07-15（凌晨，第二十三次）— 設定面板兩顆泡泡按鈕：系統泡泡一鍵開＋Messenger 式懸浮泡泡
+
+- **任務**：使用者要求設定面板加「開啟泡泡視窗」按鈕，並提到之前跟
+  ChatGPT Work 討論過泡泡有兩條路都該做：Android 內建的系統泡泡，跟
+  Messenger 那種 App 自己畫的懸浮泡泡。兩條都做。
+- **變更**：
+  - **自訂 Capacitor 外掛 `JonaminzNativePlugin`**（jonaminz-mobile-app，
+    在 MainActivity 以 registerPlugin 註冊、必須在 super.onCreate 之前）：
+    - `openBubble()`：系統泡泡。已允許（API 31+ 查 getBubblePreference，
+      SELECTED 時再查 conversation channel 的 canBubble；API 30 查
+      areBubblesEnabled）就呼叫 `showBubbleNow()` 直接彈出——App 前景時
+      BubbleMetadata 的 setAutoExpandBubble 會被系統採納，泡泡立刻展開，
+      setSuppressNotification 讓通知欄不多出一則；未允許就帶去
+      `ACTION_APP_NOTIFICATION_BUBBLE_SETTINGS` 設定頁（沒有這頁的機型
+      退回 App 通知設定），回來再按一次即彈出。
+    - `openOverlayBubble()`：Messenger 式懸浮泡泡。沒有「顯示在其他
+      應用程式上層」權限就帶去 `ACTION_MANAGE_OVERLAY_PERMISSION`；有
+      就啟動 `BubbleOverlayService`。
+  - **`BubbleOverlayService`**（前景服務，Android 14+ 用 specialUse
+    type＋PROPERTY_SPECIAL_USE_FGS_SUBTYPE 聲明用途）：
+    TYPE_APPLICATION_OVERLAY 的圓形泡泡（App icon）永遠浮在所有 App
+    上，可拖動、放開吸左右邊緣（跟網頁版大頭貼同一套互動模型）、點一下
+    展開聊天面板（原生 WebView 載 /pages/chat/，同 App 共用 localStorage
+    免登入；面板視窗不帶 FLAG_NOT_FOCUSABLE 否則鍵盤打不出來、
+    NOT_TOUCH_MODAL 讓面板外觸控穿透）、再點收合。常駐通知有「關閉
+    泡泡」按鈕。manifest 加 SYSTEM_ALERT_WINDOW／FOREGROUND_SERVICE／
+    FOREGROUND_SERVICE_SPECIAL_USE 權限。
+  - **`JonaminzMessagingService` 重構**：appendAndNotify 抽出共用的
+    postChatNotification(…, autoExpand)，showBubbleNow() 沿用現掛通知
+    的對話歷史（沒有歷史時放一句佔位，MessagingStyle 至少要一則訊息）。
+  - **網頁**（`chat-thread.js`／`chat-launcher.js`／`sdk-src/sdk.js`）：
+    設定面板加「🫧 系統泡泡」「💬 懸浮泡泡」兩顆按鈕＋共用狀態列
+    （opened／settings／unsupported 各自的看得懂訊息）；宿主 relay
+    `requestBubble {mode}` 呼叫外掛；外部站台（sdk.js）明確回覆不支援
+    而不是等 8 秒逾時。SDK 重新發布（`sdk-c7796cdf3f53.js`，revision
+    20），Worker 部署（Version `eb2a0da7`）。
+- **驗證**：APK 建置成功（含前一輪通知內回覆＋本輪兩種泡泡），用
+  SendUserFile 交付使用者安裝（無線偵錯已關、adb 連不上）。原生層
+  Playwright 碰不到，**真機驗收待使用者**：兩顆按鈕的權限導引流程、
+  系統泡泡 autoExpand、懸浮泡泡拖動/展開/打字/關閉。
+- **遺留**：懸浮泡泡面板跟 BubbleActivity 一樣不支援 window.open
+  （分享卡點了不會開網頁）；懸浮泡泡的位置不持久化（重開服務回預設
+  右側）；泡泡內沒有輸入法 resize 以外的鍵盤適配微調，實測有問題再修。
+- **版本**：`v0.31.0-202607150121`（`version.js`）。
+
+---
+
 ## 2026-07-15（凌晨，第二十二次）— App 原生通知工程：通知內直接回覆＋系統聊天泡泡＋點通知開聊天
 
 - **任務**：使用者裁決把通知進階能力做起來（「現在做吧」）——通知內

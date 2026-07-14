@@ -895,6 +895,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<p class="jonaminz-chat-settings-note" data-call-status></p>' +
         '<button type="button" class="jonaminz-chat-settings-push-btn" data-push-toggle>開啟推播通知</button>' +
         '<p class="jonaminz-chat-settings-note" data-push-status></p>' +
+        '<button type="button" class="jonaminz-chat-settings-push-btn" data-bubble-btn>🫧 系統泡泡</button>' +
+        '<button type="button" class="jonaminz-chat-settings-push-btn" data-overlay-btn>💬 懸浮泡泡（蓋在所有 App 上）</button>' +
+        '<p class="jonaminz-chat-settings-note" data-bubble-status></p>' +
         "</div>" +
         "</div>" +
         "</div>" +
@@ -973,6 +976,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.callStatus = root.querySelector("[data-call-status]");
       els.pushToggleBtn = root.querySelector("[data-push-toggle]");
       els.pushStatus = root.querySelector("[data-push-status]");
+      els.bubbleBtn = root.querySelector("[data-bubble-btn]");
+      els.overlayBtn = root.querySelector("[data-overlay-btn]");
+      els.bubbleStatus = root.querySelector("[data-bubble-status]");
 
       els.emojiPanel.innerHTML = EMOJI_SET.map(function (emoji) {
         return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
@@ -1449,6 +1455,53 @@ title/url（見 `requestHostContext()`，宿主端實作在
             window.location.href = "tel:" + peerPhoneNumber;
           }
         });
+      }
+
+      // 2026-07-15（第二十三輪）：兩種泡泡（使用者跟 ChatGPT Work 討論
+      // 過的兩條路，都做）——系統泡泡（Android 11 Bubbles）跟 Messenger
+      // 式懸浮泡泡（覆蓋視窗＋前景服務）。都是 App 原生能力，面板
+      // postMessage 請宿主呼叫原生外掛，回覆結果顯示在共用的狀態列。
+      function requestNativeBubble(mode) {
+        if (!els.bubbleStatus) return;
+        els.bubbleStatus.textContent = "正在開啟...";
+        if (!inPanel) {
+          els.bubbleStatus.textContent = "泡泡是 App 的功能，請在 App 裡使用";
+          return;
+        }
+        var done = false;
+        function onMessage(event) {
+          var data = event.data;
+          if (!data || data.source !== "jonaminz-chat-panel-host" || data.action !== "bubbleResult") return;
+          if (done) return;
+          done = true;
+          window.removeEventListener("message", onMessage);
+          if (data.status === "opened") {
+            els.bubbleStatus.textContent = "泡泡已開啟";
+          } else if (data.status === "settings") {
+            els.bubbleStatus.textContent = mode === "overlay"
+              ? "已帶你到系統設定：允許「顯示在其他應用程式上層」，回來再按一次"
+              : "已帶你到系統設定：把「允許顯示泡泡」打開，回來再按一次";
+          } else {
+            els.bubbleStatus.textContent = data.error || "這個環境不支援泡泡";
+          }
+        }
+        window.addEventListener("message", onMessage);
+        try {
+          window.parent.postMessage({ source: "jonaminz-chat-panel", action: "requestBubble", mode: mode }, "*");
+        } catch (error) {}
+        setTimeout(function () {
+          if (done) return;
+          done = true;
+          window.removeEventListener("message", onMessage);
+          els.bubbleStatus.textContent = "沒有回應（泡泡要在 App 裡使用）";
+        }, 8000);
+      }
+
+      if (els.bubbleBtn) {
+        els.bubbleBtn.addEventListener("click", function () { requestNativeBubble("system"); });
+      }
+      if (els.overlayBtn) {
+        els.overlayBtn.addEventListener("click", function () { requestNativeBubble("overlay"); });
       }
 
       if (els.pushToggleBtn) {

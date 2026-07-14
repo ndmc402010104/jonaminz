@@ -491,7 +491,46 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
         handlePushSubscribeRequest(data.applicationServerKey);
         return;
       }
+
+      // 2026-07-15（第二十三輪）：兩種泡泡都是 App 原生能力（自訂外掛
+      // JonaminzNative，見 jonaminz-mobile-app 的 JonaminzNativePlugin），
+      // 面板請宿主代呼叫。mode: "system"＝Android 11 Bubbles、
+      // "overlay"＝Messenger 式懸浮泡泡（覆蓋視窗＋前景服務）。
+      if (data.source === "jonaminz-chat-panel" && data.action === "requestBubble") {
+        handleBubbleRequest(data.mode === "overlay" ? "overlay" : "system");
+        return;
+      }
     });
+
+    function replyBubbleResult(payload) {
+      try {
+        panelFrame.contentWindow.postMessage(Object.assign({
+          source: "jonaminz-chat-panel-host",
+          action: "bubbleResult"
+        }, payload), window.location.origin);
+      } catch (error) {}
+    }
+
+    function handleBubbleRequest(mode) {
+      var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.JonaminzNative;
+      if (!plugin) {
+        replyBubbleResult({
+          status: "unsupported",
+          error: window.Capacitor
+            ? "App 版本太舊還沒有泡泡功能，要重新安裝新版 App"
+            : "瀏覽器沒有系統泡泡，這功能在 App 裡用"
+        });
+        return;
+      }
+      var request = mode === "overlay" ? plugin.openOverlayBubble() : plugin.openBubble();
+      Promise.resolve(request)
+        .then(function (result) {
+          replyBubbleResult({ status: (result && result.status) || "opened" });
+        })
+        .catch(function (error) {
+          replyBubbleResult({ status: "unsupported", error: (error && error.message) || "開啟失敗" });
+        });
+    }
 
     function replyPushSubscribeResult(ok, subscriptionOrError) {
       try {
