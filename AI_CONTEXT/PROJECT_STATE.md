@@ -1119,27 +1119,36 @@ System App：
   如果之後要回頭做那份技術上失敗重現的診斷，交接包裡的步驟還在，
   沒有被這次的做法取代或推翻。
 
-### 4.2 Travel（2026-07-14 新增，demo 品質，只做 Phase 1+2）
+### 4.2 Travel（2026-07-14，demo 品質，只做 Phase 1+2，**獨立外部專案**）
 
-見 `../jonaminz-travel/jonaminz-travel-handoff-v1.0/`（同層姐妹資料夾的
-交接包，含完整規格、REBUILD_PLAN.md、SALVAGE_MAP.md）。這次只做
-`REBUILD_PLAN.md` 定義的 Phase 1（Foundation）＋ Phase 2（第一條垂直
-流程）：
+**架構更正（同日）**：最初做成 `pages/travel/`（內部頁面，直接建在這個
+repo 裡），使用者指出 Travel 應該跟 `jonaminz-movies` 同一個模式——
+**獨立部署、透過 Contract 註冊/審核接進 jonaminz**，不是內部頁面。
+`pages/travel/` 已移除，改成獨立 repo：
 
-- 已完成：`pages/travel/`（要求登入），全新重寫（沒有複製交接包
-  `REFERENCE_SOURCE/` 的 app.js），資料模型欄位沿用交接包
-  `AI_CONTEXT/DATA_MODEL.md`（Trip/Place/Day/Stop）。
-- 垂直流程「建立 Trip → 建立 Place → 建立 Day → Assign Place →
-  Move Stop → Unassign → Reload」已用 Playwright 端到端測過，包含
-  reload 後資料還在（F5 狀態正確，符合 Phase 1 驗收）、同一個 Place
-  指派後不會左右兩邊各出現一張（符合 READ_ME_FIRST.md 的「不可違反」
-  清單）。
-- 資料只存在單一裝置的瀏覽器 localStorage（`jonaminz.travel.v1`），
-  **完全沒有接 Supabase/Worker**——這是刻意的，`REBUILD_PLAN.md` 自己
-  把 Backend 排在 Phase 6，順序上本來就在後面，不是這次漏做。
+- 新 repo：`ndmc402010104/jonaminz-travel`（GitHub Pages：
+  `https://ndmc402010104.github.io/jonaminz-travel/`），本機資料夾在
+  `../jonaminz-travel/`（跟交接包 `jonaminz-travel-handoff-v1.0/` 同一層，
+  交接包本身**沒有**進這個公開 repo 的版本控制，只留在本機——內部規格/
+  決策/session 紀錄不該公開）。
+- 不需要建置工具的純 HTML/CSS/JS（跟 movies 同一個原則），前端邏輯是
+  原本 `pages/travel/` 那份的移植版（拿掉 requireLogin／jonaminz 共用
+  session，資料存這個網域自己的 localStorage，跟 movies 目前只有 demo
+  資料的階段一致）。
+- 已透過 `jonaminz.contract.json` 呼叫 `submitContract` 送出，先在
+  `backend/cloudflare-worker/integration-settings.json` 登記
+  `jonaminz-travel` 專案（revision 3→4）才能送出成功。**有兩筆
+  pending 快照**：snapshotId 6 是第一次用 shell `curl`/`$(cat file)`
+  送出時編碼被搞壞（中文變亂碼）的失敗版，snapshotId 7 是改用
+  Node fetch 直接讀檔送出的正確版——下一棒／使用者到 Contract 核准
+  頁時記得否決 #6、核准 #7，不要核准到亂碼那筆。
+- 只做交接包 `REBUILD_PLAN.md` 定義的 Phase 1（Foundation）＋ Phase 2
+  （第一條垂直流程：建立 Trip→建立 Place→建立 Day→Assign Place→
+  Move Stop→Unassign→Reload），已用 Playwright 端到端測過（含 reload
+  持久化、同一 Place 不會左右重複出現）。
 - 沒做：Book Projection（Phase 3）、Book Style（Phase 4）、Book
-  Studio（Phase 5）、Live Trip 旅途中模式（Phase 7）。這些是整個
-  Travel 願景裡最有份量的部分，這次完全沒碰，只做了地基。
+  Studio（Phase 5）、Live Trip（Phase 7），也還沒接 jonaminz 平台身分／
+  真實後端（Phase 6）。
 
 ## 5. 外部服務、API、部署方式
 

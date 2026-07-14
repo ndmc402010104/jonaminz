@@ -1,8 +1,13 @@
 {
   "schemaVersion": 1,
-  "revision": 3,
+  "revision": 4,
   "projects": {
     "jonaminz-movies": {
+      "environments": {
+        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": [] }
+      }
+    },
+    "jonaminz-travel": {
       "environments": {
         "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": [] }
       }

@@ -94,18 +94,6 @@
         "loadingTasks": ["app-ready"]
       }
     },
-    "travel": {
-      "pageId": "travel",
-      "title": "Travel",
-      "path": "/pages/travel/",
-      "group": "main",
-      "showInNav": false,
-      "entry": {
-        "styles": ["/pages/travel/assets/css/page-travel.css"],
-        "afterScripts": ["/pages/travel/assets/js/app.js"],
-        "loadingTasks": ["app-ready"]
-      }
-    },
     "jonathan": {
       "pageId": "jonathan",
       "title": "Jonathan",
