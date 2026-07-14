@@ -1200,9 +1200,13 @@ repo 裡），使用者指出 Travel 應該跟 `jonaminz-movies` 同一個模式
   android/app/build/outputs/apk/debug/app-debug.apk`。2026-07-14 曾用
   這個流程成功裝到使用者的 Samsung SM-F9660。
 
-## 6. 版本與分支狀態（2026-07-12 掃描）
+## 6. 版本與分支狀態（2026-07-12 掃描，版本號行 2026-07-14 更新）
 
-- 業務版本：`v0.12.0-202607121631`（`version.js`；`v0.11.0` 是階段①，
+- 業務版本：**現行 `v0.22.2-202607140907`**（`version.js`；下面這段
+  `v0.12.0` 的敘述是 2026-07-12 掃描當下的版本，中間經過大廳/Minz/
+  Jonathan 房間、後台改版、Platform Integration 第 3-9 項、Chat／
+  Travel／登入系統等多輪工作，版本號一路 bump 上來，細節見
+  `CHANGELOG.md` 逐日條目，這裡不重複列——`v0.12.0` 是階段①，
   `v0.11.1` 是隨後的首頁/後台三個視覺缺陷修復，`v0.12.0` 是首頁改版
   ——全螢幕背景圖改成固定比例小相片框，取代 `v0.11.1` 那次治標的
   background-position 調整）。規則：每次 push 前要 bump，且要先查真的
@@ -1257,5 +1261,9 @@ repo 裡），使用者指出 Travel 應該跟 `jonaminz-movies` 同一個模式
   Platform 規格定稿時正式凍結；暫定保留 `https://jonaminz.com/sdk/...` 寫法，
   並把「apex 301 轉址至 www」視為平台基礎設施合約的一部分——動 DNS/Pages
   網域設定前必須意識到 SDK 常青網址依賴這條轉址。
-- `INFERRED`：首頁 Jonathan / Minz 兩個 name-link 目前只是錨點（`#jonathan`/`#minz`），
-  尚無對應內容頁。
+- ~~`INFERRED`：首頁 Jonathan / Minz 兩個 name-link 目前只是錨點~~
+  **已過期，2026-07-14 訂正**：這是 2026-07-12 掃描當下的狀態，
+  同年 7-12～13 的前端品質重建計畫階段②已把這兩個連結改成真實路徑
+  `/pages/jonathan/`／`/pages/minz/`，兩頁都有真實內容（Jonathan 是
+  完整 Dark Precision 門戶＋About 子頁；Minz 是 Phase 1 展示骨架，
+  分類資料仍是 mock），見 §3 對應條目，不是空錨點。
