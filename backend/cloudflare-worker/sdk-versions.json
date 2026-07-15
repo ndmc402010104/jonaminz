@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "revision": 20,
+  "revision": 21,
   "channels": {
     "stable": {
-      "hash": "c7796cdf3f53",
-      "url": "/sdk/sdk-c7796cdf3f53.js"
+      "hash": "e47b2537d80a",
+      "url": "/sdk/sdk-e47b2537d80a.js"
     },
     "next": {
-      "hash": "c7796cdf3f53",
-      "url": "/sdk/sdk-c7796cdf3f53.js"
+      "hash": "e47b2537d80a",
+      "url": "/sdk/sdk-e47b2537d80a.js"
     }
   }
 }

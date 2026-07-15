@@ -1382,10 +1382,18 @@ async function listChatMessages(env, payload) {
   // 時間點的所有訊息」——不需要前端另外回報一次。只在真的有訊息、且比
   // 目前記錄的還新時才寫入，避免每次 1.5 秒 poll 都無意義地 PATCH 一次。
   //
-  // 在線心跳（2026-07-15 第二十七輪）：payload.visible=true 代表「面板
-  // 真的展開、使用者正在看」——每 30 秒把 last_seen_at 心跳一次（節流，
-  // 不是每次 1.5 秒 poll 都寫）。在線的定義從「最後訊息/已讀在 5 分鐘內」
-  // （只要有在聊就永遠在線，從沒出現過離線）改成「2 分鐘內有可見心跳」。
+  // 在線心跳（2026-07-15 第二十七輪，同日稍後修正）：原本只有
+  // payload.visible===true（面板真的展開）才心跳，等於「在線」被定義成
+  // 「正在看聊天面板」——使用者指出這跟 Messenger 的定義不一樣，
+  // Messenger 是「任何裝置開著任何一個網頁」就算在線，不需要真的盯著
+  // 聊天視窗。這支 listChatMessages 本身是 chat-thread.js 背景 poll
+  // 在打的（面板一開始就建立、不受顯示與否影響，見 chat-launcher.js
+  // 第七次修正），也就是說只要使用者登入後在站上任何一頁停留，這支就會
+  // 每 1.5 秒被打一次——這個事實本身就足以代表「有裝置開著網頁」，不用
+  // 再靠 payload.visible 這個「面板有沒有展開」的額外條件。拿掉這個
+  // 條件，只保留 30 秒節流（避免每次 1.5 秒 poll 都無意義寫一次）；
+  // payload.visible 保留給 chat-thread.js 的已讀判斷用（maybeMarkRead()
+  // ），跟這裡的在線判斷是兩件事，不要混在一起。
   const patchBody = {};
   const newestMessage = messages[messages.length - 1];
   if (newestMessage && deliveryState[identity] && deliveryState[identity].lastDeliveredMessageId !== newestMessage.id) {
@@ -1393,7 +1401,7 @@ async function listChatMessages(env, payload) {
     patchBody.last_delivered_at = new Date().toISOString();
     deliveryState[identity] = { lastDeliveredMessageId: newestMessage.id, lastDeliveredAt: patchBody.last_delivered_at };
   }
-  if (payload && payload.visible === true) {
+  {
     const lastSeen = presence[identity] ? new Date(presence[identity]).getTime() : 0;
     if (Date.now() - lastSeen > 30 * 1000) {
       patchBody.last_seen_at = new Date().toISOString();

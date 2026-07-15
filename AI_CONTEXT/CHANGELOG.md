@@ -20,6 +20,61 @@
 
 ---
 
+## 2026-07-15（深夜，第七十三次）— 一次處理五筆待辦：favicon快取／清除全部沒反應／泡泡跨頁位置／角標剪裁／線上定義
+
+- **任務**：使用者「閱讀待辦」後，`for_claude` 泳道一次累積了多筆使用者
+  自己新增的回報，逐筆查證根因後修復。
+- **favicon 還是舊的（透明背景那個）**：檔案本身（`favicon-32.png`／
+  `favicon-180.png`）已經是正確的點陣圖，兩台電腦都顯示舊的，判斷是
+  瀏覽器對 favicon 的快取比一般資源頑固（不吃一般 cache-control，且
+  網址完全沒變過）。修法：全站 12 個 `index.html` 的 favicon `<link>`
+  一律加上 `?v=2` 查詢字串強迫重抓，之後真的要換 favicon 記得比照
+  version.js 的習慣把這個 `v=` 手動 bump。
+- **待辦板「清除全部」沒反應**：根因不是壞掉，是設計如此但沒有提示——
+  已完成清單如果全部都是 Claude 交辦的完成紀錄（`origin==='claude'`，
+  規則上永久保留），按下去理當什麼都不會發生，但原本連一句提示都
+  沒有，使用者無法分辨「設計如此」還是「壞了」。`pages/admin/journal/
+  assets/js/app.js` 補上一句明確提示。
+- **泡泡跨頁不保留位置**：`freeLeft`/`freeTop`（拖動吸邊後的休息位置）
+  原本只是這次頁面執行的記憶體變數，jonaminz 是多頁站台、每次換頁
+  這支 script 都重新執行一次，位置理所當然重置回預設錨點。
+  `assets/js/chat-launcher.js`／`sdk/sdk-src/sdk.js`（兩份刻意重複的
+  實作都要改）都改成存進 `localStorage`（key
+  `jonaminz.chatBubblePosition`），換頁後直接讀回來套用，不用動畫
+  重新飛一次。
+- **角標／在線小綠點還是被切到**：這是第十三次修正（union clip-path）
+  遺留的真根因——`.jonaminz-chat-launcher-frame` 這條 CSS 規則同時
+  留著 `border-radius:50%` 跟 `clip-path:url(#jcl-avatar-clip)`。
+  `<iframe>` 這種替代元素，`border-radius` 自己就會把內容裁成正圓，
+  兩層獨立的裁切最終取交集——`border-radius` 的正圓還是會把 clip-path
+  特地留給角標/小綠點的兩個補償小圓吃掉，union 邏輯本身沒錯，等於
+  白做。拿掉 `border-radius`（clip-path 的 union 已經包含等效主圓），
+  代價是 `box-shadow` 跟著變方形陰影，但 24px 模糊半徑遠大於形狀本身，
+  肉眼幾乎看不出差異。同樣兩份實作都要改。
+- **線上定義改成「任何裝置開著任何一頁」**：原本 `last_seen_at` 心跳
+  只在 `payload.visible===true`（聊天面板真的展開）才寫入，等於在線
+  被定義成「正在看聊天」，跟使用者要的 Messenger 定義（開著網站任何
+  一頁就算在線）不一樣。但 `listChatMessages` 本身是 `chat-thread.js`
+  背景 poll 在打的（面板一開始就建立、不受顯示與否影響），這支被打到
+  這件事本身就足以代表「有裝置開著網頁」——拿掉 `payload.visible`
+  這個額外條件，只保留 30 秒節流；`payload.visible` 繼續留給已讀判斷
+  （`maybeMarkRead()`）用，跟在線判斷分開，沒有互相影響。
+- **驗證**：`node --check` 全部檔案通過；`wrangler deploy --dry-run`
+  通過後正式部署（Worker Version `de5d1b5b`）；`sdk-src/sdk.js` 改動
+  後重跑 `generate-sdk-release.mjs` 產生新 immutable 檔
+  `sdk-e47b2537d80a.js`，`sdk-versions.json` 的 stable／next 都指過去
+  （revision 21）。**沒有**在真實瀏覽器裡逐一視覺驗證這五項（尤其
+  clip-path 那個屬於「兩層裁切交集」的 CSS 冷知識，理論推導正確但
+  沒有截圖確認），麻煩使用者實際看一次角標/小綠點跟拖動泡泡跨頁的
+  效果。
+- **狀態變化**：五筆 `for_claude` 項目全數處理完成，移回 `for_user`
+  各自一筆「請驗證」。
+- **遺留**：還有兩筆待辦這次沒動——「聊天的 OneDrive 檔案應該要預設
+  6 個月 expire」（需要設計 Cron Trigger 排程清理機制，不是小修，
+  留給下一輪專門處理）、「我輸入完的內容應該要可以編輯」（語意不夠
+  明確，需要跟使用者確認具體指哪個輸入框/情境）。
+- **版本**：v0.45.1-202607152353
+
 ## 2026-07-15（晚上，第七十二次）— 新增「連線狀態」頁，OneDrive 從後台首頁搬出來
 
 - **任務**：使用者問「onedrive連線這個東西是不是應該找個地方放？工具包

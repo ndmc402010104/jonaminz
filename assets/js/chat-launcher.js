@@ -75,6 +75,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
   "use strict";
 
   var TOKEN_KEY = "jonaminz.sessionToken";
+  var POSITION_KEY = "jonaminz.chatBubblePosition";
   var LAUNCHER_PATH = "/pages/chat-launcher/";
   var PANEL_PATH = "/pages/chat-panel/";
   var CHAT_PATH = "/pages/chat/";
@@ -164,8 +165,19 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     var style = document.createElement("style");
     style.textContent =
       ":root{--jcl-anchor-top:84px;}" +
+      // 2026-07-15：使用者回報「泡泡的數字跟右下角的點點還是沒有修好一樣
+      // 會被切到」——第十三次修正的 union clip-path 邏輯本身沒錯，但這
+      // 條規則同時還留著 `border-radius:50%`。<iframe> 這種替代元素，
+      // border-radius 自己就會把內容裁成正圓（不需要額外 overflow），
+      // 跟 clip-path 是兩層獨立的裁切，最終可視範圍是兩者的交集——
+      // border-radius 那層單純正圓還是會把 clip-path 特地留出來給角標/
+      // 小綠點的兩個小圓吃掉，等於白做。拿掉 border-radius，形狀完全交給
+      // clip-path 的 union（本來就包含等效的主圓，沒有 border-radius
+      // 形狀不會跑掉）；唯一的代價是 box-shadow 跟著 border-radius 走，
+      // 現在會是方形陰影，但模糊半徑 24px 遠大於陰影本身，肉眼幾乎看不出
+      // 差異，比起「角標被切掉看不到未讀」這個功能性問題，這點代價划算。
       "." + LAUNCHER_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
-      "width:64px;height:64px;border:0;border-radius:50%;z-index:9999;" +
+      "width:64px;height:64px;border:0;z-index:9999;" +
       "clip-path:url(#" + AVATAR_CLIP_ID + ");" +
       "box-shadow:0 8px 24px rgba(38,34,32,0.28);pointer-events:none;}" +
       "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
@@ -230,8 +242,36 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     // 維持在預設錨點（跟著 CSS 的 right/bottom，responsive 於 viewport）。
     // 開啟面板時一律鎖到固定角落，關閉時還原回這個休息位置——見使用者
     // 回饋：「開啟時跳到右下角不能拖動，關掉後回到開啟前的位置」。
-    var freeLeft = null;
-    var freeTop = null;
+    //
+    // 2026-07-15（使用者回報「跳轉頁面的時候泡泡沒有保留在原本的地方」）：
+    // jonaminz 是多頁站台，每次換頁都是整頁重新載入、這支 script 重新
+    // 執行一次——freeLeft/freeTop 原本只是這次執行的記憶體變數，換頁
+    // 就重置回 null，回到預設錨點，跟使用者這句回報完全對得上。改成
+    // 存進 localStorage，換頁後從那裡讀回來，行為才是「休息位置」該有的
+    // 樣子（持續到使用者下次拖動或清瀏覽器資料為止）。
+    function loadFreePosition() {
+      try {
+        var raw = window.localStorage.getItem(POSITION_KEY);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (typeof parsed.left === "number" && typeof parsed.top === "number") return parsed;
+      } catch (error) {}
+      return null;
+    }
+
+    function saveFreePosition(left, top) {
+      try {
+        window.localStorage.setItem(POSITION_KEY, JSON.stringify({ left: left, top: top }));
+      } catch (error) {}
+    }
+
+    var storedPosition = loadFreePosition();
+    var freeLeft = storedPosition ? storedPosition.left : null;
+    // 不同頁面的可視高度可能有些微差異（例如某頁內容比較短），換頁還原
+    // 時把 top 夾回目前這頁的合法範圍，避免大頭貼卡在螢幕外看不到。
+    var freeTop = storedPosition
+      ? Math.min(Math.max(0, storedPosition.top), window.innerHeight - 64)
+      : null;
 
     function setTransitionEnabled(on) {
       var value = on ? "left .22s ease, top .22s ease, right .22s ease, bottom .22s ease" : "";
@@ -307,6 +347,11 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       window.JonaminzLayoutMetrics.subscribe(updateAnchorTopVar);
     }
 
+    // 換頁後如果有存過的休息位置，頁面一載入就直接套用（不用動畫飛過去
+    // ——使用者預期的是「本來就在那裡」，不是每次換頁都看一次飛行動畫）。
+    // 沒存過（freeLeft === null）就維持不動、吃預設錨點的 CSS。
+    if (freeLeft !== null) applyPosition(freeLeft, freeTop);
+
     function snapToNearestEdge(left, top) {
       var width = launcherFrame.offsetWidth;
       var height = launcherFrame.offsetHeight;
@@ -317,6 +362,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
         : window.innerWidth - width - ANCHOR_RIGHT;
       freeLeft = snappedLeft;
       freeTop = clampedTop;
+      saveFreePosition(snappedLeft, clampedTop);
       animateTo(function () { applyPosition(snappedLeft, clampedTop); });
       scheduleGestureExclusionSync();
     }
