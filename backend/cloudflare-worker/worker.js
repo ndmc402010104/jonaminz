@@ -102,17 +102,20 @@
   從自己帳號查得到聊天圖庫；Phase B 傳圖只上傳一份到傳送者帳號，用
   Graph 原生分享機制授權對方讀取，不重複佔用兩份容量）。跟 Google
   登入共用 `oauth_states` 表擋 CSRF（`return_origin` 欄位這裡存的是
-  發起連接的登入身分，不是要導回的網域）。`start` 要求呼叫者已登入，
-  連接的就是呼叫者自己的帳號（不能指定連別人的）；`callback` 用
-  authorization code 跟 Microsoft 換 refresh token 存進
-  `onedrive_account` 表（見 `backend/supabase/onedrive_schema.sql`，
+  發起連接的登入身分，不是要導回的網域）。`start` 要求呼叫者已登入
+  （不管哪個身分），要連接誰的帳號由 `?identity=jonathan|minz` 參數
+  決定，不強制等於呼叫者自己的登入身分——2026-07-15 使用者明確要求：
+  Jonathan／Minz 本來就共用彼此帳密，「只能連自己」這層限制沒有實際
+  安全意義；`callback` 用 authorization code 跟 Microsoft 換 refresh
+  token 存進 `onedrive_account` 表（見 `backend/supabase/onedrive_schema.sql`，
   `identity` 是 primary key，兩人各一列），完成後回一頁純文字結果
   （沒有 session token 要交回瀏覽器）。
 - `getOnedriveStatus`：回傳 Jonathan／Minz 兩人各自的連接狀態（後台
   要同時畫兩張卡片），任何已登入身分都能查。`testOnedriveConnection`：
-  只測**呼叫者自己**的帳號，實際拿 access token 打 Graph
-  `me/drive/special/approot` 驗證連線是否真的可用（不只是「有存
-  refresh_token」這種表面狀態），Phase A 的驗收動作。
+  payload 可選填 `identity` 指定要測誰的帳號（不填就測呼叫者自己），
+  實際拿 access token 打 Graph `me/drive/special/approot` 驗證連線是否
+  真的可用（不只是「有存 refresh_token」這種表面狀態），Phase A 的
+  驗收動作。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -2433,10 +2436,18 @@ async function handleOnedriveStart(env, url) {
   }
 
   const token = url.searchParams.get("token") || "";
-  const identity = await requireSession(env, { token: token });
-  if (!identity) {
+  const caller = await requireSession(env, { token: token });
+  if (!caller) {
     return new Response("請先登入 jonaminz 再連接 OneDrive。", { status: 403 });
   }
+  // 2026-07-15：連接的是哪個身分由 `identity` 參數決定，不強制等於呼叫者
+  // 自己的登入身分——Jonathan／Minz 這兩人本來就共用彼此的帳密，這層
+  // 「只能連自己」的限制在他們的信任模型下沒有實際安全意義，只留下
+  // 「必須先登入 jonaminz（不管哪個身分）」這一道最外層關卡。
+  const requestedIdentity = url.searchParams.get("identity");
+  const identity = (requestedIdentity === "jonathan" || requestedIdentity === "minz")
+    ? requestedIdentity
+    : caller;
 
   const state = randomToken();
   const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
@@ -2645,15 +2656,19 @@ async function getOnedriveStatus(env, payload) {
   return { ok: true, accounts: accounts };
 }
 
-// Phase A 的驗收動作：確認呼叫者「自己」的帳號 access token 真的能對
-// Graph 說話、App Folder 真的存在——不是只驗證「有存 refresh_token」
-// 這種表面狀態。只測自己的，不能測對方的（沒有理由讓 Jonathan 的
-// session 去戳 Minz 帳號的連線狀態）。
+// Phase A 的驗收動作：確認指定身分的帳號 access token 真的能對 Graph
+// 說話、App Folder 真的存在——不是只驗證「有存 refresh_token」這種
+// 表面狀態。要求呼叫者已登入（不管哪個身分），但可以測任一人的帳號
+// ——理由同 handleOnedriveStart，兩人共用帳密，這層限制沒有實際意義。
 async function testOnedriveConnection(env, payload) {
-  const identity = await requireSession(env, payload);
-  if (!identity) {
+  const caller = await requireSession(env, payload);
+  if (!caller) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
+  const requestedIdentity = payload && payload.identity;
+  const identity = (requestedIdentity === "jonathan" || requestedIdentity === "minz")
+    ? requestedIdentity
+    : caller;
   let accessToken;
   try {
     accessToken = await getOnedriveAccessToken(env, identity);

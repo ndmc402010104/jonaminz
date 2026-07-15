@@ -20,6 +20,33 @@
 
 ---
 
+## 2026-07-15（中午，第三十四次）— OneDrive 線 Phase A 完工：放寬跨身分連接限制
+
+- **任務**：使用者實機跑完 Azure App 註冊全程（過程極其曲折：
+  Authenticator 推播收不到、8碼/6碼驗證碼混淆、帳號選擇器、
+  「Microsoft Services」租戶錯亂、App Registration 功能被 Microsoft
+  棄用需要先申請 Azure 免費試用）——最終 Jonathan 帳號連接成功並通過
+  測試連線。使用者接著指出：連 Minz 的帳號時他自己登入她的 jonaminz
+  身分＋輸入她的 Microsoft 帳密代辦，質疑「幹嘛還要登出再登她的」
+  ——既然兩人帳密本來就共用，`/auth/onedrive/start`／
+  `testOnedriveConnection` 原本「只能操作登入者自己身分」的限制沒有
+  實際安全意義，純粹是自己多繞的設計。
+- **變更**：
+  - `worker.js`：`handleOnedriveStart` 改讀 `?identity=` 參數決定要
+    連接誰的帳號（驗證只接受 `jonathan`/`minz`），不再強制等於呼叫者
+    自己的登入身分；`testOnedriveConnection` payload 加選填
+    `identity`，可測任一人的帳號。兩者仍要求「必須先登入 jonaminz
+    （不管哪個身分）」這道最外層關卡沒有拿掉。
+  - `pages/admin/` 首頁：兩張 OneDrive 卡片都能直接按「連接」／
+    「測試連線」，不再限定只能操作登入者自己那張。
+  - 已 `wrangler deploy`。
+- **狀態變化**：**OneDrive 線 Phase A 正式完工**——Jonathan、Minz 兩人
+  帳號都已連接並通過測試連線（後台截圖確認）。GitHub Issue #1 的
+  Phase A 七項全部打勾。下一步是 Phase B（真正的傳圖功能）。
+- **遺留**：無。Phase B 開工時記得 SPEC §6 提到的 Azure 要多加
+  `Files.ReadWrite` 權限。
+- **版本**：v0.34.2-202607151259
+
 ## 2026-07-15（上午，第三十三次）— OneDrive 線改雙帳號模式
 
 - **任務**：使用者追問「onedrive能夠一次用兩個帳號嗎」，討論後決定
