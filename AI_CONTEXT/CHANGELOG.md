@@ -20,6 +20,27 @@
 
 ---
 
+## 2026-07-15（下午，第四十四次）— OneDrive 帳號卡片補「重新連接」按鈕
+
+- **任務**：使用者已在 Azure Portal 手動加好 `Files.ReadWrite` 權限
+  （第四十三次「遺留」事項 1），回報後台 OneDrive 帳號卡片只有「測試
+  連線」，沒有能重新走一次授權流程的按鈕，卡在不知道怎麼讓已連接的
+  帳號拿到新 scope。
+- **變更**：`pages/admin/assets/js/app.js` 的 `renderOnedriveCard()`，
+  `account.connected` 分支加一個「重新連接」連結，指到跟「尚未連接」
+  分支同一條 `/auth/onedrive/start?token=...&identity=...`（Worker 端
+  這支端點本來就寫死 `prompt=consent`，會強制跳新的同意畫面，不會沿用
+  舊授權快取——見 `worker.js:2483-2485` 註解）。純前端修改，不用
+  `wrangler deploy`。
+- **狀態變化**：第四十三次「遺留」事項 1（Azure 權限）使用者端已完成；
+  這次補的是原本就該有、卻漏掉的重新連接入口——嚴格說是修一個 UI 缺口，
+  不是新設計。
+- **遺留**：Jonathan／Minz 都要各自點這顆新按鈕重新授權一次，才能真的
+  拿到含 `Files.ReadWrite` 的 refresh token；兩人都重連完之前，`/invite`
+  分享步驟仍會對尚未重連的那一方失敗（`sharedOk:false`，不擋訊息送出）。
+  重連完成後才進入第四十三次「遺留」事項 2：實機測試 CORS 直傳上傳。
+- **版本**：v0.36.1-202607151618
+
 ## 2026-07-15（下午，第四十三次）— OneDrive 線 Phase B：schema 已套用、Worker 已部署
 
 - **任務**：使用者回覆「可以你就套用跟部署吧」，執行第四十二次紀錄
