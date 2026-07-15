@@ -20,6 +20,28 @@
 
 ---
 
+## 2026-07-15（早上，第三十一次）— mobile-app 入庫＋OneDrive 線設計規格定案
+
+- **任務**：(1) jonaminz-mobile-app 資料夾一直沒有版本控制（只有
+  .gitignore 沒有 .git），使用者核准直接開新 repo；(2) OneDrive 線
+  （圖片分享＋自架 APK 發佈）設計定案（Fable 設計、Sonnet 接手實作
+  的分工流程第一次正式跑）。
+- **變更**：mobile-app 建 git repo 並推上 GitHub **private** repo
+  `ndmc402010104/jonaminz-mobile-app`（含 google-services.json，私有
+  repo 可入庫；FCM service account key 不在 tree 內已確認）。OneDrive
+  線完整設計寫在 **`AI_CONTEXT/ONEDRIVE_LINE_SPEC.md`**：Azure 註冊
+  步驟、OAuth 授權碼流程、refresh token 存 Supabase／client secret
+  存 Worker secret、瀏覽器直傳 Graph（CORS 擋掉就走 Worker 傳遞
+  fallback）、blur-up 縮圖進 metadata、downloadUrl 短效快取、APK 走
+  /appDownload 302 後收回公開 GitHub Release。
+- **狀態變化**：原生程式碼從此有版本控制。OneDrive 線從「構想」變
+  「規格凍結、待實作」，Phase A（授權底座）可開工——schema/callback
+  頁/Worker 骨架不用等 Azure 憑證。
+- **遺留**：使用者要照 SPEC §6 做一次性 Azure App 註冊才能端到端測；
+  Phase B 開工第一件事是驗 consumer OneDrive uploadUrl 的瀏覽器
+  CORS。第三十輪的四項手感＋鍵盤抬升仍待真機驗收。
+- **版本**：無程式碼變更（純文件＋新 repo）
+
 ## 2026-07-15（早上，第三十次）— 懸浮泡泡手感四件套（主動盤點 checklist 的第一批）
 
 - **任務**：使用者質問「你早就知道的最佳實務為什麼等我測出來才修」
