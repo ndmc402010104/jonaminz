@@ -20,6 +20,41 @@
 
 ---
 
+## 2026-07-15（早上，第三十二次）— OneDrive 線 Phase A 實作＋部署
+
+- **任務**：照 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` 實作 Phase A（授權
+  底座）。使用者要求：驗收方式改成「線上 checklist，你打勾我再
+  update」，取代逐項截圖來回。
+- **變更**：
+  - `backend/supabase/onedrive_schema.sql`：新表 `onedrive_account`
+    （單列，存 refresh_token／connected_by／時間戳），已套用到
+    `jonaminz-db`。
+  - `worker.js`：新增 `GET /auth/onedrive/start`（`requireSession`
+    驗證身分是 jonathan 才放行，存 state 進既有 `oauth_states` 表，
+    導去 Microsoft consumers 端點同意畫面，redirect_uri 直接指到
+    Worker 自己網域，跟 Google 登入同一個模式，**不經過**
+    jonaminz.com 中繼頁）／`GET /auth/onedrive/callback`（核對
+    state、換 token、存 refresh_token、回純文字結果頁）／
+    `getOnedriveAccessToken`（module 變數快取 access token，同
+    `getFcmAccessToken` 模式，個人帳號滾動更新的 refresh_token 會
+    覆蓋存檔）／`getOnedriveStatus`／`testOnedriveConnection`（實際
+    打 Graph `me/drive/special/approot` 驗證，不只是查表面狀態）。
+  - `assets/js/backend-client.js` 加對應三個 wrapper。
+  - `pages/admin/` 首頁新增 OneDrive 狀態卡片：未連接（且登入者是
+    jonathan）顯示「連接 OneDrive」連結；已連接顯示連接者/時間＋
+    「測試連線」按鈕。
+  - 已 `wrangler deploy`（新路徑在使用者設定 Azure secret 前會回
+    清楚的錯誤訊息，不影響任何現有功能）。
+  - `ONEDRIVE_LINE_SPEC.md` 依實際實作更新（callback 走 Worker 網域
+    而非 pages 頁面／schema 補 connected_by 欄位）。
+- **狀態變化**：OneDrive 線 Phase A 從「規格」變「已部署，等使用者
+  跑 Azure 註冊」。Phase B（圖片訊息）／Phase C（APK 自架）待開工。
+- **遺留**：使用者要做 SPEC §6 的 Azure App 註冊（一次性，portal
+  操作＋兩個 wrangler secret）才能端到端測試連接／測試連線。第三十
+  輪的四項手感＋鍵盤抬升仍待真機驗收（改走線上 checklist，見
+  GitHub Issue，之後由 agent 依勾選狀態更新）。
+- **版本**：v0.34.0-202607150852
+
 ## 2026-07-15（早上，第三十一次）— mobile-app 入庫＋OneDrive 線設計規格定案
 
 - **任務**：(1) jonaminz-mobile-app 資料夾一直沒有版本控制（只有

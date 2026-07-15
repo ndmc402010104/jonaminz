@@ -95,6 +95,20 @@
   本機 `localhost:5500` 登入以前一律被導去正式站，本機測不了這條路），
   token 放在 URL fragment（`#jonaminzSessionToken=...`，fragment 不會
   送到伺服器）。
+- `GET /auth/onedrive/start` ／ `GET /auth/onedrive/callback`：OneDrive
+  線 Phase A（2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）。不是
+  使用者登入，是把 Jonathan 的個人 OneDrive App Folder 授權給這個
+  App 的一次性連接動作，跟 Google 登入共用 `oauth_states` 表擋 CSRF
+  （`return_origin` 欄位這裡存的是發起連接的登入身分，不是要導回的
+  網域）。`start` 要求呼叫者已登入且是 `jonathan`（單一帳號的儲存
+  空間，不接受 Minz 發起）；`callback` 用 authorization code 跟
+  Microsoft 換 refresh token 存進 `onedrive_account` 表（見
+  `backend/supabase/onedrive_schema.sql`），完成後回一頁純文字結果
+  （沒有 session token 要交回瀏覽器）。
+- `getOnedriveStatus`：讀 `onedrive_account` 有沒有連接，公開給任何
+  已登入身分查。`testOnedriveConnection`：實際拿 access token 打
+  Graph `me/drive/special/approot` 驗證連線是否真的可用（不只是「有
+  存 refresh_token」這種表面狀態），Phase A 的驗收動作。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -145,6 +159,25 @@ export default {
         return await handleGoogleCallback(env, url);
       } catch (error) {
         return new Response("Login failed: " + (error.message || String(error)), { status: 500 });
+      }
+    }
+
+    // OneDrive 線（見 AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）：這不是「使用者
+    // 登入」，是「把 Jonathan 的個人 OneDrive 授權給這個 App 讀寫 App
+    // Folder」的一次性連接動作，跟 Google 登入一樣是瀏覽器導向流程，
+    // 所以也不走 POST /api/action。
+    if (request.method === "GET" && url.pathname === "/auth/onedrive/start") {
+      try {
+        return await handleOnedriveStart(env, url);
+      } catch (error) {
+        return new Response("OneDrive connect failed: " + (error.message || String(error)), { status: 500 });
+      }
+    }
+    if (request.method === "GET" && url.pathname === "/auth/onedrive/callback") {
+      try {
+        return await handleOnedriveCallback(env, url);
+      } catch (error) {
+        return new Response("OneDrive connect failed: " + (error.message || String(error)), { status: 500 });
       }
     }
 
@@ -298,6 +331,14 @@ export default {
 
       if (action === "replyFromNotification") {
         return json(await replyFromNotification(env, payload), 200);
+      }
+
+      if (action === "getOnedriveStatus") {
+        return json(await getOnedriveStatus(env, payload), 200);
+      }
+
+      if (action === "testOnedriveConnection") {
+        return json(await testOnedriveConnection(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -2360,4 +2401,248 @@ async function handleGoogleCallback(env, url) {
   const returnNext = resolveOauthReturnNext(stateRow.next || "");
   const redirectUrl = returnOrigin + returnNext + "#jonaminzSessionToken=" + encodeURIComponent(session.token);
   return Response.redirect(redirectUrl, 302);
+}
+
+// ---------- OneDrive 線 Phase A：授權底座（2026-07-15，見
+// AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）。這不是使用者登入——是把 Jonathan
+// 的個人 OneDrive「App Folder」授權給這個 App 讀寫的一次性連接動作，
+// 用同一套 oauth_states 表擋 CSRF（跟 Google 登入共用表、不同語意：
+// return_origin 這裡存的是發起連接的登入身分，不是要導回的網域）。
+// 只有 Jonathan 能發起連接（單一帳號、單一使用者的儲存空間，見
+// onedrive_schema.sql 的 connected_by check）；redirect_uri 直接用這個
+// Worker 自己的網域（跟 GOOGLE_REDIRECT_URI 同一個模式），不需要另外
+// 在 jonaminz.com 開一個中繼頁面——連接完成後看到的就是 Worker 直接
+// 回的純文字結果頁，沒有 session token 要交回瀏覽器（refresh token
+// 全程只活在 Supabase，前端從頭到尾拿不到）。----------
+
+const ONEDRIVE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.dev/auth/onedrive/callback";
+const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder offline_access";
+const ONEDRIVE_AUTHORIZE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
+const ONEDRIVE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+
+async function handleOnedriveStart(env, url) {
+  if (!env.JONAMINZ_ONEDRIVE_CLIENT_ID) {
+    return new Response("OneDrive OAuth not configured (missing JONAMINZ_ONEDRIVE_CLIENT_ID)", { status: 500 });
+  }
+
+  const token = url.searchParams.get("token") || "";
+  const identity = await requireSession(env, { token: token });
+  if (identity !== "jonathan") {
+    return new Response(
+      identity
+        ? "只有 Jonathan 能連接 OneDrive（這個儲存空間是單一帳號共用）。"
+        : "請先登入 jonaminz 再連接 OneDrive。",
+      { status: 403 }
+    );
+  }
+
+  const state = randomToken();
+  const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS).toISOString();
+  const insertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/oauth_states";
+  const insertResponse = await fetch(insertUrl, {
+    method: "POST",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ state: state, return_origin: identity, next: "", expires_at: expiresAt })
+  });
+  if (!insertResponse.ok) {
+    throw new Error("Supabase insert failed: HTTP " + insertResponse.status + " " + (await insertResponse.text()));
+  }
+
+  const authorizeUrl = new URL(ONEDRIVE_AUTHORIZE_URL);
+  authorizeUrl.searchParams.set("client_id", env.JONAMINZ_ONEDRIVE_CLIENT_ID);
+  authorizeUrl.searchParams.set("redirect_uri", ONEDRIVE_REDIRECT_URI);
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("scope", ONEDRIVE_SCOPE);
+  authorizeUrl.searchParams.set("state", state);
+  // 個人帳號的 refresh token 要拿得到，必須明確要求 offline access 的
+  // consent prompt（consumers 端點在使用者之前同意過的情況下有時會
+  // 跳過畫面、不重新核發 refresh_token）。
+  authorizeUrl.searchParams.set("prompt", "consent");
+
+  return Response.redirect(authorizeUrl.toString(), 302);
+}
+
+async function handleOnedriveCallback(env, url) {
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const errorParam = url.searchParams.get("error");
+
+  if (errorParam) {
+    return htmlResponse(
+      "OneDrive 連接失敗：" + escapeHtmlText(url.searchParams.get("error_description") || errorParam),
+      400
+    );
+  }
+  if (!code || !state) {
+    return htmlResponse("OneDrive 連接失敗：缺少 code 或 state。", 400);
+  }
+
+  const stateUrl =
+    env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/oauth_states?state=eq." + encodeURIComponent(state) +
+    "&select=state,expires_at,return_origin";
+  const stateResponse = await fetch(stateUrl, { method: "GET", headers: supabaseHeaders(env) });
+  if (!stateResponse.ok) {
+    throw new Error("Supabase read failed: HTTP " + stateResponse.status + " " + (await stateResponse.text()));
+  }
+  const stateRows = await stateResponse.json();
+  const stateRow = stateRows[0];
+
+  await fetch(
+    env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/oauth_states?state=eq." + encodeURIComponent(state),
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  );
+
+  if (!stateRow || new Date(stateRow.expires_at).getTime() < Date.now()) {
+    return htmlResponse("OneDrive 連接失敗：連結已過期，請重新從後台發起連接。", 400);
+  }
+  const connectedBy = stateRow.return_origin === "minz" ? "minz" : "jonathan";
+
+  const tokenResponse = await fetch(ONEDRIVE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code: code,
+      client_id: env.JONAMINZ_ONEDRIVE_CLIENT_ID,
+      client_secret: env.JONAMINZ_ONEDRIVE_CLIENT_SECRET,
+      redirect_uri: ONEDRIVE_REDIRECT_URI,
+      grant_type: "authorization_code",
+      scope: ONEDRIVE_SCOPE
+    })
+  });
+  if (!tokenResponse.ok) {
+    return htmlResponse(
+      "OneDrive 連接失敗：跟 Microsoft 換 token 失敗（HTTP " + tokenResponse.status + "）。" +
+        escapeHtmlText(await tokenResponse.text()),
+      502
+    );
+  }
+  const tokenData = await tokenResponse.json();
+  if (!tokenData.refresh_token) {
+    return htmlResponse("OneDrive 連接失敗：Microsoft 沒有回傳 refresh_token（scope 或帳號類型可能不對）。", 502);
+  }
+
+  await saveOnedriveRefreshToken(env, tokenData.refresh_token, connectedBy);
+  cachedOnedriveAccessToken = tokenData.access_token;
+  cachedOnedriveTokenExpiresAt = Date.now() + (Number(tokenData.expires_in) || 3600) * 1000;
+
+  return htmlResponse("OneDrive 已連接成功！可以關掉這個分頁了。", 200);
+}
+
+function escapeHtmlText(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+  });
+}
+
+function htmlResponse(message, status) {
+  return new Response(
+    "<!doctype html><html lang=\"zh-Hant\"><meta charset=\"utf-8\">" +
+      "<body style=\"font-family:system-ui;padding:40px;text-align:center;\">" +
+      "<p>" + message + "</p></body></html>",
+    { status: status, headers: { "Content-Type": "text/html; charset=utf-8" } }
+  );
+}
+
+async function fetchOnedriveAccountRow(env) {
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account?id=eq.1&select=refresh_token,connected_by,connected_at";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return rows[0] || null;
+}
+
+async function saveOnedriveRefreshToken(env, refreshToken, connectedBy) {
+  const upsertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account";
+  const row = {
+    id: 1,
+    refresh_token: refreshToken,
+    connected_by: connectedBy,
+    updated_at: new Date().toISOString()
+  };
+  const response = await fetch(upsertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify(row)
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+}
+
+// access token 用 module 變數快取（同一個 isolate 存活期間重複使用，
+// 跟 getFcmAccessToken 同一個模式），過期前 5 分鐘就換新。
+var cachedOnedriveAccessToken = null;
+var cachedOnedriveTokenExpiresAt = 0;
+
+async function getOnedriveAccessToken(env) {
+  if (cachedOnedriveAccessToken && Date.now() < cachedOnedriveTokenExpiresAt - 5 * 60 * 1000) {
+    return cachedOnedriveAccessToken;
+  }
+  const row = await fetchOnedriveAccountRow(env);
+  if (!row || !row.refresh_token) {
+    throw new Error("OneDrive 還沒連接");
+  }
+  const tokenResponse = await fetch(ONEDRIVE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: env.JONAMINZ_ONEDRIVE_CLIENT_ID,
+      client_secret: env.JONAMINZ_ONEDRIVE_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: row.refresh_token,
+      scope: ONEDRIVE_SCOPE
+    })
+  });
+  if (!tokenResponse.ok) {
+    throw new Error("OneDrive token refresh failed: HTTP " + tokenResponse.status + " " + (await tokenResponse.text()));
+  }
+  const tokenData = await tokenResponse.json();
+  cachedOnedriveAccessToken = tokenData.access_token;
+  cachedOnedriveTokenExpiresAt = Date.now() + (Number(tokenData.expires_in) || 3600) * 1000;
+  // 個人帳號的 refresh token 會滾動更新——回應帶新的一定要覆蓋存檔，
+  // 不然舊的用完之後（通常幾個月的效期）整條線就斷了。
+  if (tokenData.refresh_token && tokenData.refresh_token !== row.refresh_token) {
+    await saveOnedriveRefreshToken(env, tokenData.refresh_token, row.connected_by || "jonathan");
+  }
+  return cachedOnedriveAccessToken;
+}
+
+async function getOnedriveStatus(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const row = await fetchOnedriveAccountRow(env);
+  return {
+    ok: true,
+    connected: Boolean(row),
+    connectedBy: row ? row.connected_by : null,
+    connectedAt: row ? row.connected_at : null
+  };
+}
+
+// Phase A 的驗收動作：確認 access token 真的能對 Graph 說話、App Folder
+// 真的存在——不是只驗證「有存 refresh_token」這種表面狀態。
+async function testOnedriveConnection(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  let accessToken;
+  try {
+    accessToken = await getOnedriveAccessToken(env);
+  } catch (error) {
+    return { ok: false, error: error.message || String(error) };
+  }
+  const response = await fetch("https://graph.microsoft.com/v1.0/me/drive/special/approot", {
+    headers: { Authorization: "Bearer " + accessToken }
+  });
+  if (!response.ok) {
+    return { ok: false, error: "Graph HTTP " + response.status + ": " + (await response.text()) };
+  }
+  const folder = await response.json();
+  return { ok: true, folderId: folder.id, folderName: folder.name, webUrl: folder.webUrl };
 }

@@ -180,6 +180,20 @@
     return call("removePushSubscription", payload, options);
   }
 
+  function getOnedriveStatus(payload, options) {
+    return call("getOnedriveStatus", payload, options);
+  }
+
+  function testOnedriveConnection(payload, options) {
+    return call("testOnedriveConnection", payload, options);
+  }
+
+  // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
+  // call() 這種 fetch POST——這裡只負責把 baseUrl 接出來給呼叫端組網址。
+  function getWorkerBaseUrlForRedirect() {
+    return loadConfig().then(getWorkerBaseUrl);
+  }
+
   window.JonaminzBackend = {
     call: call,
     registerExternalApp: registerExternalApp,
@@ -207,6 +221,9 @@
     setMyPhoneNumber: setMyPhoneNumber,
     getVapidPublicKey: getVapidPublicKey,
     savePushSubscription: savePushSubscription,
-    removePushSubscription: removePushSubscription
+    removePushSubscription: removePushSubscription,
+    getOnedriveStatus: getOnedriveStatus,
+    testOnedriveConnection: testOnedriveConnection,
+    getWorkerBaseUrlForRedirect: getWorkerBaseUrlForRedirect
   };
 })();
