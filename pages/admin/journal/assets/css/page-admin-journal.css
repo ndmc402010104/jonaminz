@@ -392,6 +392,15 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
+/* 2026-07-15：真正的根因——上面這條 .jonaminz-journal-escalate 的
+   display:flex 蓋掉了 <form ... hidden> 的 UA 預設 display:none，
+   JS 切換 escalateForm.hidden 的邏輯一直是對的，只是視覺上表單從來
+   沒有真的收起來過。使用者回報「怎麼樣都收不掉說明欄位跟送出按鈕」
+   就是這個——不是箭頭邏輯錯，是這條 CSS 選擇器優先權的坑（跟
+   .jonaminz-chat-notif-panel[hidden] 那邊已經修過的同一種坑）。 */
+.jonaminz-journal-escalate[hidden] {
+  display: none;
+}
 
 .jonaminz-journal-escalate input {
   flex: 1;
