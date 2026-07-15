@@ -58,13 +58,22 @@
   **鍵盤行為、泡泡版型、對齊手感均需使用者真機驗收**——這輪起不再
   宣稱「修好」，只陳述「改了什麼機制」。
 - **遺留**：App 內整頁版 chat/後台表單在 adjustNothing 下的鍵盤適配。
-- **補記（同早上，v0.33.1，鍵盤雙重扣除修正）**：真機回報面板縮成
-  一條——實測數據回推（面板 47dp ≈ 公式的 58dp）證實 Samsung WebView
-  在 adjustNothing 下 **100dvh 追蹤視覺視口、鍵盤彈出時本來就會縮**，
-  第二十八輪疊加的原生 inset 扣除變成鍵盤高度扣兩次。修正＝面板高度
-  公式移除 inset 扣除、只靠 100dvh（背景不動✓＋面板自動抬到鍵盤上✓）；
-  原生 --jonaminz-keyboard-inset 管道保留備用不再使用。純網頁修正、
-  不用重裝 APK。
+- **補記（同早上，v0.33.1→v0.33.2，鍵盤問題的完整因果鏈，最終定案）**：
+  真機連續回報「面板縮成一條」＋「背景還是被擠」。逐步查證後的完整
+  因果：(1) targetSdk 36（Android 15 強制 edge-to-edge）下 manifest 的
+  windowSoftInputMode **形同虛設**，第二十八輪的 adjustNothing 沒有
+  作用；(2) 真正把 WebView 壓扁的是 **Capacitor 8 的 SystemBars 外掛**
+  ——它在 WebView 的「父容器」掛 insets 監聽，鍵盤出現就
+  setPadding(ime.bottom)（讀 node_modules 原始碼證實）；(3) 視窗被壓
+  扁→100dvh 跟著縮→再疊上我們的 inset 扣除＝鍵盤高度扣兩次→面板剩
+  一條（實測 47dp ≈ 公式 58dp 吻合）。**定案修法（v0.33.2）**：
+  MainActivity 在 super.onCreate 後把自己的 insets 監聽掛在**同一個
+  父容器**上（同 view 後掛者取代先掛者，直接蓋掉 Capacitor 的）——
+  padding 永遠只留系統列不留鍵盤（視窗徹底不縮、dvh 不變、背景不動），
+  鍵盤高度寫進 --jonaminz-keyboard-inset；面板高度公式扣這個變數
+  **恰好一次**（一般瀏覽器變數 fallback 0、由瀏覽器自己縮 dvh，也是
+  恰好一次——「誰負責縮」在兩個環境各自固定成一個）。APK 已重建並
+  用 gh release upload --clobber 更新到固定下載網址。
 - **補記（APK 發佈管道）**：使用者遠端用手機、SendUserFile 的附件在
   手機端下載不了——APK 改發佈成 GitHub Release（使用者核准公開；tag
   `app-latest`，固定網址 `https://github.com/ndmc402010104/jonaminz/
