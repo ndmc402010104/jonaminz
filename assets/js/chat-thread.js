@@ -530,7 +530,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var fileUnshared = mine && fileMeta.sharedOk === false;
           bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
             '<div class="jonaminz-chat-file-bubble" data-file-bubble data-item-id="' + escapeHtml(fileMeta.itemId) +
-            '" data-download-url="' + escapeHtml(fileUrl || "") + '">' +
+            '" data-download-url="' + escapeHtml(fileUrl || "") +
+            '" data-file-name="' + escapeHtml(fileMeta.fileName || "檔案") + '">' +
             '<span class="jonaminz-chat-file-icon">📄</span>' +
             '<div class="jonaminz-chat-file-info">' +
             '<div class="jonaminz-chat-file-name">' + escapeHtml(fileMeta.fileName || "檔案") + '</div>' +
@@ -1544,7 +1545,19 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (fileBubble) {
           var downloadUrl = fileBubble.dataset.downloadUrl;
           if (downloadUrl) {
-            window.open(downloadUrl, "_blank", "noopener");
+            // 2026-07-15：使用者問「一定要先跳出一個分頁在下載嗎」——
+            // 原本用 window.open 開新分頁再讓瀏覽器接手下載，會多閃一個
+            // 空白分頁。downloadUrl 本身是 Graph 給的短效直接下載連結，
+            // 用隱藏的 <a download> 觸發同分頁下載即可，不需要真的開分頁
+            // （跨網域時 download 屬性可能被瀏覽器忽略、退回成直接開啟
+            // 該連結，但至少不會多一個分頁停在那裡）。
+            var downloadLink = document.createElement("a");
+            downloadLink.href = downloadUrl;
+            downloadLink.download = fileBubble.dataset.fileName || "檔案";
+            downloadLink.rel = "noopener";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
           } else {
             // 2026-07-15：使用者問「一直顯示還在準備中，這樣對嗎」——
             // 原本的文案沒有區分「genuinely 還在跟 Worker 要 downloadUrl」
