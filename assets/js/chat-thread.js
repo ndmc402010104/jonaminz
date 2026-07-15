@@ -226,6 +226,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var sending = false;
     var destroyed = false;
     var sharedItems = {};
+    var sharedListFilter = "all";
     var activeSharedItemId = null;
     var editingMessageId = null;
     var replyingToMessageId = null;
@@ -366,6 +367,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
       ensureImageUrls(messages);
 
       renderNotifPanel(unreadCount);
+      updateSharedListDot();
+      if (els.sharedListPanel && !els.sharedListPanel.hidden) renderSharedListPanel();
 
       // 樂觀 UI（2026-07-15）：poll 回應已經收錄的送出中訊息從 pending
       // 清單移除（比對 client_message_id，這欄位本來就是為重送冪等而生，
@@ -1059,6 +1062,65 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.notifPanel.innerHTML = html || '<div class="jonaminz-chat-notif-item is-empty">沒有新動態</div>';
     }
 
+    // ---- Shared 獨立瀏覽完整版（2026-07-15）：列出這個房間全部分享過
+    // 的內容，不只未讀的——比 App 內通知面板更完整。原型設計裁決
+    // （jonaminz-chat交接包 CHAT_SHARED_ARCHITECTURE.md §15「Shared
+    // 數量卡不是純資訊，必須直接作為內容篩選器」）落地成「全部／未讀」
+    // 篩選 tab；每筆多一顆「討論」直接綁 composer，不用先開原文再回來
+    // 找這個 icon 才能討論。這兩支函式要跟 renderNotifPanel 同一層
+    // （mount() 層級），render() 才呼叫得到——曾經誤放進 buildUI() 內部
+    // 的巢狀作用域，導致 render() 每次 poll 都拋 ReferenceError 整個
+    // 中斷、訊息串完全停止更新，靠真的載入頁面才抓到，記取教訓。----
+    function updateSharedListDot() {
+      if (!els.sharedListDot) return;
+      var hasUnseen = Object.keys(sharedItems).some(function (id) {
+        var item = sharedItems[id];
+        return !(item.seenState && item.seenState[identity]);
+      });
+      els.sharedListDot.hidden = !hasUnseen;
+    }
+
+    function renderSharedListPanel() {
+      if (!els.sharedListPanel) return;
+      var allItems = Object.keys(sharedItems).map(function (id) { return sharedItems[id]; })
+        .sort(function (a, b) { return new Date(b.lastSharedAt) - new Date(a.lastSharedAt); });
+      var unseenCount = allItems.filter(function (item) {
+        return !(item.seenState && item.seenState[identity]);
+      }).length;
+      var items = sharedListFilter === "unseen"
+        ? allItems.filter(function (item) { return !(item.seenState && item.seenState[identity]); })
+        : allItems;
+
+      var tabsHtml =
+        '<div class="jonaminz-chat-shared-list-tabs">' +
+        '<button type="button" class="jonaminz-chat-shared-list-tab' +
+        (sharedListFilter === "all" ? " is-active" : "") + '" data-shared-filter="all">全部</button>' +
+        '<button type="button" class="jonaminz-chat-shared-list-tab' +
+        (sharedListFilter === "unseen" ? " is-active" : "") + '" data-shared-filter="unseen">未讀' +
+        (unseenCount > 0 ? " (" + unseenCount + ")" : "") + "</button>" +
+        "</div>";
+
+      if (!items.length) {
+        els.sharedListPanel.innerHTML = tabsHtml +
+          '<div class="jonaminz-chat-notif-item is-empty">' +
+          (sharedListFilter === "unseen" ? "沒有未讀的分享內容" : "還沒有分享過的內容") +
+          "</div>";
+        return;
+      }
+      els.sharedListPanel.innerHTML = tabsHtml + items.map(function (item) {
+        var seen = Boolean(item.seenState && item.seenState[identity]);
+        return '<div class="jonaminz-chat-notif-item jonaminz-chat-shared-list-item" data-shared-list-item data-item-id="' +
+          escapeHtml(item.id) + '" data-item-url="' + escapeHtml(item.url) + '">' +
+          '<div class="jonaminz-chat-shared-list-row">' +
+          (seen ? "" : "🔴 ") + escapeHtml(item.source) + " · " + escapeHtml(item.title) +
+          (item.shareCount > 1 ? ' <span class="jonaminz-chat-notif-item-meta">(分享 ' + item.shareCount + ' 次)</span>' : "") +
+          "</div>" +
+          '<button type="button" class="jonaminz-chat-shared-list-discuss" data-shared-list-discuss ' +
+          'data-item-id="' + escapeHtml(item.id) + '" data-item-title="' + escapeHtml(item.title) + '">討論</button>' +
+          "</div>";
+      }).join("");
+    }
+
     function buildUI() {
       var plusButtonHtml = inPanel
         ? '<button type="button" class="jonaminz-chat-plus-btn" data-plus ' +
@@ -1087,7 +1149,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<div class="jonaminz-chat-notif-panel" data-notif-panel hidden></div>' +
         "</div>" +
         '<div class="jonaminz-chat-notif-wrap">' +
-        '<button type="button" class="jonaminz-chat-head-icon-btn" data-shared-list-toggle aria-label="所有分享內容">🗂</button>' +
+        '<button type="button" class="jonaminz-chat-head-icon-btn" data-shared-list-toggle aria-label="所有分享內容">' +
+        '🗂<span class="jonaminz-chat-notif-dot" data-shared-list-dot hidden></span></button>' +
         '<div class="jonaminz-chat-notif-panel" data-shared-list-panel hidden></div>' +
         "</div>" +
         '<div class="jonaminz-chat-notif-wrap">' +
@@ -1178,6 +1241,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.imageLightboxImg = root.querySelector("[data-image-lightbox-img]");
       els.sharedListToggle = root.querySelector("[data-shared-list-toggle]");
       els.sharedListPanel = root.querySelector("[data-shared-list-panel]");
+      els.sharedListDot = root.querySelector("[data-shared-list-dot]");
       els.settingsToggle = root.querySelector("[data-settings-toggle]");
       els.settingsPanel = root.querySelector("[data-settings-panel]");
       els.callBtn = root.querySelector("[data-call-btn]");
@@ -1503,27 +1567,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
       }
 
-      // ---- Shared 獨立瀏覽（樣板）：列出這個房間全部分享過的內容，不只
-      // 未讀的——比 App 內通知面板更完整的版本，等 OneDrive 圖片分享做好
-      // 之後這裡會擴充成真的獨立瀏覽畫面，這輪先做這個樣板。----
-      function renderSharedListPanel() {
-        if (!els.sharedListPanel) return;
-        var items = Object.keys(sharedItems).map(function (id) { return sharedItems[id]; })
-          .sort(function (a, b) { return new Date(b.lastSharedAt) - new Date(a.lastSharedAt); });
-        if (!items.length) {
-          els.sharedListPanel.innerHTML = '<div class="jonaminz-chat-notif-item is-empty">還沒有分享過的內容</div>';
-          return;
-        }
-        els.sharedListPanel.innerHTML = items.map(function (item) {
-          var seen = Boolean(item.seenState && item.seenState[identity]);
-          return '<div class="jonaminz-chat-notif-item" data-shared-list-item data-item-id="' + escapeHtml(item.id) +
-            '" data-item-url="' + escapeHtml(item.url) + '">' +
-            (seen ? "" : "🔴 ") + escapeHtml(item.source) + " · " + escapeHtml(item.title) +
-            (item.shareCount > 1 ? ' <span class="jonaminz-chat-notif-item-meta">(分享 ' + item.shareCount + ' 次)</span>' : "") +
-            "</div>";
-        }).join("");
-      }
-
       if (els.sharedListToggle && els.sharedListPanel) {
         els.sharedListToggle.addEventListener("click", function (event) {
           event.stopPropagation();
@@ -1531,6 +1574,21 @@ title/url（見 `requestHostContext()`，宿主端實作在
           els.sharedListPanel.hidden = !els.sharedListPanel.hidden;
         });
         els.sharedListPanel.addEventListener("click", function (event) {
+          var discussBtn = event.target.closest("[data-shared-list-discuss]");
+          if (discussBtn) {
+            event.stopPropagation();
+            setDiscussTarget(discussBtn.dataset.itemId, discussBtn.dataset.itemTitle);
+            els.sharedListPanel.hidden = true;
+            els.input.focus();
+            return;
+          }
+          var filterTab = event.target.closest("[data-shared-filter]");
+          if (filterTab) {
+            event.stopPropagation();
+            sharedListFilter = filterTab.dataset.sharedFilter;
+            renderSharedListPanel();
+            return;
+          }
           var item = event.target.closest("[data-shared-list-item]");
           if (!item) return;
           window.JonaminzBackend.markSharedItemSeen({ token: token, itemId: item.dataset.itemId }).catch(function () {});

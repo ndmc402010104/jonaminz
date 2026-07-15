@@ -20,6 +20,44 @@
 
 ---
 
+## 2026-07-15（傍晚，第四十八次）— Shared 分享列表補成完整版
+
+- **任務**：使用者選定的下一個方向（AskUserQuestion 選項之一）：把
+  🗂「所有分享內容」原本的樣板（純列表，只能點開連結）補成完整版。
+  設計依據 `jonaminz-chat交接包/SOURCE/ux-mvp-v0.11/
+  CHAT_SHARED_ARCHITECTURE.md` §15 v0.4 UX 裁決：「Shared 數量卡不是
+  純資訊，必須直接作為內容篩選器」——不是憑空加功能，是把原型早就
+  裁決過、但這輪之前一直沒接上的行為落地。
+- **變更**：`assets/js/chat-thread.js` 的 `renderSharedListPanel()`：
+  - 面板頂端加「全部／未讀 (N)」篩選 tab，點「未讀」只顯示未讀項目。
+  - 🗂 icon 本身補一顆未讀提示紅點（`updateSharedListDot()`，跟 🔔
+    的紅點同一顆 CSS class，每次 poll 都重算），不用先點開才知道有沒有
+    新分享。
+  - 每筆項目多一顆「討論」按鈕，直接呼叫既有的 `setDiscussTarget()`
+    把該項目綁上 composer——原本只有訊息串裡內嵌的分享卡才有這顆
+    按鈕，獨立瀏覽面板裡要嘛沒有，要嘛得先開原文再回來找卡片才能討論。
+  - `page-chat-panel.css`／`page-chat.css` 各自加 tab／討論按鈕樣式。
+- **踩到的真實 bug（靠實機驗證抓到，不是憑空發現）**：第一版把
+  `updateSharedListDot`／`renderSharedListPanel` 兩支函式寫在
+  `buildUI()` 內部的巢狀作用域（照抄它們原本被呼叫的那個區塊的縮排
+  位置），但 `render()` 要呼叫它們——`render()` 跟 `buildUI()` 是
+  mount() 底下的兩個平行函式，`render()` 看不到 `buildUI()` 內部宣告
+  的東西。結果是**每一次 `poll()` 更新都會在 `render()` 中途拋
+  `ReferenceError`、整個訊息串跟已讀狀態全部停止更新**——只是被
+  `poll().catch()` 悄悄吞掉、只在畫面上顯示一行「更新失敗」文字，
+  不仔細看不會發現。這正是 RULES.md「視覺相關修改要實際看畫面驗證」
+  這條的價值：寫了一份 Playwright harness（stub `JonaminzBackend`、
+  灌假的 `sharedItems` fixture、真的載入 `chat-thread.js`）跑過一輪
+  才抓到「頁面狀態文字是『更新失敗：updateSharedListDot is not
+  defined』」，不是只看程式碼順眼、`node --check` 過了就當作沒問題。
+  修法：把這兩支函式搬到跟 `renderNotifPanel` 同一層（mount() 層級），
+  重新用 harness 驗證 dot／篩選／討論按鈕／關閉面板都正確才算過。
+- **狀態變化**：PROJECT_STATE §4.1「沒做」清單裡的「Shared 獨立瀏覽
+  列表的完整版（目前只有樣板）」拿掉，這項完成。
+- **遺留**：無（這是純前端頁面邏輯，不涉及 schema／Worker，不用
+  deploy）。
+- **版本**：v0.38.0-202607151657
+
 ## 2026-07-15（下午，第四十七次）— OneDrive 線 Phase C：Worker 已部署＋smoke test 通過
 
 - **任務**：使用者游泳途中回覆「哪那麼快，部署吧」，執行第四十六次

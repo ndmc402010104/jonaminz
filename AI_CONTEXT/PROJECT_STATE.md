@@ -1304,9 +1304,12 @@ System App：
   Phase C）**：`createApkUploadSession` action／`GET /appDownload`／
   `tools/upload-apk.mjs`，細節與遺留事項見 CHANGELOG 第四十六次條目、
   設計依據 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §2.3/§7。
-- 沒做：貼圖面板、檔案附件、Shared 獨立瀏覽列表的完整版（目前只有
-  樣板）、送往其他 App 的 destinations registry、後台首頁摘要、真正的
-  WebSocket/Realtime 推播（目前是 polling，Web Push 只解決「App 關閉時
+- **Shared 獨立瀏覽列表已補成完整版（2026-07-15）**：全部／未讀篩選
+  tab、🗂 icon 未讀紅點、每筆「討論」按鈕直接綁 composer，細節與過程中
+  抓到的 render() 作用域 bug 見 CHANGELOG 第四十八次條目。
+- 沒做：貼圖面板、檔案附件、送往其他 App 的 destinations registry、
+  後台首頁摘要、真正的 WebSocket/Realtime 推播（目前是 polling，Web
+  Push 只解決「App 關閉時
   的系統通知」，不是即時雙向連線）、端對端加密——這些多半在交接包的
   「不准做」清單裡，或屬於使用者任務書明確排除/延後的範圍，或需要全新
   基礎設施不是這次規模能穩妥做完的，刻意不碰。Android 原生系統層級聊天
