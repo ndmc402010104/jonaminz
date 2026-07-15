@@ -24,6 +24,10 @@
 - 完工後更新 `AI_CONTEXT/PROJECT_STATE.md`、追加 `AI_CONTEXT/CHANGELOG.md`；
   這次任務如果做了「有取捨、值得記住為什麼這樣決定」的重大決策，同時
   在 `DECISION_TIMELINE` 加一筆（不是每個小修都要加，只有真正的決策）。
+- **每一次回覆都要查一次 `project_tasks`（尤其 `for_claude` 泳道）**
+  ——不是「每個大任務」，是每一次對話來回，見 RULES.md §2-6 的完整
+  措辭（這條被使用者連續糾正過，別再簡化）。看過一次不代表這輪就
+  結束了：只要使用者還在追問同一件事，先處理完再回應其他訊息。
 - 回覆一律繁體中文。
 
 <!-- PROJECT_MEMORY_START -->

@@ -2678,7 +2678,7 @@ async function handleOnedriveCallback(env, url) {
     }
   } catch (ignored) {}
 
-  await saveOnedriveRefreshToken(env, identity, tokenData.refresh_token, accountEmail);
+  await saveOnedriveRefreshToken(env, identity, tokenData.refresh_token, accountEmail, true);
   onedriveTokenCache[identity] = {
     accessToken: tokenData.access_token,
     expiresAt: Date.now() + (Number(tokenData.expires_in) || 3600) * 1000
@@ -2723,7 +2723,15 @@ async function fetchAllOnedriveAccountRows(env) {
   return response.json();
 }
 
-async function saveOnedriveRefreshToken(env, identity, refreshToken, accountEmail) {
+// 2026-07-15：使用者實測回報「我有重新連線但是時間沒有更新」——真正
+// 根因是這支從來沒有把 connected_at 放進 upsert 的欄位裡（PostgREST
+// 的 merge-duplicates 只會更新你實際傳的欄位，沒傳的欄位在衝突時維持
+// 原值），導致畫面上的「已連接（時間）」永遠是第一次連線的時間，不管
+// 重新連接幾次都不會變。加一個 `bumpConnectedAt` 參數：只有真的走
+// OAuth callback（使用者剛完成一次同意畫面）才傳 true 更新
+// connected_at；`getOnedriveAccessToken` 的背景自動換 token（使用者
+// 什麼都沒做）不能觸發，不然會誤導使用者以為剛剛發生了一次連接。
+async function saveOnedriveRefreshToken(env, identity, refreshToken, accountEmail, bumpConnectedAt) {
   const upsertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account";
   const row = {
     identity: identity,
@@ -2733,6 +2741,7 @@ async function saveOnedriveRefreshToken(env, identity, refreshToken, accountEmai
   // 只有真的傳了 email 才帶這個 key——refresh 流程（getOnedriveAccessToken）
   // 只換 token 沒有重新問 email，不能讓那條路徑把既有的 email 覆蓋成 null。
   if (accountEmail) row.account_email = accountEmail;
+  if (bumpConnectedAt) row.connected_at = new Date().toISOString();
   const response = await fetch(upsertUrl, {
     method: "POST",
     headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
