@@ -127,6 +127,19 @@
   或對方的 `sharedWithMe` 換短效 downloadUrl。這條線需要
   `Files.ReadWrite` 權限（見 ONEDRIVE_SCOPE 常數旁註解），只有
   `Files.ReadWrite.AppFolder` 不夠。
+- `createApkUploadSession` ／ `GET /appDownload`：OneDrive 線 Phase C
+  （2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）APK 自架。
+  本機建完 `jonaminz-mobile-app` 的 APK 後，`tools/upload-apk.mjs`
+  呼叫 `createApkUploadSession` 拿 Graph 上傳位址（**固定用 Jonathan
+  的 OneDrive 帳號**存放，跟呼叫者登入身分無關——這只是「安裝檔放哪」，
+  不是需要雙邊各自留一份的內容），直接 PUT 位元組給 Graph（不經過
+  這個 Worker）。存進 `releases/jonaminz.apk`（`conflictBehavior:
+  replace`，每次上傳覆蓋同一個檔名，不是每次都堆新檔案）。`GET
+  /appDownload` 是固定網址，即時查 Graph 換一次短效 downloadUrl 後
+  302 轉址——**故意不要求登入**，這份檔案是編譯產物本來就要給 Minz
+  手機瀏覽器直接點開安裝，不是敏感資料，多一層登入關卡只會讓「傳個
+  安裝連結」變麻煩。真機驗證下載安裝 OK 後，原本的 GitHub Release
+  公開通道（`app-latest`）就可以收回。
 - `listProjectTasks` / `addProjectTask` / `toggleProjectTask` /
   `deleteProjectTask` / `clearDoneProjectTasks`：`pages/admin/journal/`
   （決策與待辦頁）的待辦看板，2026-07-15 新增。單一全域清單，兩條
@@ -203,6 +216,17 @@ export default {
         return await handleOnedriveCallback(env, url);
       } catch (error) {
         return new Response("OneDrive connect failed: " + (error.message || String(error)), { status: 500 });
+      }
+    }
+
+    // OneDrive 線 Phase C（APK 自架）：固定網址，永遠轉址到目前存放
+    // 的 jonaminz.apk 最新短效 downloadUrl。故意不走 POST /api/action
+    // ——這是要讓手機瀏覽器直接開啟這個網址下載安裝，不是 fetch() 呼叫。
+    if (request.method === "GET" && url.pathname === "/appDownload") {
+      try {
+        return await handleAppDownload(env);
+      } catch (error) {
+        return new Response("Download failed: " + (error.message || String(error)), { status: 500 });
       }
     }
 
@@ -396,6 +420,10 @@ export default {
 
       if (action === "clearDoneProjectTasks") {
         return json(await clearDoneProjectTasks(env, payload), 200);
+      }
+
+      if (action === "createApkUploadSession") {
+        return json(await createApkUploadSession(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -2758,6 +2786,66 @@ async function testOnedriveConnection(env, payload) {
   }
   const folder = await response.json();
   return { ok: true, folderId: folder.id, folderName: folder.name, webUrl: folder.webUrl };
+}
+
+// ---------- OneDrive 線 Phase C：APK 自架（2026-07-15，見
+// AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）。位元組一樣不經過這個
+// Worker——tools/upload-apk.mjs 拿到 uploadUrl 後直接 PUT 給 Graph。----------
+
+// 固定用 Jonathan 的 OneDrive 帳號存放安裝檔，跟呼叫者登入身分無關
+// （這只是「安裝檔放哪」，不是需要雙邊各自留一份的內容）。任一身分
+// 登入都能觸發這支，理由同 testOnedriveConnection。
+async function createApkUploadSession(env, payload) {
+  const caller = await requireSession(env, payload);
+  if (!caller) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  let accessToken;
+  try {
+    accessToken = await getOnedriveAccessToken(env, "jonathan");
+  } catch (error) {
+    return { ok: false, error: "OneDrive 尚未連接：" + (error.message || String(error)) };
+  }
+  const response = await fetch(
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/releases/jonaminz.apk:/createUploadSession",
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } })
+    }
+  );
+  if (!response.ok) {
+    return { ok: false, error: "Graph HTTP " + response.status + ": " + (await response.text()) };
+  }
+  const session = await response.json();
+  if (!session.uploadUrl) {
+    return { ok: false, error: "Graph 沒有回傳 uploadUrl" };
+  }
+  return { ok: true, uploadUrl: session.uploadUrl };
+}
+
+// GET /appDownload 的實作：查目前存放的 jonaminz.apk，換一次短效
+// downloadUrl 後 302 轉址。故意不要求登入（見上方 action 清單註解）。
+async function handleAppDownload(env) {
+  let accessToken;
+  try {
+    accessToken = await getOnedriveAccessToken(env, "jonathan");
+  } catch (error) {
+    return new Response("OneDrive 尚未連接，無法提供下載：" + (error.message || String(error)), { status: 503 });
+  }
+  const response = await fetch(
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/releases/jonaminz.apk",
+    { headers: { Authorization: "Bearer " + accessToken } }
+  );
+  if (!response.ok) {
+    return new Response("找不到安裝檔（HTTP " + response.status + "），可能還沒上傳過。", { status: 404 });
+  }
+  const item = await response.json();
+  const downloadUrl = item["@microsoft.graph.downloadUrl"];
+  if (!downloadUrl) {
+    return new Response("Graph 沒有回傳下載連結。", { status: 502 });
+  }
+  return Response.redirect(downloadUrl, 302);
 }
 
 // ---------- OneDrive 線 Phase B：圖片訊息（2026-07-15，單一副本＋

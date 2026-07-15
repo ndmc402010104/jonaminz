@@ -1297,8 +1297,13 @@ System App：
   單一副本＋Graph 原生分享架構（不是雙寫鏡射），schema 已套用、Worker
   已部署（見 `AI_CONTEXT/CHANGELOG.md` 第四十二/四十三次條目、設計依據
   `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §2）。**尚未端到端真人測試**——
-  卡在 Azure Portal 需手動加 `Files.ReadWrite` 權限＋雙方重新連接
-  OneDrive 這一步，見 CHANGELOG 第四十三次「遺留」。
+  Azure Portal 的 `Files.ReadWrite` 權限使用者已加好，後台也補了
+  「重新連接」按鈕，剩下雙方各自重新連接這一步，見 CHANGELOG
+  第四十三/四十四次「遺留」。
+- **APK 自架程式碼已完成，尚未部署（2026-07-15，OneDrive 線
+  Phase C）**：`createApkUploadSession` action／`GET /appDownload`／
+  `tools/upload-apk.mjs`，細節與遺留事項見 CHANGELOG 第四十六次條目、
+  設計依據 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §2.3/§7。
 - 沒做：貼圖面板、檔案附件、Shared 獨立瀏覽列表的完整版（目前只有
   樣板）、送往其他 App 的 destinations registry、後台首頁摘要、真正的
   WebSocket/Realtime 推播（目前是 polling，Web Push 只解決「App 關閉時

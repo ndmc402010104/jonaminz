@@ -20,6 +20,52 @@
 
 ---
 
+## 2026-07-15（下午，第四十六次）— OneDrive 線 Phase C：APK 自架（未部署）
+
+- **任務**：使用者要去游泳，明確授權自主完成一個較大的建置
+  （「做一個大一點的建置，讓我有時間專心游泳」）。挑選依據：
+  `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §7「實作順序」明訂 Phase C
+  （APK 自架）是 Phase A/B 之後的下一步，規格已經寫死具體路徑/流程，
+  不需要新的架構判斷；且跟目前卡在使用者手動重新連接 OneDrive 的
+  Phase B 驗收互相獨立（Phase C 只需要 Jonathan 自己的 OneDrive
+  連線，Phase A 就已建立，不受 Phase B 的 `Files.ReadWrite` 權限
+  升級影響）。
+- **變更**：
+  - `worker.js` 新增 `createApkUploadSession` action：`requireSession`
+    驗證任一身分已登入，**固定用 Jonathan 的 OneDrive 帳號**（跟呼叫者
+    身分無關）對 Graph 開一個 `releases/jonaminz.apk` 的
+    `createUploadSession`（`conflictBehavior:"replace"`，每次上傳覆蓋
+    同一檔名），回傳 `uploadUrl` 給呼叫端直接 PUT 位元組（不經過
+    Worker，跟 Phase B 圖片上傳同一個模式）。
+  - `worker.js` 新增 `GET /appDownload`：不經過 `/api/action`、**故意
+    不要求登入**（這是編譯產物、給手機瀏覽器直接點開安裝，不是敏感
+    資料），即時查 Graph 換一次短效 downloadUrl 後 302 轉址，找不到
+    檔案回 404、OneDrive 沒連接回 503。
+  - 新增 `tools/upload-apk.mjs`：本機建完 APK 後執行
+    `node tools/upload-apk.mjs <APK路徑> <session-token>`，呼叫
+    `createApkUploadSession` 拿位址→直接 PUT 給 Graph→印出完成訊息與
+    固定下載網址。`baseUrl` 讀根目錄 `config.json`，不重複寫死網址。
+  - 已通過 `node --check`（`worker.js`／`upload-apk.mjs`）與
+    `wrangler deploy --dry-run` 打包驗證。
+- **狀態變化**：Phase C 程式碼全部完成，但**尚未 wrangler deploy**
+  ——照規則部署前要先問過使用者，這次使用者人不在（游泳中），先寫完
+  ＋push，等回來一次問清楚。
+- **遺留**：
+  1. 需要使用者確認要不要 `wrangler deploy` 這次的改動（下一輪問）。
+  2. **沒辦法自行驗證完整流程**：`createApkUploadSession` 需要一筆
+     有效的 session token（`localStorage.getItem("jonaminz.sessionToken")`），
+     這台機器上沒有能自己產生登入 session 的管道（內部密語登入的
+     secret 不在對話/程式碼裡，符合 RULES.md 禁止事項），只做到
+     `node --check`＋`wrangler deploy --dry-run` 的靜態驗證，**實際
+     跑一次 `tools/upload-apk.mjs` 上傳＋`/appDownload` 真的轉址下載
+     安裝，都還沒有真人驗證過**——部署後建議使用者親自跑一次腳本、
+     手機開一次 `/appDownload` 網址確認能裝。
+  3. 驗證通過後才進入規格 §2.3 最後一步：`gh release delete
+     app-latest`，把 GitHub Release 公開下載通道收回。這次**沒有**
+     提前執行，現有 Release 原封不動留著當退路。
+- **版本**：v0.37.0-202607151630（尚未部署到 Worker，版本號已反映在
+  程式碼裡，`wrangler deploy` 完成後才會真的生效）
+
 ## 2026-07-15（下午，第四十五次）— OneDrive 連接連結改開新分頁
 
 - **任務**：使用者回報點「重新連接」會把後台頁面整個導到 Microsoft

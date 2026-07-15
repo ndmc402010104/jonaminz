@@ -10,9 +10,12 @@
 > 模式**：Jonathan／Minz 各自連自己的 OneDrive，各自都能從自己帳號
 > 查得到聊天圖庫。決策過程與取捨記錄見 §0.1。
 >
-> **Phase A 已實作完成並部署**（雙帳號版）。待辦只剩：使用者跑一次
-> §6 的 Azure 註冊、設兩個 Worker secret、Jonathan **跟** Minz 各自
-> 上後台按「連接 OneDrive」。Phase B/C 尚未開工。
+> **Phase A 已實作完成並部署**（雙帳號版）。**Phase B（圖片訊息）已於
+> 2026-07-15 實作完成、schema 已套用、Worker 已部署**，待辦：Azure
+> Portal 補 `Files.ReadWrite` 權限（已由使用者完成）＋ Jonathan／Minz
+> 各自重新走一次 OneDrive 連接（後台已補「重新連接」按鈕），真人端到
+> 端傳圖測試還沒做。**Phase C（APK 自架）程式碼已完成（2026-07-15），
+> 尚未 wrangler deploy**，見 CHANGELOG 第四十六次條目。
 
 ## 0. 目標與邊界
 
@@ -62,7 +65,7 @@ Phase A 已經部署的雙帳號授權底座——不管 Phase B 最後寫法是
 另外寫一支搬移腳本把舊圖複製到對方帳號，不會自動轉換——這是要不要
 做的選項，不是換寫法時的必要條件。
 
-## 1. 架構總覽（Phase B，尚未實作）
+## 1. 架構總覽（Phase B，2026-07-15 已實作部署）
 
 ```
 Jonathan 傳圖 ──(1) requestImageUpload──▶ Cloudflare Worker
@@ -94,7 +97,7 @@ Minz 讀圖 ──▶ Worker 用 Minz 自己的 access token 查
 - **Worker 不碰圖片位元組**：上傳直傳 Graph、下載換短效
   downloadUrl——免費版 Worker 的 CPU/流量都省下來。
 
-## 2. 資料流（Phase B，尚未實作）
+## 2. 資料流（Phase B，2026-07-15 已實作部署）
 
 ### 2.1 傳圖
 
@@ -144,7 +147,7 @@ Minz 讀圖 ──▶ Worker 用 Minz 自己的 access token 查
   一次。
 - 點圖 → 簡單全螢幕 lightbox（既有 modal 寫法，兩個外殼 CSS 各一份）。
 
-### 2.3 APK 自架（Phase C，尚未實作）
+### 2.3 APK 自架（Phase C，2026-07-15 程式碼已完成，尚未部署）
 
 - 本機建完 APK 後用 Node 腳本（`tools/upload-apk.mjs`）經 Worker
   admin action 用 **Jonathan** 的 access token 上傳到
@@ -263,10 +266,13 @@ grant select, insert, update, delete on onedrive_account to service_role;
   並部署（2026-07-15）。剩下：使用者跑 §6 → 設兩個 secret →
   Jonathan 上後台按「連接 OneDrive」→ Minz 也上後台按「連接
   OneDrive」→ 兩人各自按「測試連線」看到 App Folder 名稱＝驗收通過。
-- **Phase B：圖片訊息（單一副本＋Graph 原生分享）**——加
-  `Files.ReadWrite` 權限 → CORS 驗證 → 上傳（傳送者帳號）→
-  `/invite` 分享給對方 → 顯示（自己的圖查自己帳號，對方的圖查
-  `sharedWithMe`）→ optimistic/blur-up/lightbox，雙外殼 CSS。驗收＝
-  兩台真機互傳圖，兩人各自都能看到對方傳的圖。
-- **Phase C：APK 自架**——上傳腳本（用 Jonathan 帳號）、
+- **Phase B：圖片訊息（單一副本＋Graph 原生分享）**——✅ schema／
+  Worker（`requestImageUpload`／`sendImageMessage`／`getImageUrls`）／
+  前端上傳/顯示/lightbox 都已寫好並部署（2026-07-15）。`Files.ReadWrite`
+  權限已由使用者在 Azure Portal 加好，後台已補「重新連接」按鈕。
+  剩下：Jonathan／Minz 各自重新走一次連接拿新 scope → 驗收＝兩台真機
+  互傳圖，兩人各自都能看到對方傳的圖（**尚未做這步真人驗證**）。
+- **Phase C：APK 自架**——程式碼已完成（2026-07-15：`createApkUploadSession`
+  action／`GET /appDownload`／`tools/upload-apk.mjs`），**尚未
+  wrangler deploy**。上傳腳本（用 Jonathan 帳號）、
   `/appDownload`、真機下載安裝驗證後刪 GitHub Release。
