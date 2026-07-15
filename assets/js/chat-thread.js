@@ -1528,7 +1528,19 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (downloadUrl) {
             window.open(downloadUrl, "_blank", "noopener");
           } else {
-            window.alert("下載連結還在準備中，稍後再試一次");
+            // 2026-07-15：使用者問「一直顯示還在準備中，這樣對嗎」——
+            // 原本的文案沒有區分「genuinely 還在跟 Worker 要 downloadUrl」
+            // 跟「已經問過、Graph 確定給不出來（多半是分享沒成功，
+            // 例如雙方都還沒用新的 Files.ReadWrite scope 重新連接
+            // OneDrive）」，兩種情況用同一句「稍後再試」誤導使用者以為
+            // 是暫時性的、多等一下就會好——後者不管等多久都不會自己
+            // 好，要先解決分享權限才行。imageUrlCache 沒有這個 key＝
+            // 還沒問過/問題中；有這個 key 但值是 null＝已經問過、確定
+            // 拿不到。
+            var stillLoading = imageUrlCache[fileBubble.dataset.itemId] === undefined;
+            window.alert(stillLoading
+              ? "下載連結還在準備中，稍後再試一次"
+              : "無法取得下載連結——對方可能還沒開通分享權限（雙方都要重新連接 OneDrive 才會恢復，不是等待就會自己好）");
           }
           return;
         }
