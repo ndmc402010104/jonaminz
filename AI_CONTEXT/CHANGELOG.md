@@ -20,6 +20,34 @@
 
 ---
 
+## 2026-07-15（傍晚，第四十九次）— OneDrive Phase C 首次真人端到端驗證成功
+
+- **任務**：使用者取得瀏覽器 session token，請 Claude 直接代跑
+  `tools/upload-apk.mjs`。
+- **變更**：無程式碼變更。用本機已 build 好的 `app-debug.apk`
+  （6042025 bytes，跟目前 GitHub Release 那份同一個版本）實際跑一次
+  上傳腳本——`createApkUploadSession` 拿到 Graph uploadUrl、PUT 位元組
+  成功、`itemId` 正確回傳；接著 curl 驗證 `GET /appDownload` 正確回
+  `302` 轉址到真實的 `my.microsoftpersonalcontent.com` 下載網址
+  （先前只驗證過「檔案不存在時回 404」，這是第一次真的有檔案、真的
+  拿到 downloadUrl 的正向路徑）。
+- **狀態變化**：第四十六次「遺留」事項 2（CORS 直傳未驗證）事實上
+  已經繞過驗證了——腳本是 Node 環境直接 PUT，不是瀏覽器，嚴格來說
+  CORS 這件事本來就只影響「瀏覽器內」呼叫，Node 腳本不受這個限制，
+  所以這次驗證證明的是「上傳/下載機制本身正確」，不是「瀏覽器 CORS
+  設定正確」——兩者是分開的問題，見下方遺留。
+- **遺留**：
+  1. 還沒有人在手機瀏覽器實際打開 `/appDownload` 完成下載＋安裝——
+     這是最後一步真人驗證，過了才能 `gh release delete app-latest`
+     收回 GitHub Release。
+  2. 嚴格來說還沒驗證「瀏覽器直接呼叫 `createUploadSession` 拿到的
+     uploadUrl 做 CORS PUT」這件事本身（因為這次是用 Node 腳本代跑，
+     不是真的從瀏覽器發出請求）——但這條路徑目前只有 Phase C（APK
+     自架，本來就是 Node 腳本上傳，不需要瀏覽器 CORS）在用，Phase B
+     的圖片訊息才是真的需要瀏覽器直傳的場景，那邊仍待雙方重新連接
+     OneDrive 後一併驗證。
+- **版本**：無程式碼變更
+
 ## 2026-07-15（傍晚，第四十八次）— Shared 分享列表補成完整版
 
 - **任務**：使用者選定的下一個方向（AskUserQuestion 選項之一）：把
