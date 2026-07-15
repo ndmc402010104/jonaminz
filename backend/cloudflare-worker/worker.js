@@ -3088,9 +3088,14 @@ async function getImageUrls(env, payload) {
 
   await Promise.all(ownItems.map(async function (item) {
     try {
+      // 2026-07-15（晚上）：這裡原本帶 `$select=id,@microsoft.graph.
+      // downloadUrl`——查證過這是 Graph 一個真實的怪異限制：用 $select
+      // 精簡查詢時，回應會靜靜地漏掉 `@microsoft.graph.downloadUrl`
+      // 這個 instance annotation（其他欄位正常回傳，HTTP 200，不會報
+      // 錯，只是這個欄位就是不在），連檔案擁有者查自己剛傳的檔案都會
+      // 因此永遠拿到 null。改成不加 $select 直接查完整項目就正常。
       const response = await fetch(
-        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId) +
-          "?$select=id,@microsoft.graph.downloadUrl",
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId),
         { headers: { Authorization: "Bearer " + accessToken } }
       );
       if (response.ok) {
@@ -3114,17 +3119,47 @@ async function getImageUrls(env, payload) {
         const sharedData = await sharedResponse.json();
         const sharedList = sharedData.value || [];
         const unresolved = [];
+        const matched = [];
         peerItems.forEach(function (item) {
           const match = sharedList.filter(function (entry) {
             return entry.remoteItem && entry.remoteItem.id === item.itemId;
           })[0];
           if (match && match.remoteItem) {
-            urls[item.itemId] = match.remoteItem["@microsoft.graph.downloadUrl"] || null;
+            matched.push({ item: item, match: match });
           } else {
             urls[item.itemId] = null;
             unresolved.push(item);
           }
         });
+        // 2026-07-15（晚上）：`sharedWithMe` 回應裡的 `remoteItem` 本身
+        // 不含 `@microsoft.graph.downloadUrl`（查證過：即使不加
+        // $select，這個清單 API 就是不附這個欄位，跟上面 ownItems 那個
+        // $select 的怪異限制是兩回事）。要另外用 `remoteItem.
+        // parentReference.driveId` 對該項目查一次完整資料才拿得到——
+        // 這是 Microsoft 文件記載的存取「別人分享給我的項目」的正規
+        // 做法（`/drives/{driveId}/items/{id}`，用查詢者自己的 token）。
+        await Promise.all(matched.map(async function (pair) {
+          const driveId = pair.match.remoteItem.parentReference && pair.match.remoteItem.parentReference.driveId;
+          if (!driveId) {
+            urls[pair.item.itemId] = null;
+            return;
+          }
+          try {
+            const detailResponse = await fetch(
+              "https://graph.microsoft.com/v1.0/drives/" + encodeURIComponent(driveId) +
+                "/items/" + encodeURIComponent(pair.item.itemId),
+              { headers: { Authorization: "Bearer " + accessToken } }
+            );
+            if (detailResponse.ok) {
+              const detailData = await detailResponse.json();
+              urls[pair.item.itemId] = detailData["@microsoft.graph.downloadUrl"] || null;
+            } else {
+              urls[pair.item.itemId] = null;
+            }
+          } catch (ignored) {
+            urls[pair.item.itemId] = null;
+          }
+        }));
         // 2026-07-15（晚上）：原本分享邀請只在傳送當下嘗試一次——如果
         // 那時候對方的 account_email 還沒查到（或當下 invite 暫時失
         // 敗），這則訊息就永遠卡死，即使雙方後來重新連接也沒有機會

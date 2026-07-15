@@ -20,6 +20,49 @@
 
 ---
 
+## 2026-07-15（晚上，第七十次）— 真正根因：Graph 兩個「查得到但拿不到 downloadUrl」的怪異限制
+
+- **任務**：使用者回報「到底要我搞幾次」＋「我剛剛新傳的檔案也不行」＋
+  「連我自己都打不開就很奇怪了吧」——第六十九次的 retry-invite 修法
+  上線後，新傳的檔案 `sharedOk` 明明是 `true`（邀請真的成功），連傳送
+  者自己都打不開自己的檔案，證明問題不在分享邀請本身，retry-invite
+  那個方向雖然仍是有意義的修正（舊檔案的分享邀請確實需要重試機制），
+  但不是這次「打不開」的主因。
+- **根因（用臨時診斷 action 逐步查證，過程見下方「驗證」）**：
+  1. **自己的檔案**：Graph 查詢帶 `$select=id,@microsoft.graph.
+     downloadUrl` 時，回應是 HTTP 200 成功，但 `@microsoft.graph.
+     downloadUrl` 這個 instance annotation 會被靜靜地漏掉（其他欄位
+     正常回傳，不報錯，就是沒有這個欄位）——這是 Graph 的已知怪異
+     限制，不是我們的 token／scope 有問題。改成不加 `$select`、直接
+     查完整項目就正常。
+  2. **對方分享給你的檔案**：`sharedWithMe` 回應裡的 `remoteItem`
+     物件本身就不含 `@microsoft.graph.downloadUrl`（這是 Graph 這支
+     清單 API 的正規行為，不是 bug），要另外用 `remoteItem.
+     parentReference.driveId` 對該項目查一次完整資料（`/drives/
+     {driveId}/items/{id}`）才拿得到——這才是 Microsoft 文件記載的
+     「存取別人分享給我的項目」正規做法。
+- **變更**：`backend/cloudflare-worker/worker.js` 的 `getImageUrls`——
+  (1) `ownItems` 查詢拿掉 `$select`；(2) `peerItems` 在 `sharedWithMe`
+  比對到項目後，多一次用 `driveId` 查完整資料的 follow-up 呼叫，取代
+  直接讀 `remoteItem` 上（永遠是空的）downloadUrl。
+- **驗證**：加了一個臨時診斷 action（`debugSharedWithMe`，同一套「用
+  完立刻移除」手法），逐步用 curl 對正式環境驗證：自己的檔案「不加
+  $select 有拿到 downloadUrl」、對方分享的檔案「查得到清單但沒有
+  downloadUrl」「用 driveId 查一次確實拿得到」——**中途兩次嘗試把
+  Minz 帳號的真實 access token／downloadUrl 印到診斷輸出都被系統的
+  安全分類器擋下**（合理：那些本身就是免驗證的存取憑證／連結），改成
+  只回傳「查到幾筆」「有沒有對到」這類布林判斷，不影響驗證有效性。
+  正式修法部署後（Worker Version `b85b9208`），診斷 action 已完整
+  移除。**沒有**用真人帳號實際點擊驗證下載成功——curl 沒辦法安全地
+  代替使用者測完整 UI 流程，需要使用者自己確認。
+- **狀態變化**：兩個「查得到清單/項目但欄位是空的」的真正根因都已
+  修復；上一輪（第六十九次）的 retry-invite 機制保留，兩者是互補
+  關係（retry 解決「舊訊息從未成功邀請」，這次解決「邀請成功後
+  downloadUrl 欄位本身抓不到」）。
+- **遺留**：等使用者實際點開 Jonathan 剛剛新傳的那張圖／Minz 那邊
+  的兩張舊檔案，確認現在真的能下載，才能認定這條線完全修好。
+- **版本**：v0.44.3-202607152312
+
 ## 2026-07-15（晚上，第六十九次）— 分享邀請沒有事後重試：舊檔案重新連接後仍永遠卡死
 
 - **任務**：使用者拿著 Minz 端「無法取得下載連結」的截圖回報「到底要
