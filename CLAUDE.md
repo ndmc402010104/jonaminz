@@ -11,6 +11,8 @@
 3. `AI_CONTEXT/ARCHITECTURE.md` — 分層、資料流、部署流
 4. `AI_CONTEXT/ACCEPTANCE.md` — 完工前必跑的通用驗收
 5. `AI_CONTEXT/CHANGELOG.md` — 最近幾筆，了解上一棒做到哪
+6. `pages/admin/journal/assets/js/app.js` 的 `DECISION_TIMELINE` 陣列
+   ——「決策與待辦」頁的精選決策時間軸，看過去累積了哪些重大決策
 
 行為要求（完整版在 RULES.md，這裡只列最常違反的）：
 
@@ -19,7 +21,9 @@
 - 標記 `UNKNOWN` / `NEEDS_CONFIRMATION` 的內容不可當事實使用。
 - 版本規則：改程式碼/HTML/CSS/JS/設定檔/schema 才 bump `version.js`，
   純文件不 bump。改 Worker 要另外 `wrangler deploy`（需任務單授權，否則先問）。
-- 完工後更新 `AI_CONTEXT/PROJECT_STATE.md`、追加 `AI_CONTEXT/CHANGELOG.md`。
+- 完工後更新 `AI_CONTEXT/PROJECT_STATE.md`、追加 `AI_CONTEXT/CHANGELOG.md`；
+  這次任務如果做了「有取捨、值得記住為什麼這樣決定」的重大決策，同時
+  在 `DECISION_TIMELINE` 加一筆（不是每個小修都要加，只有真正的決策）。
 - 回覆一律繁體中文。
 
 <!-- PROJECT_MEMORY_START -->

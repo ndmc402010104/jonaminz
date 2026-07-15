@@ -20,6 +20,30 @@
 
 ---
 
+## 2026-07-15（傍晚，第五十二次）— 補回決策時間軸＋明訂「開始/結束都要看」規則
+
+- **任務**：使用者當面抓到：連續好幾輪明顯夠格記錄的決策（OneDrive
+  Phase B/C 上線、待辦板 origin 權限重新設計）都只寫了 CHANGELOG，
+  完全沒碰「決策與待辦」頁的 `DECISION_TIMELINE`，要求明訂一條規則：
+  每次任務開始跟結束都要看＋視情況編輯這個陣列。
+- **變更**：
+  - `pages/admin/journal/assets/js/app.js` 的 `DECISION_TIMELINE`
+    補回缺的三筆：`onedrive-single-copy-share` 狀態從 `designed` 改
+    `done`（Phase B 其實已上線）；`apk-github-release` 的「現況」更新
+    反映 Phase C 已上線＋真人驗證成功；新增 `onedrive-apk-selfhost`
+    （APK 自架上線，檔名改帶時間戳）與 `task-board-origin-lock`
+    （待辦板 origin 規則）兩筆完整條目。
+  - `CLAUDE.md` 的「開始任何任務前先讀」清單加第 6 項：
+    `DECISION_TIMELINE`；「完工後更新」那條也加一句提醒重大決策要
+    補一筆。
+  - `AI_CONTEXT/RULES.md` §2-6 延伸：CHANGELOG 是工程視角流水帳，
+    `DECISION_TIMELINE` 是給人看的精選重大決策，兩者不互相取代，
+    任務開始前跟結束後都要看一眼，結束後如果做了「有取捨、值得記住
+    為什麼這樣決定」的事就手動加一筆。
+- **狀態變化**：這條規則正式定案，往後每輪任務都要照做。
+- **遺留**：無。
+- **版本**：v0.39.2-202607151825
+
 ## 2026-07-15（傍晚，第五十一次）— APK 每次都用獨立檔名＋補上 Android 版本號
 
 - **任務**：使用者實測裝完 APK 後回報「每次檔名都一樣，怕安裝錯，每次
