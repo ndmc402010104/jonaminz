@@ -164,6 +164,15 @@
   `lane='for_claude'`）——原本轉送是「新增一筆＋刪除原筆」，但 Claude
   交辦的項目現在禁止刪除，改成直接 UPDATE 同一筆最乾淨，也少一次
   API 往返。
+- **`source_map_id` 欄位**（2026-07-15）：`addProjectTask` 選填
+  `payload.sourceMapId`——「決策圖」（journal 頁面 `DECISION_MAP`
+  候選清單）的卡片被點「加進去」時會帶上候選項目自己的 id，記住這筆
+  任務是哪個候選「畢業」出來的。前端靠這個欄位判斷：候選項目只要還
+  有任一筆任務（不分泳道/完成狀態）指著它，決策圖就不顯示這張卡片
+  （避免重複加入）；一旦那筆任務被 ✕ 個別刪除（不是「清除全部」批次
+  清除已完成項目），前端會重新顯示對應的候選卡片——使用者的原話：
+  「從決策圖點加入的項目按 X 要回到決策圖，跟自己打字新增的、已完成
+  的項目刪除邏輯不一樣」。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -3126,7 +3135,7 @@ async function listProjectTasks(env, payload) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const url = env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/project_tasks?select=id,lane,text,done,origin,created_by,created_at,done_at&order=created_at.asc";
+    "/rest/v1/project_tasks?select=id,lane,text,done,origin,source_map_id,created_by,created_at,done_at&order=created_at.asc";
   const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
@@ -3148,11 +3157,15 @@ async function addProjectTask(env, payload) {
   // 這支只有畫面上的新增表單會呼叫，一定是使用者自己打的字，origin
   // 一律 'user'（欄位預設值也是 'user'，這裡寫明只是不依賴預設值）。
   // Claude 交辦的項目走 Supabase 直連 SQL 插入，不經過這支 action。
+  // sourceMapId 選填：從「決策圖」候選卡片點「加進去」時會帶，記住
+  // 這筆任務是哪個候選項目「畢業」出來的——之後這筆被 ✕ 刪除時，前端
+  // 會用這個欄位知道要讓對應的候選卡片重新出現在決策圖裡。
+  const sourceMapId = String((payload && payload.sourceMapId) || "").trim() || null;
   const insertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks";
   const response = await fetch(insertUrl, {
     method: "POST",
     headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
-    body: JSON.stringify({ lane: lane, text: text, created_by: identity, origin: "user" })
+    body: JSON.stringify({ lane: lane, text: text, created_by: identity, origin: "user", source_map_id: sourceMapId })
   });
   if (!response.ok) {
     throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
