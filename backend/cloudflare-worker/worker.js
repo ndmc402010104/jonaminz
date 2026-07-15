@@ -168,7 +168,12 @@
   重用同一支（把原文＋使用者補充的調整說明一起寫回同一筆，換
   `lane='for_claude'`）——原本轉送是「新增一筆＋刪除原筆」，但 Claude
   交辦的項目現在禁止刪除，改成直接 UPDATE 同一筆最乾淨，也少一次
-  API 往返。
+  API 往返。**2026-07-16 新增 `archived` 欄位＋`setProjectTaskArchived`
+  action**：使用者回報永久保留的已完成項目越來越多、不知道要看
+  哪裡——封存不是刪除，只是把項目從「已完成」搬到平行的「已封存」
+  清單（前端兩個獨立 `<details>`），資料完全不變，隨時可以
+  `archived:false` 取消封存移回來。`listProjectTasks` 的 select 多回傳
+  這個欄位，任何已完成項目（不分 origin）都能封存/取消封存。
 - **`source_map_id` 欄位**（2026-07-15）：`addProjectTask` 選填
   `payload.sourceMapId`——「決策圖」（journal 頁面 `DECISION_MAP`
   候選清單）的卡片被點「加進去」時會帶上候選項目自己的 id，記住這筆
@@ -463,6 +468,10 @@ export default {
 
       if (action === "moveProjectTaskLane") {
         return json(await moveProjectTaskLane(env, payload), 200);
+      }
+
+      if (action === "setProjectTaskArchived") {
+        return json(await setProjectTaskArchived(env, payload), 200);
       }
 
       if (action === "createApkUploadSession") {
@@ -3368,7 +3377,7 @@ async function listProjectTasks(env, payload) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const url = env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/project_tasks?select=id,lane,text,done,origin,source_map_id,created_by,created_at,done_at&order=created_at.asc";
+    "/rest/v1/project_tasks?select=id,lane,text,done,origin,source_map_id,created_by,created_at,done_at,archived&order=created_at.asc";
   const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
@@ -3468,6 +3477,31 @@ async function moveProjectTaskLane(env, payload) {
     method: "PATCH",
     headers: supabaseHeaders(env),
     body: JSON.stringify(updateBody)
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+// 2026-07-16：使用者回報「永久保留的已完成項目越來越多，不知道要看
+// 哪裡」——封存不是刪除，只是把項目從預設看到的「已完成」列表移到
+// 「已封存」，資料本身完全不變，隨時可以再傳 archived:false 取消封存。
+async function setProjectTaskArchived(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const id = String((payload && payload.id) || "").trim();
+  if (!id) {
+    return { ok: false, code: "ID_REQUIRED", error: "id is required" };
+  }
+  const archived = (payload && payload.archived) === true;
+  const updateUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
+  const response = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ archived: archived })
   });
   if (!response.ok) {
     throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));

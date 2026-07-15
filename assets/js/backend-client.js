@@ -212,6 +212,10 @@
     return call("moveProjectTaskLane", payload, options);
   }
 
+  function setProjectTaskArchived(payload, options) {
+    return call("setProjectTaskArchived", payload, options);
+  }
+
   function requestImageUpload(payload, options) {
     return call("requestImageUpload", payload, options);
   }
@@ -275,6 +279,7 @@
     deleteProjectTask: deleteProjectTask,
     clearDoneProjectTasks: clearDoneProjectTasks,
     moveProjectTaskLane: moveProjectTaskLane,
+    setProjectTaskArchived: setProjectTaskArchived,
     requestImageUpload: requestImageUpload,
     sendImageMessage: sendImageMessage,
     getImageUrls: getImageUrls,

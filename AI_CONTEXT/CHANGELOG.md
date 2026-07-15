@@ -20,6 +20,32 @@
 
 ---
 
+## 2026-07-16（凌晨，第七十五次）— 已完成項目可以封存
+
+- **任務**：使用者「欸那永久保留可以封存嗎？不然越來越多都不知道看
+  哪裡」——`origin==='claude'` 的完成紀錄規則上永久保留、不能被
+  「清除全部」清掉，累積久了「已完成」清單越來越長。
+- **變更**：
+  - `backend/supabase/project_tasks_archived_schema.sql`（新檔案，已
+    透過 Supabase MCP `apply_migration` 套用）：`project_tasks` 加
+    `archived boolean not null default false`。
+  - `backend/cloudflare-worker/worker.js`：新增 `setProjectTaskArchived`
+    action（payload `{id, archived}`，單純 PATCH 這個欄位，不分
+    origin，任何已完成項目都能封存/取消封存）；`listProjectTasks` 的
+    select 補上 `archived`。
+  - `assets/js/backend-client.js`：對應 wrapper。
+  - `pages/admin/journal/assets/js/app.js`：「已完成」旁邊新增平行的
+    第二個 `<details>`「已封存」（不是巢狀在已完成裡面，兩個都預設
+    收合）；已完成項目多一顆「封存」按鈕，已封存項目對應「還原」
+    按鈕。純 UI 分類，資料本身不變、不影響 origin 刪除規則。
+  - `page-admin-journal.css` 新增對應樣式。
+- **驗證**：`node --check` 全部通過；`wrangler deploy --dry-run` 通過
+  後部署（Worker Version `94143fe0`）。沒有 Playwright 可用，純程式碼
+  審查。
+- **狀態變化**：待辦板從「已完成清單只會越來越長」變成「可以把不需要
+  常看的完成紀錄收進已封存，保留資料但不佔預設視野」。
+- **版本**：v0.45.3-202607160010
+
 ## 2026-07-16（凌晨，第七十四次）— 待辦板文字可編輯
 
 - **任務**：使用者釐清「我輸入完的內容應該要可以編輯」是指待辦板本身
