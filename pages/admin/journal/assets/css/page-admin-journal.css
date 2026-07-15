@@ -11,6 +11,20 @@
 但也從 xs 提到 sm，沒有留在最小尺寸。
 */
 
+/* 2026-07-15：決策時間軸／決策圖標題後面的「最後更新」小字——使用者
+   質疑過這兩份手動維護的清單是不是真的有跟上，加這個當可見的信任
+   標記，同時提醒自己（agent）每次改動都要記得同步更新時間戳常數。 */
+.jonaminz-journal-updated-at {
+  display: inline-block;
+  margin-left: var(--space-3);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
 .jonaminz-theme-back {
   display: inline-block;
   margin-bottom: var(--space-4);
