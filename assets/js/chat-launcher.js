@@ -165,19 +165,17 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     var style = document.createElement("style");
     style.textContent =
       ":root{--jcl-anchor-top:84px;}" +
-      // 2026-07-15：使用者回報「泡泡的數字跟右下角的點點還是沒有修好一樣
-      // 會被切到」——第十三次修正的 union clip-path 邏輯本身沒錯，但這
-      // 條規則同時還留著 `border-radius:50%`。<iframe> 這種替代元素，
-      // border-radius 自己就會把內容裁成正圓（不需要額外 overflow），
-      // 跟 clip-path 是兩層獨立的裁切，最終可視範圍是兩者的交集——
-      // border-radius 那層單純正圓還是會把 clip-path 特地留出來給角標/
-      // 小綠點的兩個小圓吃掉，等於白做。拿掉 border-radius，形狀完全交給
-      // clip-path 的 union（本來就包含等效的主圓，沒有 border-radius
-      // 形狀不會跑掉）；唯一的代價是 box-shadow 跟著 border-radius 走，
-      // 現在會是方形陰影，但模糊半徑 24px 遠大於陰影本身，肉眼幾乎看不出
-      // 差異，比起「角標被切掉看不到未讀」這個功能性問題，這點代價划算。
+      // 2026-07-15/16：拿掉 border-radius 改用純 clip-path 的那個理論
+      // 沒錯，但使用者實測回報「泡泡變成方塊了」——代表這個瀏覽器/
+      // WebView 對 <iframe> 元素的 clip-path:url(#svgClipPath) 根本沒
+      // 生效（不是交集問題，是整條 clip-path 被忽略），border-radius
+      // 其實才是唯一真正在裁形狀的機制。先復原 border-radius 保住
+      //「至少是圓的」這個更重要的基本盤，clip-path 繼續留著（不生效
+      // 但也无害，之後若要真的解決角標被切掉，要走完全不同的路——把
+      // 角標/小綠點搬出 iframe、變成宿主自己文件裡的疊加元素，不能再
+      // 靠裁切 iframe 本體的手法，那條路才不受這個瀏覽器限制影響）。
       "." + LAUNCHER_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +
-      "width:64px;height:64px;border:0;z-index:9999;" +
+      "width:64px;height:64px;border:0;border-radius:50%;z-index:9999;" +
       "clip-path:url(#" + AVATAR_CLIP_ID + ");" +
       "box-shadow:0 8px 24px rgba(38,34,32,0.28);pointer-events:none;}" +
       "." + OVERLAY_CLASS + "{position:fixed;right:" + ANCHOR_RIGHT + "px;top:var(--jcl-anchor-top);" +

@@ -450,14 +450,25 @@
   color: crimson;
 }
 
+/* 2026-07-16：使用者回報「那隻醜醜筆可以對齊嗎現在亂七八糟的」——
+   原本跟 .jonaminz-journal-task-delete 共用同一套「line-height 置中」
+   寫法，但 ✎ 這個字符在字體裡的實際筆畫位置比較偏，光靠文字置中對不
+   齊。改成明確的固定尺寸方塊＋flex 置中（跟旁邊的 ▾/‹ 按鈕同一種
+   寫法），不管字符本身怎麼畫都能真正置中。 */
 .jonaminz-journal-task-edit {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: none;
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
   font-size: var(--text-md);
-  padding: 0 var(--space-1);
+  line-height: 1;
+  padding: 0;
 }
 
 .jonaminz-journal-task-edit:hover {
@@ -484,8 +495,7 @@
   background: color-mix(in srgb, var(--color-primary-2) 14%, transparent);
 }
 
-.jonaminz-journal-escalate,
-.jonaminz-journal-edit {
+.jonaminz-journal-escalate {
   display: flex;
   gap: var(--space-2);
   margin-top: var(--space-2);
@@ -495,16 +505,12 @@
    JS 切換 escalateForm.hidden 的邏輯一直是對的，只是視覺上表單從來
    沒有真的收起來過。使用者回報「怎麼樣都收不掉說明欄位跟送出按鈕」
    就是這個——不是箭頭邏輯錯，是這條 CSS 選擇器優先權的坑（跟
-   .jonaminz-chat-notif-panel[hidden] 那邊已經修過的同一種坑）。
-   新增的 .jonaminz-journal-edit 表單一開始就套用 [hidden] 這條規則，
-   不會重蹈覆轍。 */
-.jonaminz-journal-escalate[hidden],
-.jonaminz-journal-edit[hidden] {
+   .jonaminz-chat-notif-panel[hidden] 那邊已經修過的同一種坑）。 */
+.jonaminz-journal-escalate[hidden] {
   display: none;
 }
 
-.jonaminz-journal-escalate input,
-.jonaminz-journal-edit input {
+.jonaminz-journal-escalate input {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
@@ -516,8 +522,7 @@
   font-size: var(--text-md);
 }
 
-.jonaminz-journal-escalate button,
-.jonaminz-journal-edit button {
+.jonaminz-journal-escalate button {
   flex: none;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-primary-2);
@@ -527,6 +532,56 @@
   font-weight: 600;
   font-size: var(--text-sm);
   cursor: pointer;
+}
+
+/* 2026-07-16：編輯改成原地把 <span> 換成 <textarea>（見使用者回饋
+   「編輯直接編輯前文就好幹嘛複製到下面的編輯框框」），不再是另外彈出
+   的表單，這裡不需要 [hidden] 特異度那條坑——taskItemHtml 直接決定要
+   不要渲染這個區塊，沒有「渲染了但用 CSS 藏起來」這種中間狀態。 */
+.jonaminz-journal-task-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.jonaminz-journal-task-edit-row textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-primary-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.jonaminz-journal-task-edit-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.jonaminz-journal-task-edit-save,
+.jonaminz-journal-task-edit-cancel {
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.jonaminz-journal-task-edit-save {
+  border-color: var(--color-primary-2);
+  background: var(--color-primary-2);
+  color: #fff;
+}
+
+.jonaminz-journal-task-edit-cancel {
+  background: none;
+  color: var(--color-text-muted);
 }
 
 .jonaminz-journal-task.is-pending {

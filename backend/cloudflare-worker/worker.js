@@ -3537,17 +3537,31 @@ async function deleteProjectTask(env, payload) {
 // 已勾選完成的項目（不是一筆一筆刪）。**同日稍後修正**：只清 origin
 // 'user' 的項目——Claude 交辦的完成項目是永久記錄，不在「清除全部」
 // 的範圍內（跟決策時間軸同一個精神：完成紀錄不無故消失）。
+// 2026-07-16：使用者回報「其實可以把封存跟清除全部統一啊，就是按下去
+// 該刪除刪除該封存封存」——原本這支只刪 origin='user' 的完成項目，
+// origin='claude' 的完全不動（規則上永久保留、刪不掉），按下去只清掉
+// 一部分，使用者還要另外逐筆手動封存才能清空「已完成」清單。改成同一
+// 個按鈕做兩件事：origin='user' 照舊刪除；origin='claude' 改成標記
+// archived=true（不是刪除，只是搬去「已封存」），一次點擊「已完成」
+// 清單就會清空。
 async function clearDoneProjectTasks(env, payload) {
   const identity = await requireSession(env, payload);
   if (!identity) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const lane = (payload && payload.lane) === "for_claude" ? "for_claude" : "for_user";
-  const deleteUrl = env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/project_tasks?lane=eq." + encodeURIComponent(lane) + "&done=eq.true&origin=eq.user";
-  const response = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
-  if (!response.ok) {
-    throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const deleteUrl = base + "/rest/v1/project_tasks?lane=eq." + encodeURIComponent(lane) + "&done=eq.true&origin=eq.user";
+  const archiveUrl = base + "/rest/v1/project_tasks?lane=eq." + encodeURIComponent(lane) + "&done=eq.true&origin=eq.claude&archived=eq.false";
+  const [deleteResponse, archiveResponse] = await Promise.all([
+    fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) }),
+    fetch(archiveUrl, { method: "PATCH", headers: supabaseHeaders(env), body: JSON.stringify({ archived: true }) })
+  ]);
+  if (!deleteResponse.ok) {
+    throw new Error("Supabase delete failed: HTTP " + deleteResponse.status + " " + (await deleteResponse.text()));
+  }
+  if (!archiveResponse.ok) {
+    throw new Error("Supabase archive failed: HTTP " + archiveResponse.status + " " + (await archiveResponse.text()));
   }
   return { ok: true };
 }
