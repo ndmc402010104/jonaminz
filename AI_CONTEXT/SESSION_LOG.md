@@ -6,6 +6,19 @@
 
 ---
 
+## session_20260715142203_50cfb2a4 — 2026-07-15T14:25:41.738Z — claude-code
+
+- **Task**：修 ensureImageUrls 在 getImageUrls 整批失敗時永遠卡在準備中的 bug
+- **Done**：
+  - 修好ensureImageUrls整批失敗未標記itemId的bug，補上失敗/catch分支統一標記null
+- **Changed files**：
+  - assets/js/chat-thread.js,version.js,AI_CONTEXT/CHANGELOG.md
+- **Validation**：
+  - node --check通過；純前端修改不需wrangler deploy
+- **Next**：
+  - 等使用者與Minz重新連接OneDrive拿到User.Read scope後，實測檔案下載是否真的能成功（目前只確定UI不會再卡死）
+- **New issues**：無
+
 ## session_20260714102617_ffd17af1 — 2026-07-14T11:24:03.192Z — claude-code
 
 - **Task**：chat 功能大補強：typing/三態已讀/推播/reactions/reply/圖片分享/通話/shared瀏覽/通知面板bug

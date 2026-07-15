@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED. DO NOT EDIT DIRECTLY. -->
-<!-- generatedAt: 2026-07-15T14:22:03.473Z -->
+<!-- generatedAt: 2026-07-15T14:25:41.744Z -->
 
 # PROJECT CONTEXT
 
@@ -9,10 +9,7 @@ jonaminz
 
 ## Active Task
 
-- Session ID: session_20260715142203_50cfb2a4
-- Agent: claude-code
-- Task: 修 ensureImageUrls 在 getImageUrls 整批失敗時永遠卡在準備中的 bug
-- Started: 2026-07-15T14:22:03.466Z
+_（目前沒有 active session，先執行 `memory.mjs start` 再開始工作）_
 
 ## Critical Rules
 
@@ -539,6 +536,19 @@ PROJECT_STATE 開頭狀態描述」）。本次盤點開始前沒有任何未提
 
 ## Recent Sessions
 
+## session_20260715142203_50cfb2a4 — 2026-07-15T14:25:41.738Z — claude-code
+
+- **Task**：修 ensureImageUrls 在 getImageUrls 整批失敗時永遠卡在準備中的 bug
+- **Done**：
+  - 修好ensureImageUrls整批失敗未標記itemId的bug，補上失敗/catch分支統一標記null
+- **Changed files**：
+  - assets/js/chat-thread.js,version.js,AI_CONTEXT/CHANGELOG.md
+- **Validation**：
+  - node --check通過；純前端修改不需wrangler deploy
+- **Next**：
+  - 等使用者與Minz重新連接OneDrive拿到User.Read scope後，實測檔案下載是否真的能成功（目前只確定UI不會再卡死）
+- **New issues**：無
+
 ## session_20260714102617_ffd17af1 — 2026-07-14T11:24:03.192Z — claude-code
 
 - **Task**：chat 功能大補強：typing/三態已讀/推播/reactions/reply/圖片分享/通話/shared瀏覽/通知面板bug
@@ -578,24 +588,9 @@ PROJECT_STATE 開頭狀態描述」）。本次盤點開始前沒有任何未提
   - 等待使用者確認 pending decision
 - **New issues**：無
 
-## 2026-07-12 — 文件真實性盤點與同步（全面稽核，不改任何程式碼）
-
-**任務性質**：文件審計，不是開發任務。目標是核對 `AI_CONTEXT/`、
-`docs/`、根目錄與各層 `README.md` 等所有 Markdown 文件講的是不是跟
-目前程式碼一致，新增現況類文件，對過期文件加註記，不修改任何非
-Markdown 檔案。
-
-### 檢查過的文件（全部讀過，不是抽查）
-
-- `CLAUDE.md`、`AGENTS.md`、`.github/copilot-instructions.md`（三份入口指引）
-- `AI_CONTEXT/RULES.md`、`PROJECT_STATE.md`（976 行全讀）、
-  `ARCHITECTURE.md`、`ACCEPTANCE.md`、`CHANGELOG.md`（1742 行，全讀）
-- `README.md`（根目錄）、`backend/README.md`、`pages/README.md`
-
-…（已截斷，`AI_CONTEXT/SESSION_LOG.md` 原始內容共 5108 字元，完整內容請直接讀取該檔案）
-
 ## Pending Candidates
 
+- **PEND-002** [fact] — ensureImageUrls整批失敗未標記itemId，導致下載連結永遠卡在「還在準備中」
 - **PEND-001** [decision] (memory) — 正式文件與自動紀錄分離
 
 ## Agent Instructions

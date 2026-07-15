@@ -28,6 +28,16 @@ FACTS.md／DECISIONS.md 等正式文件**，不得自行判斷「這應該算確
 
 ## Pending Facts
 
+### PEND-002
+- Type: fact
+- Status: pending
+- Created: 2026-07-15T14:25:30.891Z
+- Session: session_20260715142203_50cfb2a4
+- Scope: 
+- Summary: ensureImageUrls整批失敗未標記itemId，導致下載連結永遠卡在「還在準備中」
+- Reason: 
+- Files: (none)
+
 ## Pending Decisions
 
 ### PEND-001
