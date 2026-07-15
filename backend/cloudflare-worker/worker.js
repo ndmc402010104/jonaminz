@@ -3113,12 +3113,45 @@ async function getImageUrls(env, payload) {
       if (sharedResponse.ok) {
         const sharedData = await sharedResponse.json();
         const sharedList = sharedData.value || [];
+        const unresolved = [];
         peerItems.forEach(function (item) {
           const match = sharedList.filter(function (entry) {
             return entry.remoteItem && entry.remoteItem.id === item.itemId;
           })[0];
-          urls[item.itemId] = (match && match.remoteItem && match.remoteItem["@microsoft.graph.downloadUrl"]) || null;
+          if (match && match.remoteItem) {
+            urls[item.itemId] = match.remoteItem["@microsoft.graph.downloadUrl"] || null;
+          } else {
+            urls[item.itemId] = null;
+            unresolved.push(item);
+          }
         });
+        // 2026-07-15（晚上）：原本分享邀請只在傳送當下嘗試一次——如果
+        // 那時候對方的 account_email 還沒查到（或當下 invite 暫時失
+        // 敗），這則訊息就永遠卡死，即使雙方後來重新連接也沒有機會
+        // 重試（`chat_messages.metadata.sharedOk` 存的是傳送當下那次
+        // 的結果，不會被事後更新）。改成收訊方每次查不到就順手用
+        // 「原始傳送者」現在的權杖重新嘗試分享一次；這次成功的話，
+        // 下一輪 poll（約1.5秒後）查 sharedWithMe 就會看到。
+        await Promise.all(unresolved.map(async function (item) {
+          try {
+            const myRow = await fetchOnedriveAccountRow(env, identity);
+            if (!myRow || !myRow.account_email) return;
+            const ownerToken = await getOnedriveAccessToken(env, item.ownerIdentity);
+            await fetch(
+              "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId) + "/invite",
+              {
+                method: "POST",
+                headers: { Authorization: "Bearer " + ownerToken, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  recipients: [{ email: myRow.account_email }],
+                  requireSignIn: true,
+                  sendInvitation: false,
+                  roles: ["read"]
+                })
+              }
+            );
+          } catch (ignored) {}
+        }));
       } else {
         peerItems.forEach(function (item) { urls[item.itemId] = null; });
       }
