@@ -76,12 +76,23 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 
   var TOKEN_KEY = "jonaminz.sessionToken";
   var POSITION_KEY = "jonaminz.chatBubblePosition";
+  // 2026-07-16：這支 shell script 不保證跟 backend-client.js 同時載入
+  // （chat-launcher.js 是 entry-core.js 對全站每一頁無條件注入的，
+  // backend-client.js 只有部分頁面的 config.json entry 有宣告），角標
+  // 輪詢改用原始 fetch 直接打 Worker，跟 pages/chat-launcher/
+  // index.html 內部原本的做法一致，不能假設 window.JonaminzBackend
+  // 存在。
+  var WORKER_URL = "https://jonaminz-backend.ndmc402010104.workers.dev/api/action";
+  var PRESENCE_WINDOW_MS = 2 * 60 * 1000;
+  var BADGE_POLL_MS = 4000;
   var LAUNCHER_PATH = "/pages/chat-launcher/";
   var PANEL_PATH = "/pages/chat-panel/";
   var CHAT_PATH = "/pages/chat/";
   var LAUNCHER_CLASS = "jonaminz-chat-launcher-frame";
   var OVERLAY_CLASS = "jonaminz-chat-launcher-overlay";
   var PANEL_CLASS = "jonaminz-chat-panel-frame";
+  var BADGE_CLASS = "jonaminz-chat-launcher-badge";
+  var PRESENCE_CLASS = "jonaminz-chat-launcher-presence";
   // 2026-07-14（第九次修正）：使用者實機回報兩個問題：(1) 長按大頭貼
   // 會冒出瀏覽器預設的長按框框/選取提示（FB 那種原生 View 完全不會有
   // 這個問題，因為它根本不經過瀏覽器的觸控事件模型）——加上
@@ -183,6 +194,26 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       "touch-action:none;cursor:pointer;" +
       "-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" +
       "-webkit-tap-highlight-color:transparent;outline:none;}" +
+      // 2026-07-16（使用者實測「泡泡變成方塊了」復原 border-radius 後，
+      // 接著要求「做吧做吧」真正解決角標被切掉）：角標/在線小綠點改成
+      // 宿主自己文件裡的獨立元素，不再放在 iframe 內部被裁切——這是
+      // 唯一不受「這個瀏覽器對 iframe 的 clip-path 不生效」這個限制
+      // 影響的做法。位置對齊大頭貼圓形的右上角/右下角，一半疊在圓圈上
+      // 一半露在外面（跟 FB 這類角標的慣例畫法一樣）。iframe
+      // （pages/chat-launcher/index.html）內部原本的 .jcl-badge／
+      // .jcl-presence 保留但不再視覺可見（本來就是這次要修的 bug），
+      // 不特地清掉，避免這麼晚的時間再多動一個已經很敏感的檔案。
+      "." + BADGE_CLASS + "{position:fixed;right:" + (ANCHOR_RIGHT - 6) + "px;" +
+      "top:calc(var(--jcl-anchor-top) - 6px);min-width:20px;height:20px;padding:0 5px;" +
+      "border-radius:999px;background:var(--color-primary-2,#8a4f2e);color:#fff;" +
+      "font-size:11px;font-weight:900;line-height:20px;text-align:center;" +
+      "border:2px solid var(--color-primary,#c97b3f);z-index:10001;pointer-events:none;display:none;}" +
+      "." + BADGE_CLASS + ".is-visible{display:block;}" +
+      "." + PRESENCE_CLASS + "{position:fixed;right:" + (ANCHOR_RIGHT - 2) + "px;" +
+      "top:calc(var(--jcl-anchor-top) + 46px);width:13px;height:13px;border-radius:50%;" +
+      "background:#35c66b;border:2px solid var(--color-primary,#c97b3f);" +
+      "z-index:10001;pointer-events:none;display:none;}" +
+      "." + PRESENCE_CLASS + ".is-visible{display:block;}" +
       "." + PANEL_CLASS + "{position:fixed;right:14px;" +
       "top:calc(var(--jcl-anchor-top) + " + GAP_BELOW_LAUNCHER + "px);border:0;border-radius:20px;" +
       "z-index:9998;box-shadow:0 8px 24px rgba(38,34,32,0.28);" +
@@ -275,6 +306,8 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       var value = on ? "left .22s ease, top .22s ease, right .22s ease, bottom .22s ease" : "";
       launcherFrame.style.transition = value;
       overlay.style.transition = value;
+      badgeEl.style.transition = value;
+      presenceEl.style.transition = value;
     }
 
     function applyPosition(left, top) {
@@ -284,6 +317,18 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
         el.style.left = left + "px";
         el.style.top = top + "px";
       });
+      // 角標/小綠點跟著大頭貼移動，但位置要加上角落的固定偏移量（跟
+      // 上面 style 區塊裡靜態 CSS 的 -6px/+46px 那組數字一致），不是
+      // 貼著同一個座標——它們該對齊的是大頭貼「圓形的右上/右下角」，
+      // 不是大頭貼本身的左上角。
+      badgeEl.style.right = "";
+      badgeEl.style.bottom = "";
+      badgeEl.style.left = (left + 50) + "px";
+      badgeEl.style.top = (top - 6) + "px";
+      presenceEl.style.right = "";
+      presenceEl.style.bottom = "";
+      presenceEl.style.left = (left + 53) + "px";
+      presenceEl.style.top = (top + 46) + "px";
     }
 
     // 「休息位置」（沒拖過時）跟「展開時鎖定的位置」現在是同一個地方
@@ -291,7 +336,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     // 讓上面靜態 CSS 規則裡的 right/top(var(--jcl-anchor-top)) 生效即可，
     // 不需要另外指定數字。
     function applyDefaultAnchor() {
-      [launcherFrame, overlay].forEach(function (el) {
+      [launcherFrame, overlay, badgeEl, presenceEl].forEach(function (el) {
         el.style.left = "";
         el.style.right = "";
         el.style.top = "";
@@ -344,11 +389,6 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     if (window.JonaminzLayoutMetrics && typeof window.JonaminzLayoutMetrics.subscribe === "function") {
       window.JonaminzLayoutMetrics.subscribe(updateAnchorTopVar);
     }
-
-    // 換頁後如果有存過的休息位置，頁面一載入就直接套用（不用動畫飛過去
-    // ——使用者預期的是「本來就在那裡」，不是每次換頁都看一次飛行動畫）。
-    // 沒存過（freeLeft === null）就維持不動、吃預設錨點的 CSS。
-    if (freeLeft !== null) applyPosition(freeLeft, freeTop);
 
     function snapToNearestEdge(left, top) {
       var width = launcherFrame.offsetWidth;
@@ -422,6 +462,29 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     var overlay = document.createElement("div");
     overlay.className = OVERLAY_CLASS;
     document.body.appendChild(overlay);
+
+    // 2026-07-16：角標/在線小綠點的宿主端元素（見上面 style 區塊的
+    // 完整說明）。這裡只負責建立跟定位，實際的未讀數/在線狀態由下面
+    // 的 pollPresence() 自己獨立跟 Worker 要（跟 pages/chat-launcher/
+    // index.html 內部原本的邏輯同一套算法，刻意重複一份）。
+    var badgeEl = document.createElement("span");
+    badgeEl.className = BADGE_CLASS;
+    document.body.appendChild(badgeEl);
+    var presenceEl = document.createElement("span");
+    presenceEl.className = PRESENCE_CLASS;
+    document.body.appendChild(presenceEl);
+
+    // 2026-07-16：這個呼叫原本放在 overlay/badgeEl/presenceEl 建立
+    // 之前（更早的位置），applyPosition() 裡面會直接存取這些變數的
+    // .style——在那些元素還沒建立完成前呼叫會整個丟出
+    // TypeError，害這行以後所有初始化（overlay/手勢/面板開關等）
+    // 全部沒跑到，等於泡泡完全故障。搬到這裡，確保所有會被
+    // applyPosition/applyDefaultAnchor 動到的元素都已經存在。
+    //
+    // 換頁後如果有存過的休息位置，頁面一載入就直接套用（不用動畫飛過去
+    // ——使用者預期的是「本來就在那裡」，不是每次換頁都看一次飛行動畫）。
+    // 沒存過（freeLeft === null）就維持不動、吃預設錨點的 CSS。
+    if (freeLeft !== null) applyPosition(freeLeft, freeTop);
 
     // 2026-07-15（第三十輪）：App 裡這顆網頁大頭貼貼著螢幕邊緣，拖動
     // 起手很容易被系統當成返回手勢——跟懸浮泡泡一樣把大頭貼目前的範圍
@@ -848,6 +911,53 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
           replyPushSubscribeResult(false, error);
         });
     }
+
+    // 2026-07-16：角標/在線小綠點的資料來源——跟
+    // pages/chat-launcher/index.html 內部原本的 refresh() 同一套算法
+    // （比對 lastReadMessageId 之後、對方傳的訊息；在線＝對方
+    // presence.last_seen_at 在 2 分鐘內），刻意獨立輪詢一份，理由跟
+    // 這個檔案其他地方的重複邏輯一樣：這幾支 shell script/iframe 彼此
+    // 不互相依賴。iframe 內部自己的同一套邏輯繼續留著跑，只是它畫出來
+    // 的角標/小綠點本來就被裁在圓形裡看不到（這正是這次要修的 bug），
+    // 不特地去關掉它，避免這麼晚的時間再多動一個已經很敏感的檔案。
+    function pollPresenceAndUnread() {
+      fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "listChatMessages", payload: { token: token } })
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          var identity = data.identity;
+          var peer = identity === "jonathan" ? "minz" : "jonathan";
+          var messages = data.messages || [];
+          var readState = data.readState || {};
+          var myRead = readState[identity] || {};
+          var myReadIndex = -1;
+          if (myRead.lastReadMessageId) {
+            for (var i = 0; i < messages.length; i += 1) {
+              if (messages[i].id === myRead.lastReadMessageId) { myReadIndex = i; break; }
+            }
+          }
+          var unreadCount = 0;
+          for (var j = myReadIndex + 1; j < messages.length; j += 1) {
+            if (messages[j].sender_identity === peer) unreadCount += 1;
+          }
+          badgeEl.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+          badgeEl.classList.toggle("is-visible", unreadCount > 0);
+
+          var peerSeenAt = data.presence && data.presence[peer] ? new Date(data.presence[peer]).getTime() : 0;
+          var isOnline = peerSeenAt > 0 && (Date.now() - peerSeenAt) < PRESENCE_WINDOW_MS;
+          presenceEl.classList.toggle("is-visible", isOnline);
+        })
+        .catch(function () {
+          // 網路失敗：保留上一次的畫面狀態，下一輪 poll 再試。
+        });
+    }
+
+    pollPresenceAndUnread();
+    setInterval(pollPresenceAndUnread, BADGE_POLL_MS);
 
   }
 
