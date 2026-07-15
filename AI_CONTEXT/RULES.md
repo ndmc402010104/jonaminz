@@ -86,6 +86,14 @@
    不要直接斷定「不存在」。
 9. **新增頁面照 `pages/README.md` 的五步流程**〔repo〕，bootstrap script 從根目錄
    index.html 原樣複製，只改 `data-jonaminz-page-id` 和內容。
+10. **待辦板「你想叫我做的」項目修完，不能自己標記完成**〔使用者，
+    2026-07-15 定案，當面糾正過一次〕：agent 修好 `for_claude` 泳道
+    裡使用者交辦的一筆之後，正確做法是呼叫 `moveProjectTaskLane`
+    把它移回 `for_user`（`done` 維持 `false`，text 可以改寫成
+    「請驗證：...」），由使用者自己實測後親手打勾——**不能**呼叫
+    `toggleProjectTask` 自己標記完成。已經做完不代表已經驗證過，
+    「真的測過沒問題」這件事只有使用者自己能確認。細節見
+    `pages/admin/journal/assets/js/app.js` 待辦看板區塊的程式碼註解。
 
 ## 三、允許事項
 
