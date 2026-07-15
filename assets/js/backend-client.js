@@ -204,6 +204,10 @@
     return call("deleteProjectTask", payload, options);
   }
 
+  function clearDoneProjectTasks(payload, options) {
+    return call("clearDoneProjectTasks", payload, options);
+  }
+
   // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
   // call() 這種 fetch POST——這裡只負責把 baseUrl 接出來給呼叫端組網址。
   function getWorkerBaseUrlForRedirect() {
@@ -244,6 +248,7 @@
     listProjectTasks: listProjectTasks,
     addProjectTask: addProjectTask,
     toggleProjectTask: toggleProjectTask,
-    deleteProjectTask: deleteProjectTask
+    deleteProjectTask: deleteProjectTask,
+    clearDoneProjectTasks: clearDoneProjectTasks
   };
 })();

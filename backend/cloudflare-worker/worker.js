@@ -117,10 +117,12 @@
   真的可用（不只是「有存 refresh_token」這種表面狀態），Phase A 的
   驗收動作。
 - `listProjectTasks` / `addProjectTask` / `toggleProjectTask` /
-  `deleteProjectTask`：`pages/admin/journal/`（決策與待辦頁）的待辦
-  看板，2026-07-15 新增。單一全域清單，兩條泳道（`for_user`／
-  `for_claude`），任何已登入身分都能操作任一泳道的任一筆——跟
-  OneDrive 連接同一個信任模型（兩人共用帳密，不用分誰能動哪個泳道）。
+  `deleteProjectTask` / `clearDoneProjectTasks`：`pages/admin/journal/`
+  （決策與待辦頁）的待辦看板，2026-07-15 新增。單一全域清單，兩條
+  泳道（`for_user`／`for_claude`），任何已登入身分都能操作任一泳道的
+  任一筆——跟 OneDrive 連接同一個信任模型（兩人共用帳密，不用分誰能
+  動哪個泳道）。`clearDoneProjectTasks` 一次清掉整條泳道裡已完成的
+  項目，不用逐筆刪除。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -367,6 +369,10 @@ export default {
 
       if (action === "deleteProjectTask") {
         return json(await deleteProjectTask(env, payload), 200);
+      }
+
+      if (action === "clearDoneProjectTasks") {
+        return json(await clearDoneProjectTasks(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -2783,6 +2789,23 @@ async function deleteProjectTask(env, payload) {
     return { ok: false, code: "ID_REQUIRED", error: "id is required" };
   }
   const deleteUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
+  const response = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+// 2026-07-15：使用者要求「已完成」不要一直堆積，一次清掉整條泳道裡
+// 已勾選完成的項目（不是一筆一筆刪）。
+async function clearDoneProjectTasks(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const lane = (payload && payload.lane) === "for_claude" ? "for_claude" : "for_user";
+  const deleteUrl = env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/project_tasks?lane=eq." + encodeURIComponent(lane) + "&done=eq.true";
   const response = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
