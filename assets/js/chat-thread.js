@@ -1014,11 +1014,29 @@ title/url（見 `requestHostContext()`，宿主端實作在
             Object.keys(result.urls).forEach(function (itemId) {
               imageUrlCache[itemId] = result.urls[itemId];
             });
-            if (lastPollData) render(lastPollData);
+          } else {
+            // 2026-07-15：使用者回報「下載連結一直顯示還在準備中」——
+            // 真正根因：這支 action 是整批查詢，`getOnedriveAccessToken`
+            // 只要對呼叫者自己那個身分失敗一次（例如還沒重新連接、token
+            // 有問題），整支 action 直接回 `{ok:false}`，不是每個 itemId
+            // 各自標記失敗。原本這裡完全沒處理這個分支，`imageUrlCache`
+            // 永遠停在 undefined，下一次 poll 又當成「還沒查過」重試，
+            // 每 1.5 秒重試一次卻永遠拿不到結果，畫面上就卡在「還在
+            // 準備中」的假象，使用者看不出這其實是確定失敗、不是還在
+            // 等。統一標記這批 itemId 為 null（確定拿不到），跟單一
+            // item 失敗時的處理一致，畫面才會顯示明確的錯誤訊息。
+            need.forEach(function (item) {
+              if (imageUrlCache[item.itemId] === undefined) imageUrlCache[item.itemId] = null;
+            });
           }
+          if (lastPollData) render(lastPollData);
         })
         .catch(function () {
-          need.forEach(function (item) { delete imageUrlFetchInFlight[item.itemId]; });
+          need.forEach(function (item) {
+            delete imageUrlFetchInFlight[item.itemId];
+            if (imageUrlCache[item.itemId] === undefined) imageUrlCache[item.itemId] = null;
+          });
+          if (lastPollData) render(lastPollData);
         });
     }
 

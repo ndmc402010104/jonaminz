@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED. DO NOT EDIT DIRECTLY. -->
-<!-- generatedAt: 2026-07-14T11:24:03.196Z -->
+<!-- generatedAt: 2026-07-15T14:22:03.473Z -->
 
 # PROJECT CONTEXT
 
@@ -9,7 +9,10 @@ jonaminz
 
 ## Active Task
 
-_（目前沒有 active session，先執行 `memory.mjs start` 再開始工作）_
+- Session ID: session_20260715142203_50cfb2a4
+- Agent: claude-code
+- Task: 修 ensureImageUrls 在 getImageUrls 整批失敗時永遠卡在準備中的 bug
+- Started: 2026-07-15T14:22:03.466Z
 
 ## Critical Rules
 
