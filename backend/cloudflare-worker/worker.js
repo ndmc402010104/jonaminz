@@ -141,12 +141,26 @@
   安裝連結」變麻煩。真機驗證下載安裝 OK 後，原本的 GitHub Release
   公開通道（`app-latest`）就可以收回。
 - `listProjectTasks` / `addProjectTask` / `toggleProjectTask` /
-  `deleteProjectTask` / `clearDoneProjectTasks`：`pages/admin/journal/`
-  （決策與待辦頁）的待辦看板，2026-07-15 新增。單一全域清單，兩條
-  泳道（`for_user`／`for_claude`），任何已登入身分都能操作任一泳道的
-  任一筆——跟 OneDrive 連接同一個信任模型（兩人共用帳密，不用分誰能
-  動哪個泳道）。`clearDoneProjectTasks` 一次清掉整條泳道裡已完成的
-  項目，不用逐筆刪除。
+  `deleteProjectTask` / `clearDoneProjectTasks` / `moveProjectTaskLane`：
+  `pages/admin/journal/`（決策與待辦頁）的待辦看板，2026-07-15 新增。
+  單一全域清單，兩條泳道（`for_user`／`for_claude`），任何已登入身分
+  都能操作任一泳道的任一筆——跟 OneDrive 連接同一個信任模型（兩人
+  共用帳密，不用分誰能動哪個泳道）。`clearDoneProjectTasks` 一次清掉
+  整條泳道裡已完成的項目，不用逐筆刪除。**同日稍後新增 `origin`
+  （'user'／'claude'）欄位**：使用者不小心用舊快取 JS 刪掉一筆 Claude
+  交辦的驗證項目，回報「東西太容易不見了」，要求 Claude 交辦的項目
+  永遠不能刪除。`deleteProjectTask` 在 Worker 端查 DB 現況擋下
+  `origin='claude'` 的刪除請求（不只是前端藏按鈕，防的正是「舊前端
+  直接呼叫這支 action」這種繞過方式）；`toggleProjectTask` 標記完成時
+  若 `origin==='claude'` 會強制把 `lane` 設回 `for_user`（完成紀錄
+  永遠回到「你要做的」清單，不分裂在兩邊，取消勾選不會搬回去）；
+  `clearDoneProjectTasks` 只清 `origin='user'` 的已完成項目；
+  `moveProjectTaskLane` 是新增的換泳道動作，選填 `text`：不帶
+  `text` 就是「‹ 移回你要做的」單純換 `lane`；帶 `text` 就是「›」轉送
+  重用同一支（把原文＋使用者補充的調整說明一起寫回同一筆，換
+  `lane='for_claude'`）——原本轉送是「新增一筆＋刪除原筆」，但 Claude
+  交辦的項目現在禁止刪除，改成直接 UPDATE 同一筆最乾淨，也少一次
+  API 往返。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -420,6 +434,10 @@ export default {
 
       if (action === "clearDoneProjectTasks") {
         return json(await clearDoneProjectTasks(env, payload), 200);
+      }
+
+      if (action === "moveProjectTaskLane") {
+        return json(await moveProjectTaskLane(env, payload), 200);
       }
 
       if (action === "createApkUploadSession") {
@@ -3051,7 +3069,26 @@ async function getImageUrls(env, payload) {
 // 'for_user'（Claude 交辦給使用者做的事）、'for_claude'（使用者隨時
 // 記下、之後給 Claude 挑來做的待辦）。單一全域清單，任何已登入身分
 // 都能新增/勾選/刪除任一泳道的項目（跟 OneDrive 連接同一個信任模型：
-// 兩人共用帳密，不用分誰能動哪個泳道）。----------
+// 兩人共用帳密，不用分誰能動哪個泳道）。
+//
+// 2026-07-15（同日）新增 origin 欄位（'user'／'claude'）：使用者
+// 實測時不小心用舊分頁的過期 JS 把一筆 Claude 交辦的驗證項目整個刪掉
+// 了，回報「這樣很容易東西就不見了」，明確要求 Claude 交辦的項目
+// 永遠不能刪除、只能勾選完成或在兩個泳道間移動；只有使用者自己輸入的
+// 項目才能刪除。這條規則刻意在 Worker 端強制（`deleteProjectTask` 查
+// origin 擋下），不是只靠前端藏按鈕——前端藏按鈕擋不住舊快取 JS 或
+// 直接呼叫 action，這正是這次事故的根因。----------
+
+async function fetchProjectTaskOrigin(env, id) {
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id) + "&select=origin";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return rows[0] ? rows[0].origin : null;
+}
 
 async function listProjectTasks(env, payload) {
   const identity = await requireSession(env, payload);
@@ -3059,7 +3096,7 @@ async function listProjectTasks(env, payload) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const url = env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/project_tasks?select=id,lane,text,done,created_by,created_at,done_at&order=created_at.asc";
+    "/rest/v1/project_tasks?select=id,lane,text,done,origin,created_by,created_at,done_at&order=created_at.asc";
   const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
@@ -3078,11 +3115,14 @@ async function addProjectTask(env, payload) {
   if (!text) {
     return { ok: false, code: "TEXT_REQUIRED", error: "text is required" };
   }
+  // 這支只有畫面上的新增表單會呼叫，一定是使用者自己打的字，origin
+  // 一律 'user'（欄位預設值也是 'user'，這裡寫明只是不依賴預設值）。
+  // Claude 交辦的項目走 Supabase 直連 SQL 插入，不經過這支 action。
   const insertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks";
   const response = await fetch(insertUrl, {
     method: "POST",
     headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
-    body: JSON.stringify({ lane: lane, text: text, created_by: identity })
+    body: JSON.stringify({ lane: lane, text: text, created_by: identity, origin: "user" })
   });
   if (!response.ok) {
     throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
@@ -3101,11 +3141,57 @@ async function toggleProjectTask(env, payload) {
     return { ok: false, code: "ID_REQUIRED", error: "id is required" };
   }
   const done = Boolean(payload && payload.done);
+  const updateBody = { done: done, done_at: done ? new Date().toISOString() : null };
+
+  // 使用者要求：Claude 交辦的項目不管當下在哪個泳道，一旦勾選完成，
+  // 一律回到「你要做的」（for_user）的已完成清單，不要讓完成紀錄
+  // 分裂在兩邊——這是唯一會自動搬動泳道的情況，取消勾選不會搬回去。
+  var movedToLane = null;
+  if (done) {
+    var origin = await fetchProjectTaskOrigin(env, id);
+    if (origin === "claude") {
+      updateBody.lane = "for_user";
+      movedToLane = "for_user";
+    }
+  }
+
   const updateUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
   const response = await fetch(updateUrl, {
     method: "PATCH",
     headers: supabaseHeaders(env),
-    body: JSON.stringify({ done: done, done_at: done ? new Date().toISOString() : null })
+    body: JSON.stringify(updateBody)
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true, movedToLane: movedToLane };
+}
+
+// 移動泳道（不改 done 狀態）。給 for_claude 裡 Claude 交辦的項目用的
+// 「‹ 移回你要做的」按鈕（不帶 text，單純改 lane），**也**給 for_user
+// 的「›」轉送重用（帶 text＝原文+使用者補充的調整說明）——舊版轉送是
+// 「新增一筆 for_claude ＋刪除原本 for_user 那筆」，但 Claude 交辦的
+// 項目現在禁止刪除（見 deleteProjectTask 的 ORIGIN_LOCKED），delete
+// 會被擋下來，所以改成直接 UPDATE 同一筆的 lane／text，id 不變，也
+// 更省一次 API 往返。
+async function moveProjectTaskLane(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const id = String((payload && payload.id) || "").trim();
+  if (!id) {
+    return { ok: false, code: "ID_REQUIRED", error: "id is required" };
+  }
+  const lane = (payload && payload.lane) === "for_claude" ? "for_claude" : "for_user";
+  const updateBody = { lane: lane };
+  const text = String((payload && payload.text) || "").trim();
+  if (text) updateBody.text = text;
+  const updateUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
+  const response = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify(updateBody)
   });
   if (!response.ok) {
     throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
@@ -3122,6 +3208,13 @@ async function deleteProjectTask(env, payload) {
   if (!id) {
     return { ok: false, code: "ID_REQUIRED", error: "id is required" };
   }
+  // 硬性擋下：Claude 交辦的項目永遠不能刪除，只能勾選完成或移動泳道。
+  // 這裡查一次資料庫現況（不信任前端傳來的任何 origin 宣稱），擋掉
+  // 舊版/快取前端直接呼叫這支 action 的路徑。
+  const origin = await fetchProjectTaskOrigin(env, id);
+  if (origin === "claude") {
+    return { ok: false, code: "ORIGIN_LOCKED", error: "Claude 交辦的項目不能刪除，只能勾選完成" };
+  }
   const deleteUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
   const response = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
   if (!response.ok) {
@@ -3131,7 +3224,9 @@ async function deleteProjectTask(env, payload) {
 }
 
 // 2026-07-15：使用者要求「已完成」不要一直堆積，一次清掉整條泳道裡
-// 已勾選完成的項目（不是一筆一筆刪）。
+// 已勾選完成的項目（不是一筆一筆刪）。**同日稍後修正**：只清 origin
+// 'user' 的項目——Claude 交辦的完成項目是永久記錄，不在「清除全部」
+// 的範圍內（跟決策時間軸同一個精神：完成紀錄不無故消失）。
 async function clearDoneProjectTasks(env, payload) {
   const identity = await requireSession(env, payload);
   if (!identity) {
@@ -3139,7 +3234,7 @@ async function clearDoneProjectTasks(env, payload) {
   }
   const lane = (payload && payload.lane) === "for_claude" ? "for_claude" : "for_user";
   const deleteUrl = env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/project_tasks?lane=eq." + encodeURIComponent(lane) + "&done=eq.true";
+    "/rest/v1/project_tasks?lane=eq." + encodeURIComponent(lane) + "&done=eq.true&origin=eq.user";
   const response = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));

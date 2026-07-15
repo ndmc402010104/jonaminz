@@ -20,6 +20,58 @@
 
 ---
 
+## 2026-07-15（傍晚，第五十次）— 待辦板加 origin 規則：Claude 交辦的項目不能刪除
+
+- **任務**：使用者實測時不小心用舊分頁的過期 JS 把一筆 Claude 交辦的
+  驗證項目（APK 上傳驗證）整個刪掉了，回報「這樣很容易東西就不見了」，
+  明確要求：Claude 給的項目可以在兩個泳道間移動，但不能取消，最後
+  勾選完成要回到左邊（「你要做的」）的已完成清單；只有使用者自己
+  輸入的項目才能刪除。
+- **變更**：
+  - 新 schema `backend/supabase/project_tasks_origin_schema.sql`（已
+    套用）：`project_tasks` 加 `origin` 欄位（`'user'`／`'claude'`，
+    預設 `'user'`），並把這次改動之前的既有 9 筆歷史資料（人工核對過
+    全部都是 Claude 交辦/轉送出來的）回填成 `'claude'`。
+  - `worker.js`：
+    - `deleteProjectTask` 改成先查 DB 現況的 `origin`，`'claude'` 一律
+      擋下回 `ORIGIN_LOCKED`——**這條規則刻意做在 Worker 端，不是只靠
+      前端藏按鈕**，因為這次事故的根因正是舊分頁/快取 JS 繞過了前端
+      限制直接呼叫這支 action，前端藏按鈕擋不住這種情況。
+    - `toggleProjectTask` 標記完成時，若該筆 `origin==='claude'`，
+      強制把 `lane` 設回 `'for_user'`（完成紀錄永遠回到「你要做的」
+      清單，不分裂在兩邊；取消勾選不會搬回去）。
+    - `clearDoneProjectTasks` 只清 `origin='user'` 的已完成項目——
+      Claude 交辦的完成紀錄是永久保留的，跟決策時間軸同一個「紀錄不
+      無故消失」精神。
+    - 新增 `moveProjectTaskLane` action，選填 `text`：不帶就是單純換
+      `lane`（給 for_claude 裡 Claude 交辦項目的「‹ 移回你要做的」按鈕
+      用）；帶 `text` 就是原本「›」轉送的新寫法——**改成直接 UPDATE
+      同一筆的 `lane`/`text`，不再是「新增一筆＋刪除原筆」**，因為
+      Claude 交辦的項目現在禁止刪除，原本轉送流程最後那個
+      `deleteProjectTask` 呼叫會被新規則擋下來，直接 UPDATE 反而更
+      精簡、也少一次 API 往返。
+  - `pages/admin/journal/assets/js/app.js`：`taskItemHtml()` 依
+    `task.origin` 決定動作按鈕（`claude` 顯示移動用的「›」/「‹」，
+    `user` 顯示「✕」刪除）；toggle/escalate/clear-done 三處 optimistic
+    UI 都同步套用同一條規則（跟後端行為對齊，不然會出現「畫面上消失了
+    但重新整理又跑回來」的錯覺）。
+  - `page-admin-journal.css` 補 `.jonaminz-journal-task-move-back`
+    樣式（跟既有「›」共用）。
+  - **驗證方式**：寫一份 Playwright harness（stub
+    `JonaminzIdentity`/`JonaminzBackend`，灌假的 `project_tasks` 資料，
+    真的載入 `pages/admin/journal/assets/js/app.js`）逐項測過：按鈕依
+    origin 正確顯示／「‹」移回／「›」轉送＋文字合併／✕ 刪除 user-origin
+    項目／勾選完成後 claude-origin 項目自動搬回 for_user／清除全部只清
+    user-origin 已完成項目、claude-origin 永久保留——全部符合預期後
+    才部署，部署後另外用 curl 對正式 Worker 打
+    `deleteProjectTask`（用一筆真實的 claude-origin id）確認真的回
+    `ORIGIN_LOCKED`，沒有真的刪除。
+- **狀態變化**：這條規則正式上線，同類事故不會再發生。原本被誤刪的
+  那筆「APK 上傳驗證」提醒，等這次上線後會用新規則重新加回
+  `for_user` 泳道。
+- **遺留**：無。
+- **版本**：v0.39.0-202607151734
+
 ## 2026-07-15（傍晚，第四十九次）— OneDrive Phase C 首次真人端到端驗證成功
 
 - **任務**：使用者取得瀏覽器 session token，請 Claude 直接代跑

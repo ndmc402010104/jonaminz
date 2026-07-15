@@ -208,6 +208,10 @@
     return call("clearDoneProjectTasks", payload, options);
   }
 
+  function moveProjectTaskLane(payload, options) {
+    return call("moveProjectTaskLane", payload, options);
+  }
+
   function requestImageUpload(payload, options) {
     return call("requestImageUpload", payload, options);
   }
@@ -262,6 +266,7 @@
     toggleProjectTask: toggleProjectTask,
     deleteProjectTask: deleteProjectTask,
     clearDoneProjectTasks: clearDoneProjectTasks,
+    moveProjectTaskLane: moveProjectTaskLane,
     requestImageUpload: requestImageUpload,
     sendImageMessage: sendImageMessage,
     getImageUrls: getImageUrls
