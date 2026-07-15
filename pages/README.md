@@ -39,6 +39,10 @@
   共用 `page-jonathan.css` 的導覽/按鈕/配色，只加自己的照片＋文字版型。
 - `pages/minz/` — Minz 個人門戶頁，目前是骨架佔位頁（內容留白等本人提供
   簡介文字/照片），版型跟 `pages/jonathan/` 對稱。公開頁面，不需要登入。
+- `pages/admin/toolkit/` — 工具包頁（2026-07-15，從「決策圖」候選項目
+  挑選實作）：常用開發/發佈連結卡片（local dev 區網測試網址、APK 下載
+  連結），純靜態頁面，不呼叫任何 Worker action，所以沒有載入
+  `backend-client.js`。
 
 **2026-07-12 起：整個後台（`pages/admin/`、`pages/admin/theme/`、
 `pages/admin/contracts/`）都要求登入才能進入**（`window.JonaminzIdentity.requireLogin()`，

@@ -70,6 +70,18 @@
         "loadingTasks": ["app-ready"]
       }
     },
+    "admin-toolkit": {
+      "pageId": "admin-toolkit",
+      "title": "工具包",
+      "path": "/pages/admin/toolkit/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/toolkit/assets/css/page-admin-toolkit.css"],
+        "afterScripts": ["/pages/admin/toolkit/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
     "admin-design": {
       "pageId": "admin-design",
       "title": "專案視覺方向",

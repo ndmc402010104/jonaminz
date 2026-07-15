@@ -20,6 +20,32 @@
 
 ---
 
+## 2026-07-15（晚上，第六十一次）— 新增後台「工具包」頁（決策圖第二個畢業的候選項目）
+
+- **任務**：使用者要求「幫我先做 chat 接著做工具包」，做完 Chat 檔案
+  附件後接著做工具包頁面（使用者自己在決策圖提出的候選項目）。
+- **變更**：
+  - 新頁面 `pages/admin/toolkit/`（照 `pages/README.md` 五步流程，
+    複製 `pages/admin/journal/index.html` 的 bootstrap）：兩張快速
+    連結卡片——「Local Dev（區網測試）」（`http://192.168.68.90:5500/`
+    ，這台機器目前已知的區網 IP＋`dev-server.js` 預設 port，寫在
+    `app.js` 的 `LOCAL_DEV_IP` 常數，**換網路/換電腦要回來改這裡**）
+    、「下載最新 APK」（`/appDownload`，OneDrive 線 Phase C 自架
+    發佈）。每張卡片有「開啟」（新分頁）／「複製網址」兩個按鈕。
+    純靜態頁面，不呼叫任何 Worker action，沒有載入 `backend-client.js`
+    。
+  - `config.json` 新增 `admin-toolkit` entry；`pages/admin/assets/js/app.js`
+    後台首頁加一張入口卡片連過去；`pages/README.md` 補上頁面清單。
+- **驗證**：用本機 `dev-server.js` + Playwright（灌真實 session
+  token 到 localStorage，走真正的 `requireLogin()` 流程，不是 stub）
+  實際載入這頁，截圖確認版面正確、兩個網址正確、複製按鈕實測有效
+  （`context.grantPermissions` 開 clipboard 權限後確認真的複製成功）。
+- **狀態變化**：決策圖第二個被實作出來的候選項目，兩個都做完後
+  `DECISION_MAP` 只剩「後台首頁摘要卡片」「Chat 貼圖面板」兩筆候選。
+- **遺留**：`LOCAL_DEV_IP` 是寫死的常數，換網路環境或換電腦時會失效
+  ，需要手動更新 `pages/admin/toolkit/assets/js/app.js`。
+- **版本**：v0.43.0-202607152016
+
 ## 2026-07-15（晚上，第六十次）— Chat 檔案附件上線（決策圖第一個畢業的候選項目）
 
 - **任務**：使用者要求「幫我先做 chat 接著做工具包」——從決策圖挑選

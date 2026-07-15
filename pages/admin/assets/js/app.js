@@ -103,6 +103,11 @@ index.html／page-admin.css 檔頭說明）。三個入口（Theme／Contract �
           title: "決策與待辦",
           desc: "重大決策時間軸 + 兩人交辦事項看板"
         }) +
+        entryHtml({
+          href: "/pages/admin/toolkit/",
+          title: "工具包",
+          desc: "常用連結：local dev 區網測試、APK 下載"
+        }) +
       '</div>' +
       '<section class="jonaminz-admin-registrations">' +
         '<p class="jonaminz-admin-section-title">外部專案回報</p>' +
