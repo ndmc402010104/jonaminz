@@ -287,6 +287,8 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 
     function updateAnchorTopVar() {
       document.documentElement.style.setProperty("--jcl-anchor-top", computeAnchorTop() + "px");
+      // 錨點變動會移動大頭貼的預設停靠位置，手勢排除區要跟著搬。
+      scheduleGestureExclusionSync();
     }
 
     updateAnchorTopVar();
@@ -305,6 +307,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       freeLeft = snappedLeft;
       freeTop = clampedTop;
       animateTo(function () { applyPosition(snappedLeft, clampedTop); });
+      scheduleGestureExclusionSync();
     }
 
     // 2026-07-15（真機回饋）：面板開著時在裡面打字，手機鍵盤跳出會把
@@ -356,6 +359,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       } catch (error) {}
       if (open) lockToOpenAnchor();
       else restoreRestingPosition();
+      scheduleGestureExclusionSync();
     }
 
     // ---- 拖動／點擊覆蓋層：全程只在宿主自己的 document 裡發生，不跨
@@ -363,6 +367,38 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     var overlay = document.createElement("div");
     overlay.className = OVERLAY_CLASS;
     document.body.appendChild(overlay);
+
+    // 2026-07-15（第三十輪）：App 裡這顆網頁大頭貼貼著螢幕邊緣，拖動
+    // 起手很容易被系統當成返回手勢——跟懸浮泡泡一樣把大頭貼目前的範圍
+    // 宣告成系統手勢排除區。差別是這顆活在網頁裡，座標要交給原生外掛
+    // （JonaminzNative.setGestureExclusion）乘密度換算後掛到 WebView 上
+    // （CSS px 等於 dp）。只在「停下來」的時機同步（初始、吸邊完成、
+    // 面板開關、錨點變動、讓位/回歸）：排除區只影響下一次手勢的起手點，
+    // 拖動進行中不需要跟著更新。瀏覽器（非 App）沒有這個外掛，靜默跳過。
+    var gestureExclusionTimer = null;
+    function syncGestureExclusion(clear) {
+      try {
+        var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.JonaminzNative;
+        if (!plugin || typeof plugin.setGestureExclusion !== "function") return;
+        if (clear || !overlay || overlay.style.display === "none") {
+          plugin.setGestureExclusion({ x: 0, y: 0, width: 0, height: 0 });
+          return;
+        }
+        var rect = overlay.getBoundingClientRect();
+        plugin.setGestureExclusion({
+          x: rect.left, y: rect.top, width: rect.width, height: rect.height
+        });
+      } catch (error) {}
+    }
+    function scheduleGestureExclusionSync() {
+      if (gestureExclusionTimer) window.clearTimeout(gestureExclusionTimer);
+      // 等吸邊/錨定動畫（240ms）跑完、位置定下來才量。
+      gestureExclusionTimer = window.setTimeout(function () {
+        gestureExclusionTimer = null;
+        syncGestureExclusion(false);
+      }, 320);
+    }
+    scheduleGestureExclusionSync();
 
     var dragStart = null;
 
@@ -532,6 +568,9 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       launcherFrame.style.display = hidden ? "none" : "";
       overlay.style.display = hidden ? "none" : "";
       if (hidden) panelFrame.classList.add("jcl-panel-hidden");
+      // 讓位（隱藏）時清掉手勢排除區，回歸時重新量。
+      if (hidden) syncGestureExclusion(true);
+      else scheduleGestureExclusionSync();
     }
 
     function syncOverlayBubbleState() {

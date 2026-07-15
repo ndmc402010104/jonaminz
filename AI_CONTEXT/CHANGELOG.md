@@ -20,6 +20,39 @@
 
 ---
 
+## 2026-07-15（早上，第三十次）— 懸浮泡泡手感四件套（主動盤點 checklist 的第一批）
+
+- **任務**：使用者質問「你早就知道的最佳實務為什麼等我測出來才修」
+  ——成立。改成主動盤點「已知但沒做」的標準配備給使用者勾選（此工作
+  模式已寫進使用者層記憶）。本輪勾選四項：(1) 泡泡甩動慣性物理；
+  (2) 拖到 ✕ 的磁吸效果；(3) App 內網頁大頭貼也要系統手勢排除
+  （之前只做了原生懸浮泡泡那顆）；(4) 泡泡開啟初始位置改右上角
+  （原本在右邊中間）。另定案模型分工流程：Fable 設計、Sonnet 實作、
+  做完提醒切回。
+- **變更**（跨兩個 repo）：
+  - `BubbleOverlayService.java`：拖動監聽加 `VelocityTracker`，放開時
+    `flingThenSnap()` 依速度投影慣性落點再減速吸邊（水平夠快照甩的
+    方向吸邊）；磁吸＝拖動中手指推算的泡泡中心距 ✕ 中心 90dp 內，
+    泡泡直接吸到 ✕ 正中央＋✕ 放大，拉遠即脫離；座標判定改用「起手
+    量一次的螢幕/params 座標差＋✕ 中心快取」，不在拖動中反覆
+    `getLocationOnScreen`（layout 未跑完會拿舊值）。舊的
+    `isNearDismiss/highlightDismissIfNear/snapToEdge` 移除。初始位置
+    y 從 dp(200) 改 dp(16)（右上角）。
+  - `JonaminzNativePlugin.java`：新增 `setGestureExclusion({x,y,width,
+    height})`——網頁傳 CSS px（=dp），原生乘密度換 view px 後掛
+    `setSystemGestureExclusionRects` 到 WebView；0 尺寸＝清除。
+  - `chat-launcher.js`：`syncGestureExclusion()` 把大頭貼
+    `getBoundingClientRect()` 經上述外掛同步成手勢排除區；在初始、
+    吸邊完成、面板開關、錨點變動、讓位/回歸時排程同步（動畫 240ms
+    跑完後 320ms 量）；瀏覽器沒外掛靜默跳過。
+- **狀態變化**：APK 已重建並上傳 app-latest Release（固定網址不變）。
+  網頁端 v0.33.3。
+- **遺留**：鍵盤面板抬升（第二十九輪）待使用者重開 App 再驗——線上
+  JS 已確認含抬升公式，上次截圖是手機快取舊 JS（10 分鐘窗）。四項
+  新手感待實機驗收。OneDrive 線（圖片分享＋自架 APK 發佈）仍是下一個
+  大項。
+- **版本**：v0.33.3-202607150826
+
 ## 2026-07-15（早上，第二十八次）— 鍵盤擠壓根治（adjustNothing＋原生 inset 管道）、懸浮泡泡照系統版型重排、composer 對齊
 
 - **任務**：使用者強烈回饋三件（過程中明確表達不滿「說要改的地方一個
