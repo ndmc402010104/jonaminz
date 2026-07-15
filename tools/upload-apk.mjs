@@ -2,8 +2,11 @@
 檔案位置：jonaminz/tools/upload-apk.mjs
 用途：OneDrive 線 Phase C（APK 自架，見 AI_CONTEXT/ONEDRIVE_LINE_SPEC.md
 §2.3/§7）。本機建完 jonaminz-mobile-app 的 APK 後，用這支腳本上傳到
-Jonathan 的 OneDrive App Folder（releases/jonaminz.apk），之後
-Worker 的 GET /appDownload 永遠轉址到這份檔案目前的下載連結。
+Jonathan 的 OneDrive App Folder。每次上傳的檔名由 Worker 端決定、帶
+時間戳（releases/jonaminz-<時間戳>.apk，不覆蓋舊檔），Worker 的
+GET /appDownload 永遠轉址到 releases/ 資料夾裡最新那個檔案的下載連結
+——2026-07-15 同日稍後改的：原本固定覆蓋同一個檔名，手機下載下來的
+檔案永遠同名，使用者反映「怕裝錯」分不出新舊下載。
 
 位元組不經過 Worker：先呼叫 createApkUploadSession action 拿 Graph
 的 uploadUrl，再直接 PUT 檔案內容給 Graph。

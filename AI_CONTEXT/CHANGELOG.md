@@ -20,6 +20,45 @@
 
 ---
 
+## 2026-07-15（傍晚，第五十一次）— APK 每次都用獨立檔名＋補上 Android 版本號
+
+- **任務**：使用者實測裝完 APK 後回報「每次檔名都一樣，怕安裝錯，每次
+  更新要加版本號碼」。
+- **變更**：
+  - `worker.js`：新增 `apkReleaseFileName()`，用當下時間（+8 換算成
+    台北時區）產生 `jonaminz-<YYYYMMDDHHmm>.apk` 這種帶時間戳的獨立
+    檔名；`createApkUploadSession` 改用這支產生的檔名，不再固定寫死
+    `releases/jonaminz.apk`（每次上傳變成新增檔案，不是覆蓋）。
+    `handleAppDownload`（`GET /appDownload`）跟著改成列出 `releases/`
+    資料夾全部項目、篩選 `.apk` 結尾、依 `createdDateTime` 排序取最新
+    一筆——網址本身仍然固定不變，只是背後永遠自動指向「當下最新、
+    有唯一檔名」的那個檔案。舊檔案留著當歷史紀錄，APK 一個 6MB 左右
+    不是容量問題。
+  - `tools/upload-apk.mjs`：文件註解同步更新，說明檔名由 Worker 決定。
+  - `jonaminz-mobile-app/android/app/build.gradle`：**修掉一個從第一次
+    build 起就存在、一直沒被發現的問題**——`versionCode`/`versionName`
+    從來沒被更新過，永遠是 `1`／`"1.0"`。Android 系統本身判斷「這是不是
+    新版本」、手機 Settings 裡顯示的版本號，都是靠這兩個值，一直不動
+    等於沒辦法用系統機制分辨裝置上裝的到底是哪一版。改成
+    `versionCode 2`／`versionName "202607151810"`，並在程式碼註解裡
+    明訂：**之後每次要發新 build 給使用者裝之前，這兩個值都要更新**
+    （`versionCode` +1、`versionName` 換新時間戳）。
+- **驗證**：重新 build APK（`aapt dump badging` 確認
+  `versionCode='2' versionName='202607151810'` 正確嵌入），部署 Worker
+  後重新跑一次 `tools/upload-apk.mjs`——**中間踩到一次 Cloudflare 邊緣
+  節點傳播延遲**：deploy 回報成功後立刻呼叫，還是打到舊版程式碼（檔名
+  跟 itemId 都跟上一次一樣，代表其實還在覆蓋舊邏輯），等幾秒後重打
+  `createApkUploadSession` 確認回應真的帶新檔名（`fileName:
+  "jonaminz-202607151814.apk"`）才重新上傳一次，最後用 curl 確認
+  `GET /appDownload` 的 302 目標 `UniqueId` 精確對上這次剛上傳那個
+  itemId——證明「挑最新一筆」的邏輯真的抓對檔案，不是猜的。
+- **狀態變化**：這是本輪第二次遇到「wrangler deploy 回報成功不等於
+  全球邊緣立刻生效」——跟稍早 `/appDownload` 上線時第一次遇到的
+  405→404 現象是同一類陷阱，值得記住：**deploy 完不能馬上驗證，
+  要隔幾秒或重試一次確認真的吃到新版本，不然會誤判「改壞了」**。
+- **遺留**：無。
+- **版本**：v0.39.1-202607151815
+
 ## 2026-07-15（傍晚，第五十次）— 待辦板加 origin 規則：Claude 交辦的項目不能刪除
 
 - **任務**：使用者實測時不小心用舊分頁的過期 JS 把一筆 Claude 交辦的

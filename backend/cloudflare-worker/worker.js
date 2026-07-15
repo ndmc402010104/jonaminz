@@ -133,9 +133,12 @@
   呼叫 `createApkUploadSession` 拿 Graph 上傳位址（**固定用 Jonathan
   的 OneDrive 帳號**存放，跟呼叫者登入身分無關——這只是「安裝檔放哪」，
   不是需要雙邊各自留一份的內容），直接 PUT 位元組給 Graph（不經過
-  這個 Worker）。存進 `releases/jonaminz.apk`（`conflictBehavior:
-  replace`，每次上傳覆蓋同一個檔名，不是每次都堆新檔案）。`GET
-  /appDownload` 是固定網址，即時查 Graph 換一次短效 downloadUrl 後
+  這個 Worker）。**存進 `releases/jonaminz-<時間戳>.apk`（每次都是
+  獨立檔名，不覆蓋）**——2026-07-15 同日稍後修正：原本每次都覆蓋
+  `releases/jonaminz.apk` 同一個檔名，使用者實測回報「每次下載檔名都
+  一樣，怕裝錯」（手機下載歷史/快取分不出新舊）；`GET /appDownload`
+  改成列出 `releases/` 資料夾、依 `createdDateTime` 挑最新一筆，網址
+  本身仍然固定，只是背後永遠指向當下最新、有唯一檔名的那個檔案，
   302 轉址——**故意不要求登入**，這份檔案是編譯產物本來就要給 Minz
   手機瀏覽器直接點開安裝，不是敏感資料，多一層登入關卡只會讓「傳個
   安裝連結」變麻煩。真機驗證下載安裝 OK 後，原本的 GitHub Release
@@ -2810,6 +2813,21 @@ async function testOnedriveConnection(env, payload) {
 // AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）。位元組一樣不經過這個
 // Worker——tools/upload-apk.mjs 拿到 uploadUrl 後直接 PUT 給 Graph。----------
 
+// 2026-07-15（同日稍後）：使用者實測裝完後回報「每次檔名都一樣，怕
+// 裝錯」——原本每次上傳都覆蓋同一個 releases/jonaminz.apk，手機下載
+// 下來的檔案永遠同名，舊的快取下載跟新的分不出來。改成每次上傳都用
+// 帶時間戳的獨立檔名（不覆蓋），/appDownload 改成列出 releases 資料夾
+// 挑最新一筆——網址本身仍然固定不變，只是背後永遠指向「當下最新那個
+// 有唯一檔名的檔案」。舊檔案留著當歷史紀錄，APK 一個 6MB 左右，容量
+// 不是問題。
+function apkReleaseFileName() {
+  var taipei = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  function pad(n) { return String(n).padStart(2, "0"); }
+  var stamp = taipei.getUTCFullYear() + pad(taipei.getUTCMonth() + 1) + pad(taipei.getUTCDate()) +
+    pad(taipei.getUTCHours()) + pad(taipei.getUTCMinutes());
+  return "jonaminz-" + stamp + ".apk";
+}
+
 // 固定用 Jonathan 的 OneDrive 帳號存放安裝檔，跟呼叫者登入身分無關
 // （這只是「安裝檔放哪」，不是需要雙邊各自留一份的內容）。任一身分
 // 登入都能觸發這支，理由同 testOnedriveConnection。
@@ -2824,8 +2842,9 @@ async function createApkUploadSession(env, payload) {
   } catch (error) {
     return { ok: false, error: "OneDrive 尚未連接：" + (error.message || String(error)) };
   }
+  const fileName = apkReleaseFileName();
   const response = await fetch(
-    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/releases/jonaminz.apk:/createUploadSession",
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/releases/" + fileName + ":/createUploadSession",
     {
       method: "POST",
       headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
@@ -2839,11 +2858,14 @@ async function createApkUploadSession(env, payload) {
   if (!session.uploadUrl) {
     return { ok: false, error: "Graph 沒有回傳 uploadUrl" };
   }
-  return { ok: true, uploadUrl: session.uploadUrl };
+  return { ok: true, uploadUrl: session.uploadUrl, fileName: fileName };
 }
 
-// GET /appDownload 的實作：查目前存放的 jonaminz.apk，換一次短效
-// downloadUrl 後 302 轉址。故意不要求登入（見上方 action 清單註解）。
+// GET /appDownload 的實作：列出 releases 資料夾、挑 createdDateTime
+// 最新的一個 .apk，換一次短效 downloadUrl 後 302 轉址。故意不要求
+// 登入（見上方 action 清單註解）。改成列資料夾而不是查固定檔名，
+// 是因為 createApkUploadSession 現在每次都用帶時間戳的獨立檔名
+// （不覆蓋），沒有一個固定路徑可以直接查。
 async function handleAppDownload(env) {
   let accessToken;
   try {
@@ -2852,14 +2874,22 @@ async function handleAppDownload(env) {
     return new Response("OneDrive 尚未連接，無法提供下載：" + (error.message || String(error)), { status: 503 });
   }
   const response = await fetch(
-    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/releases/jonaminz.apk",
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/releases:/children",
     { headers: { Authorization: "Bearer " + accessToken } }
   );
   if (!response.ok) {
-    return new Response("找不到安裝檔（HTTP " + response.status + "），可能還沒上傳過。", { status: 404 });
+    return new Response("找不到安裝檔資料夾（HTTP " + response.status + "），可能還沒上傳過。", { status: 404 });
   }
-  const item = await response.json();
-  const downloadUrl = item["@microsoft.graph.downloadUrl"];
+  const listData = await response.json();
+  const items = (listData.value || []).filter(function (item) {
+    return item.name && item.name.toLowerCase().endsWith(".apk");
+  });
+  if (!items.length) {
+    return new Response("releases 資料夾裡還沒有任何安裝檔。", { status: 404 });
+  }
+  items.sort(function (a, b) { return new Date(b.createdDateTime) - new Date(a.createdDateTime); });
+  const latest = items[0];
+  const downloadUrl = latest["@microsoft.graph.downloadUrl"];
   if (!downloadUrl) {
     return new Response("Graph 沒有回傳下載連結。", { status: 502 });
   }
