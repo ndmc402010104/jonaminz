@@ -58,6 +58,18 @@
         "loadingTasks": ["app-ready"]
       }
     },
+    "admin-journal": {
+      "pageId": "admin-journal",
+      "title": "決策與待辦",
+      "path": "/pages/admin/journal/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/journal/assets/css/page-admin-journal.css"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/journal/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
     "admin-design": {
       "pageId": "admin-design",
       "title": "專案視覺方向",

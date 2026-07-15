@@ -116,6 +116,11 @@
   實際拿 access token 打 Graph `me/drive/special/approot` 驗證連線是否
   真的可用（不只是「有存 refresh_token」這種表面狀態），Phase A 的
   驗收動作。
+- `listProjectTasks` / `addProjectTask` / `toggleProjectTask` /
+  `deleteProjectTask`：`pages/admin/journal/`（決策與待辦頁）的待辦
+  看板，2026-07-15 新增。單一全域清單，兩條泳道（`for_user`／
+  `for_claude`），任何已登入身分都能操作任一泳道的任一筆——跟
+  OneDrive 連接同一個信任模型（兩人共用帳密，不用分誰能動哪個泳道）。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -346,6 +351,22 @@ export default {
 
       if (action === "testOnedriveConnection") {
         return json(await testOnedriveConnection(env, payload), 200);
+      }
+
+      if (action === "listProjectTasks") {
+        return json(await listProjectTasks(env, payload), 200);
+      }
+
+      if (action === "addProjectTask") {
+        return json(await addProjectTask(env, payload), 200);
+      }
+
+      if (action === "toggleProjectTask") {
+        return json(await toggleProjectTask(env, payload), 200);
+      }
+
+      if (action === "deleteProjectTask") {
+        return json(await deleteProjectTask(env, payload), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -2683,4 +2704,88 @@ async function testOnedriveConnection(env, payload) {
   }
   const folder = await response.json();
   return { ok: true, folderId: folder.id, folderName: folder.name, webUrl: folder.webUrl };
+}
+
+// ---------- 「決策與待辦」頁（pages/admin/journal/）的待辦看板，
+// 2026-07-15 使用者提議：Google Todo List 風格的兩泳道清單——
+// 'for_user'（Claude 交辦給使用者做的事）、'for_claude'（使用者隨時
+// 記下、之後給 Claude 挑來做的待辦）。單一全域清單，任何已登入身分
+// 都能新增/勾選/刪除任一泳道的項目（跟 OneDrive 連接同一個信任模型：
+// 兩人共用帳密，不用分誰能動哪個泳道）。----------
+
+async function listProjectTasks(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/project_tasks?select=id,lane,text,done,created_by,created_at,done_at&order=created_at.asc";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return { ok: true, rows: rows };
+}
+
+async function addProjectTask(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const lane = (payload && payload.lane) === "for_claude" ? "for_claude" : "for_user";
+  const text = String((payload && payload.text) || "").trim();
+  if (!text) {
+    return { ok: false, code: "TEXT_REQUIRED", error: "text is required" };
+  }
+  const insertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks";
+  const response = await fetch(insertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify({ lane: lane, text: text, created_by: identity })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return { ok: true, row: rows[0] };
+}
+
+async function toggleProjectTask(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const id = String((payload && payload.id) || "").trim();
+  if (!id) {
+    return { ok: false, code: "ID_REQUIRED", error: "id is required" };
+  }
+  const done = Boolean(payload && payload.done);
+  const updateUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
+  const response = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ done: done, done_at: done ? new Date().toISOString() : null })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+async function deleteProjectTask(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const id = String((payload && payload.id) || "").trim();
+  if (!id) {
+    return { ok: false, code: "ID_REQUIRED", error: "id is required" };
+  }
+  const deleteUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
+  const response = await fetch(deleteUrl, { method: "DELETE", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
 }

@@ -20,6 +20,38 @@
 
 ---
 
+## 2026-07-15（中午，第三十五次）— 新增「決策與待辦」頁；補 Movies 卡片
+
+- **任務**：Phase B 開工前，使用者要求先做兩件事：(1) 後台加一張卡片
+  連到新頁面，裡面放「一路走來所有重大決策」（比照當天 OneDrive 流程圖
+  Artifact 的視覺呈現方式，使用者明確表示喜歡那種清楚明瞭的風格）＋
+  Google Todo List 風格的兩泳道待辦看板（左：Claude交辦給使用者的事；
+  右：使用者隨時記下、之後給 Claude 挑來做的事）；(2) 後台首頁的
+  Movie 卡片為什麼一直「神隱」——查證後純粹是加 Travel 卡片時漏加，
+  不是任何機制問題。
+- **變更**：
+  - `backend/supabase/project_tasks_schema.sql`：新表 `project_tasks`
+    （兩泳道 `for_user`／`for_claude`，`done` 狀態，`created_by` 記錄
+    是誰加的），已套用到 `jonaminz-db`。
+  - `worker.js`：新增 `listProjectTasks`／`addProjectTask`／
+    `toggleProjectTask`／`deleteProjectTask` 四個 action，任何已登入
+    身分都能操作任一泳道任一筆（跟 OneDrive 連接同一個信任模型：兩人
+    共用帳密，不分誰能動哪個泳道）。`backend-client.js` 加對應四個
+    wrapper。已 `wrangler deploy`。
+  - 新頁面 **`pages/admin/journal/`**（決策與待辦）：上半是手動維護的
+    決策時間軸（`DECISION_TIMELINE` 陣列，精選重點，不是取代
+    `AI_CONTEXT/DECISIONS.md`／`CHANGELOG.md` 的完整記錄，兩者互補）；
+    下半是真正持久化的待辦看板。`config.json` 加 `admin-journal` entry。
+  - `pages/admin/` 首頁：補上 **Movies** 卡片（連到
+    `https://ndmc402010104.github.io/jonaminz-movies/`，跟 Travel
+    同一個外部連結模式）＋新增「決策與待辦」入口卡片。
+- **狀態變化**：新增一個永久性的「兩人工作空間」頁面，作為決策記錄與
+  待辦事項的共用介面。Movies 卡片神隱問題已解決。
+- **遺留**：`DECISION_TIMELINE` 陣列是手動維護的精選清單，之後每次
+  出現值得記錄的重大決策要記得手動加一筆（跟維護 CHANGELOG 同一個
+  紀律）。
+- **版本**：v0.35.0-202607151317
+
 ## 2026-07-15（中午，第三十四次）— OneDrive 線 Phase A 完工：放寬跨身分連接限制
 
 - **任務**：使用者實機跑完 Azure App 註冊全程（過程極其曲折：

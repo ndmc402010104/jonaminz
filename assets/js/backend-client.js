@@ -188,6 +188,22 @@
     return call("testOnedriveConnection", payload, options);
   }
 
+  function listProjectTasks(payload, options) {
+    return call("listProjectTasks", payload, options);
+  }
+
+  function addProjectTask(payload, options) {
+    return call("addProjectTask", payload, options);
+  }
+
+  function toggleProjectTask(payload, options) {
+    return call("toggleProjectTask", payload, options);
+  }
+
+  function deleteProjectTask(payload, options) {
+    return call("deleteProjectTask", payload, options);
+  }
+
   // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
   // call() 這種 fetch POST——這裡只負責把 baseUrl 接出來給呼叫端組網址。
   function getWorkerBaseUrlForRedirect() {
@@ -224,6 +240,10 @@
     removePushSubscription: removePushSubscription,
     getOnedriveStatus: getOnedriveStatus,
     testOnedriveConnection: testOnedriveConnection,
-    getWorkerBaseUrlForRedirect: getWorkerBaseUrlForRedirect
+    getWorkerBaseUrlForRedirect: getWorkerBaseUrlForRedirect,
+    listProjectTasks: listProjectTasks,
+    addProjectTask: addProjectTask,
+    toggleProjectTask: toggleProjectTask,
+    deleteProjectTask: deleteProjectTask
   };
 })();

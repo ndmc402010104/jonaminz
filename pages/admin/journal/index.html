@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/admin/journal/index.html
+用途：後台「決策與待辦」頁（複製自 pages/admin/contracts/index.html 的
+bootstrap，只改 pageId / title / 內容，載入路徑維持根目錄絕對路徑）。
+
+2026-07-15：使用者提議的兩人共用工作空間——上半段是一路走來的重大決策
+時間軸（視覺風格比照當天做的 OneDrive 流程圖 Artifact，使用者明確表示
+喜歡那種呈現方式）；下半段是 Google Todo List 風格的兩泳道待辦看板
+（左：Claude交辦給使用者的事；右：使用者記下來要給Claude做的事）。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="決策與待辦"
+  data-jonaminz-page-id="admin-journal"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>決策與待辦 - Jonaminz</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/favicon-180.png">
+
+  <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
+  <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
+  <script src="/assets/js/entry-core.js"></script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page jonaminz-admin-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-admin-container">
+      <a class="jonaminz-theme-back" href="/pages/admin/">← 後台</a>
+
+      <section class="jonaminz-admin-hero jonaminz-theme-hero">
+        <p class="jonaminz-eyebrow">兩人共用的工作空間</p>
+        <h1 class="jonaminz-admin-title">決策與待辦</h1>
+        <p class="jonaminz-page-subtitle">
+          上半是一路走來的重大決策時間軸，下半是彼此交辦事項的看板。
+        </p>
+      </section>
+
+      <section data-app-root>
+        <p class="jonaminz-page-subtitle">初始化中...</p>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>
