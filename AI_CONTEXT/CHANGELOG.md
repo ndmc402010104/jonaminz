@@ -20,6 +20,35 @@
 
 ---
 
+## 2026-07-15（下午，第四十三次）— OneDrive 線 Phase B：schema 已套用、Worker 已部署
+
+- **任務**：使用者回覆「可以你就套用跟部署吧」，執行第四十二次紀錄
+  遺留的兩個待確認動作。
+- **變更**：
+  - `chat_image_schema.sql` 已透過 Supabase migration 套用到
+    `jonaminz-db`（`xhwrizmacantlubasixe`）：`chat_messages.kind`
+    多了 `'image'`、新增 `metadata` jsonb 欄位、`onedrive_account`
+    新增 `account_email` 欄位。
+  - Worker 已 `wrangler deploy`（Version ID
+    `8b54a55c-ee5a-427c-9cc1-ebffbf64fbaa`），`requestImageUpload`／
+    `sendImageMessage`／`getImageUrls` 三個 action 正式上線。
+- **狀態變化**：Phase B 程式碼＋schema＋Worker 全部上線，圖片訊息
+  功能在資料庫/後端層面已可用。第四十二次紀錄的遺留事項 1 完成。
+- **遺留**：第四十二次紀錄的遺留事項 2、3 仍未解決，也是目前唯一擋著
+  「真人端到端測試」的兩件事：
+  1. **需要使用者手動處理**：Azure Portal 幫 App registration 加
+     `Files.ReadWrite` 這個 Graph delegated 權限，加完後 Jonathan／
+     Minz 都要重新走一次 `/auth/onedrive/start` 換含新 scope 的
+     refresh token（舊 token 不會自動長出新權限）。在這之前，
+     `sendImageMessage` 的 `/invite` 分享步驟會失敗（`sharedOk:
+     false`），但不會擋訊息送出，圖片會照樣顯示給發送者本人，只是
+     對方看不到。
+  2. 沒有圖形化瀏覽器可以互動測試 CORS 直傳（`createUploadSession`
+     回的 uploadUrl 能不能直接被瀏覽器 PUT），建議 Azure 權限補上後
+     由使用者實機測試第一張圖片。
+- **版本**：無程式碼變更（純套用/部署既有程式碼，`version.js` 已在
+  第四十二次反映）
+
 ## 2026-07-15（下午，第四十二次）— OneDrive 線 Phase B：圖片訊息完整實作（未部署）
 
 - **任務**：使用者授權在他小睡期間自主完成 OneDrive Phase B（圖片

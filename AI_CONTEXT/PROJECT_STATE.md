@@ -1293,14 +1293,20 @@ System App：
   Playwright 只能驗證到 postMessage relay 正確、SW 能成功註冊+
   進入 active 狀態、subscribe() 呼叫鏈路正確（卡在測試環境連不到真的
   推播服務，不是程式問題）。細節見 CHANGELOG 同日「第十六次」條目。
-- 沒做：貼圖面板、圖片實際上傳/儲存（下一輪接 OneDrive）、檔案附件、
-  Shared 獨立瀏覽列表的完整版（目前只有樣板）、送往其他 App 的
-  destinations registry、後台首頁摘要、Android 原生系統層級聊天泡泡
-  （Overlay，需要 Capacitor 原生 plugin，工程量級不同，下一輪）、真正的
+- **圖片實際上傳/儲存已完成（2026-07-15，OneDrive 線 Phase B）**：
+  單一副本＋Graph 原生分享架構（不是雙寫鏡射），schema 已套用、Worker
+  已部署（見 `AI_CONTEXT/CHANGELOG.md` 第四十二/四十三次條目、設計依據
+  `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §2）。**尚未端到端真人測試**——
+  卡在 Azure Portal 需手動加 `Files.ReadWrite` 權限＋雙方重新連接
+  OneDrive 這一步，見 CHANGELOG 第四十三次「遺留」。
+- 沒做：貼圖面板、檔案附件、Shared 獨立瀏覽列表的完整版（目前只有
+  樣板）、送往其他 App 的 destinations registry、後台首頁摘要、真正的
   WebSocket/Realtime 推播（目前是 polling，Web Push 只解決「App 關閉時
   的系統通知」，不是即時雙向連線）、端對端加密——這些多半在交接包的
   「不准做」清單裡，或屬於使用者任務書明確排除/延後的範圍，或需要全新
-  基礎設施不是這次規模能穩妥做完的，刻意不碰。
+  基礎設施不是這次規模能穩妥做完的，刻意不碰。Android 原生系統層級聊天
+  泡泡（Overlay）已在姊妹專案 `jonaminz-mobile-app` 實作完成，細節見
+  該 repo 自己的交接文件，不重複記在這裡。
 - `SOURCE/technical-mvp-0.1-FAILED` 的失敗**沒有**照交接包
   `PROMPT_TO_AGENT.md` 原本要求的方式重現（跑 `run-local.bat`、記錄
   Console/終端輸出）——這次直接跳過那個診斷步驟，改成在正式 Repo
