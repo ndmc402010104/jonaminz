@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+檔案位置：jonaminz/pages/admin/connections/index.html
+用途：後台「連線狀態」頁（複製自 pages/admin/toolkit/index.html 的
+bootstrap，只改 pageId / title / 內容，載入路徑維持根目錄絕對路徑）。
+
+2026-07-15：原本 OneDrive 連接狀態直接畫在後台首頁（pages/admin/），
+使用者問「這個是不是該找個地方放」，並指出這頁不該只綁 OneDrive——
+之後接其他外部服務（例如未來的推播供應商、其他雲端儲存）也要能在
+同一個地方檢查健康狀態。獨立成一個頁面，OneDrive 是第一個小節，
+之後新增連線類型就在這頁多加一個小節，不用回頭改後台首頁。
+-->
+<html
+  lang="zh-Hant"
+  class="jonaminz-loading jonaminz-css-loading jonaminz-shell-loading jonaminz-main-loading"
+  data-loading-title="連線狀態"
+  data-jonaminz-page-id="admin-connections"
+  data-jonaminz-shell-ready="false"
+  data-jonaminz-page-ready="false"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>連線狀態 - Jonaminz</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/img/favicon-180.png">
+
+  <script>window.JONAMINZ_SITE_CONFIG_URL = "/config.json";</script>
+  <link rel="stylesheet" href="/assets/css/jonaminz-loading.css">
+  <script src="/assets/js/entry-core.js"></script>
+</head>
+
+<body class="jonaminz-body">
+  <header id="header" class="jonaminz-header" data-jonaminz-header></header>
+
+  <main class="jonaminz-page jonaminz-admin-page" data-jonaminz-main>
+    <div class="jonaminz-container jonaminz-admin-container">
+      <a class="jonaminz-theme-back" href="/pages/admin/">← 後台</a>
+
+      <section class="jonaminz-admin-hero jonaminz-theme-hero">
+        <p class="jonaminz-eyebrow">外部連線健康檢查</p>
+        <h1 class="jonaminz-admin-title">連線狀態</h1>
+        <p class="jonaminz-page-subtitle">
+          目前只有 OneDrive；之後接其他外部服務，健康檢查也會放在這頁。
+        </p>
+      </section>
+
+      <section data-app-root>
+        <p class="jonaminz-page-subtitle">初始化中...</p>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="jonaminz-footer" data-jonaminz-footer>Footer 載入中...</footer>
+</body>
+</html>

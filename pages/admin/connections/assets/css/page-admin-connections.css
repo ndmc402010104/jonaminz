@@ -1,0 +1,47 @@
+/*
+檔案位置：jonaminz/pages/admin/connections/assets/css/page-admin-connections.css
+用途：後台「連線狀態」頁專屬樣式（CSS 疊加第 7 層）。
+
+2026-07-15：從 pages/admin/assets/css/page-admin.css 搬過來的 OneDrive
+區塊樣式，加上一個通用的 section 標題樣式（跟後台首頁「外部專案回報」
+共用同一套視覺語言，各自維護一份，不共用檔案）。
+*/
+
+.jonaminz-admin-section-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.jonaminz-connections-section + .jonaminz-connections-section {
+  margin-top: var(--space-6, 32px);
+}
+
+.jonaminz-admin-onedrive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.jonaminz-admin-onedrive-connect,
+.jonaminz-admin-onedrive-test {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-surface, transparent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.jonaminz-admin-onedrive-test:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

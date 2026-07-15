@@ -183,31 +183,3 @@ index.html 檔頭說明）。舊版 .jonaminz-admin-hero / .jonaminz-admin-title
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
-
-/* ---------- OneDrive 連接狀態（Phase A，2026-07-15；雙帳號兩張卡片並排） ---------- */
-
-.jonaminz-admin-onedrive-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-4);
-}
-
-.jonaminz-admin-onedrive-connect,
-.jonaminz-admin-onedrive-test {
-  display: inline-block;
-  margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text);
-  background: var(--color-surface, transparent);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.jonaminz-admin-onedrive-test:disabled {
-  opacity: 0.5;
-  cursor: default;
-}

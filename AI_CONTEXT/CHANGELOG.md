@@ -20,6 +20,43 @@
 
 ---
 
+## 2026-07-15（晚上，第七十二次）— 新增「連線狀態」頁，OneDrive 從後台首頁搬出來
+
+- **任務**：使用者問「onedrive連線這個東西是不是應該找個地方放？工具包
+  ？還是應該另外做一個頁面專門做管理」，並補充「不一定都是給onedrive
+  之後連接其他東西也可以在這邊檢查健康」——先給建議（獨立開頁，不塞
+  工具包，因為工具包刻意是純靜態、不呼叫 Worker 的快速連結頁），使用者
+  同意後動工，並把範圍從「OneDrive 專用頁」擴大成「通用的外部連線健康
+  檢查頁」。
+- **變更**：
+  - 新增 `pages/admin/connections/`（index.html／app.js／
+    page-admin-connections.css），照 `pages/README.md` 的五步驟流程
+    建立，複製 `pages/admin/toolkit/` 的 bootstrap 骨架。
+  - 把 `pages/admin/assets/js/app.js` 裡的 `renderOnedriveSection`／
+    `renderOnedriveCard` 兩個函式＋對應 HTML／CSS 整段搬到新頁面，
+    後台首頁只留一張連到 `/pages/admin/connections/` 的入口卡片
+    （跟 Theme／Contract 核准同一個模式）。
+  - 目前頁面結構只有 OneDrive 一個小節（`.jonaminz-connections-section`
+    包起來），刻意不做「連線類型清單」這種通用抽象——只有一種類型時
+    先不做，之後真的要加第二種（例如未來的推播供應商健康檢查）再比照
+    這個小節的寫法加一個 `render__Section` 函式即可。
+  - `config.json` 新增 `admin-connections` entry（有載入
+    `backend-client.js`，跟工具包那頁不同——這頁真的要呼叫 Worker
+    action）。
+- **驗證**：`node --check` 兩支 app.js 都通過；起一個臨時 static server
+  curl 過新頁面的 HTML／JS／CSS／`config.json` 都回 200，確認路徑接線
+  沒有斷掉。**沒有**用真實登入 session 在瀏覽器裡完整跑過
+  `requireLogin()`→畫面→測試連線這條路——這次沒有 Playwright 可用，
+  只能做到靜態資源可達性檢查，OneDrive 那段邏輯本身在搬移前幾輪已經
+  用真實環境驗證過，這次改動只是「搬到哪裡」不是「改邏輯」，但完整
+  互動流程還是需要使用者自己在瀏覽器點一次確認。
+- **狀態變化**：後台首頁的職責更單純（純入口卡片清單），OneDrive
+  連接狀態有了長期的家，且這個家從一開始就設計成能裝下未來其他外部
+  連線的健康檢查，不用每次都回頭改首頁。
+- **遺留**：等使用者實際點過 `/pages/admin/connections/`，確認登入
+  保護正常、OneDrive 兩張卡片跟測試連線／重新連接功能都正常。
+- **版本**：v0.45.0-202607152334
+
 ## 2026-07-15（晚上，第七十一次）— 檔案下載不跳分頁＋App Folder 加可點連結
 
 - **任務**：上一輪修好下載問題後，使用者確認「可以了」，接著問兩個

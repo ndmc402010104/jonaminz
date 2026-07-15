@@ -43,6 +43,10 @@
   挑選實作）：常用開發/發佈連結卡片（local dev 區網測試網址、APK 下載
   連結），純靜態頁面，不呼叫任何 Worker action，所以沒有載入
   `backend-client.js`。
+- `pages/admin/connections/` — 連線狀態頁（2026-07-15，從後台首頁搬
+  出來）：外部服務連線健康檢查，目前只有 OneDrive（連接狀態／測試連線
+  ／重新連接／App Folder 網址）一個小節，之後接其他外部服務也放這頁，
+  不用回頭改後台首頁。
 
 **2026-07-12 起：整個後台（`pages/admin/`、`pages/admin/theme/`、
 `pages/admin/contracts/`）都要求登入才能進入**（`window.JonaminzIdentity.requireLogin()`，

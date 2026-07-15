@@ -82,6 +82,18 @@
         "loadingTasks": ["app-ready"]
       }
     },
+    "admin-connections": {
+      "pageId": "admin-connections",
+      "title": "連線狀態",
+      "path": "/pages/admin/connections/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/connections/assets/css/page-admin-connections.css"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/connections/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
     "admin-design": {
       "pageId": "admin-design",
       "title": "專案視覺方向",
