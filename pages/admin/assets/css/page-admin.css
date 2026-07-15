@@ -62,6 +62,38 @@ index.html 檔頭說明）。舊版 .jonaminz-admin-hero / .jonaminz-admin-title
   font-size: var(--text-2xl);
 }
 
+/* ---------- 摘要列：「有什麼新的」，2026-07-16 新增 ----------
+   刻意做成低調的小長條，不是跟入口卡片搶視覺重量的大區塊——「安靜的
+   家」這個版型的精神是入口卡片才是主角，摘要只是路過瞄一眼的資訊。 */
+
+.jonaminz-admin-summary {
+  margin-bottom: var(--space-6);
+}
+
+.jonaminz-admin-summary-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.jonaminz-admin-summary-item {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jonaminz-admin-summary-item:hover,
+.jonaminz-admin-summary-item:focus-visible {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  box-shadow: var(--shadow-sm);
+  outline: none;
+}
+
 /* ---------- 入口區：尺寸依內容輕重決定，不是統一格柵 ---------- */
 
 .jonaminz-admin-entries {
