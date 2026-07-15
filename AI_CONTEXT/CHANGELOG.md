@@ -74,6 +74,13 @@
   **恰好一次**（一般瀏覽器變數 fallback 0、由瀏覽器自己縮 dvh，也是
   恰好一次——「誰負責縮」在兩個環境各自固定成一個）。APK 已重建並
   用 gh release upload --clobber 更新到固定下載網址。
+- **補記（懸浮泡泡防誤觸返回手勢，僅原生）**：使用者回報拖泡泡常誤觸
+  系統返回、並自己猜中 Messenger 的做法——正確答案就是
+  `View.setSystemGestureExclusionRects()`（API 29+，原生 View 限定；
+  這正是先前網頁版大頭貼做不到、只能加大邊距的那個 API）。泡泡 view
+  掛 layout listener 把自身範圍宣告為手勢排除區，排除區跟著視窗移動，
+  拖到哪排除到哪（系統每邊 200dp 排除額度上限，60dp 泡泡遠低於）。
+  APK 已重建並更新到固定下載網址。
 - **補記（APK 發佈管道）**：使用者遠端用手機、SendUserFile 的附件在
   手機端下載不了——APK 改發佈成 GitHub Release（使用者核准公開；tag
   `app-latest`，固定網址 `https://github.com/ndmc402010104/jonaminz/
