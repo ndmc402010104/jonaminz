@@ -450,6 +450,20 @@
   color: crimson;
 }
 
+.jonaminz-journal-task-edit {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--text-md);
+  padding: 0 var(--space-1);
+}
+
+.jonaminz-journal-task-edit:hover {
+  color: var(--color-primary-2);
+}
+
 .jonaminz-journal-task-escalate,
 .jonaminz-journal-task-move-back {
   flex: none;
@@ -470,7 +484,8 @@
   background: color-mix(in srgb, var(--color-primary-2) 14%, transparent);
 }
 
-.jonaminz-journal-escalate {
+.jonaminz-journal-escalate,
+.jonaminz-journal-edit {
   display: flex;
   gap: var(--space-2);
   margin-top: var(--space-2);
@@ -480,12 +495,16 @@
    JS 切換 escalateForm.hidden 的邏輯一直是對的，只是視覺上表單從來
    沒有真的收起來過。使用者回報「怎麼樣都收不掉說明欄位跟送出按鈕」
    就是這個——不是箭頭邏輯錯，是這條 CSS 選擇器優先權的坑（跟
-   .jonaminz-chat-notif-panel[hidden] 那邊已經修過的同一種坑）。 */
-.jonaminz-journal-escalate[hidden] {
+   .jonaminz-chat-notif-panel[hidden] 那邊已經修過的同一種坑）。
+   新增的 .jonaminz-journal-edit 表單一開始就套用 [hidden] 這條規則，
+   不會重蹈覆轍。 */
+.jonaminz-journal-escalate[hidden],
+.jonaminz-journal-edit[hidden] {
   display: none;
 }
 
-.jonaminz-journal-escalate input {
+.jonaminz-journal-escalate input,
+.jonaminz-journal-edit input {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
@@ -497,7 +516,8 @@
   font-size: var(--text-md);
 }
 
-.jonaminz-journal-escalate button {
+.jonaminz-journal-escalate button,
+.jonaminz-journal-edit button {
   flex: none;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-primary-2);
