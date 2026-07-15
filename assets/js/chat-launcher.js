@@ -578,7 +578,43 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       if (!plugin || typeof plugin.isOverlayBubbleActive !== "function") return;
       plugin.isOverlayBubbleActive()
         .then(function (result) {
-          setInAppLauncherHidden(Boolean(result && result.active));
+          var active = Boolean(result && result.active);
+          if (active) {
+            setInAppLauncherHidden(true);
+            return;
+          }
+          // 2026-07-15（使用者實機回饋）：手機這種攜帶裝置（也就是跑在
+          // Capacitor App 裡，這支外掛只有那邊才存在）如果已經授權過
+          // 「顯示在其他應用程式上層」，開啟/回到 App 就自動彈出懸浮
+          // 泡泡，不用每次手動點；還沒授權過的話維持原本手動流程，
+          // 不要自動跳去系統設定頁（那樣太突兀）。桌機版（純瀏覽器，
+          // 沒有這支外掛）本來就不會走到這裡，維持用網頁內建的那顆
+          // 圓圓大頭貼當入口，不受影響。
+          if (typeof plugin.hasOverlayPermission !== "function") {
+            setInAppLauncherHidden(false);
+            return;
+          }
+          plugin.hasOverlayPermission()
+            .then(function (permResult) {
+              if (!permResult || !permResult.granted) {
+                setInAppLauncherHidden(false);
+                return null;
+              }
+              // 樂觀讓位：假設接下來會成功開啟，先讓位掉這顆大頭貼，
+              // 真的失敗才切回來顯示——避免「先冒出來一下又馬上消失」
+              // 的閃爍。
+              setInAppLauncherHidden(true);
+              return plugin.openOverlayBubble();
+            })
+            .then(function (openResult) {
+              if (!openResult) return; // 上一步沒授權，已經處理過顯示狀態
+              if (openResult.status !== "opened") {
+                setInAppLauncherHidden(false);
+              }
+            })
+            .catch(function () {
+              setInAppLauncherHidden(false);
+            });
         })
         .catch(function () {});
     }
