@@ -20,6 +20,31 @@
 
 ---
 
+## 2026-07-15（下午，第四十七次）— OneDrive 線 Phase C：Worker 已部署＋smoke test 通過
+
+- **任務**：使用者游泳途中回覆「哪那麼快，部署吧」，執行第四十六次
+  紀錄遺留事項 1。
+- **變更**：`wrangler deploy`（Version ID
+  `a1fabb12-45b8-4c6d-add6-20a4291ce38d`）。部署後直接對正式 Worker
+  跑兩個 curl smoke test（沒有 session token，測不了完整上傳流程，但
+  這兩條路徑本身可以驗證）：
+  1. `GET /appDownload`（沒帶任何 auth）→ 正確打到 Graph、拿到 404
+     （檔案還沒上傳過）、回我們自訂的訊息「找不到安裝檔（HTTP
+     404），可能還沒上傳過。」——證明路由、`getOnedriveAccessToken`、
+     Graph 呼叫、錯誤處理都接得起來，不是卡在某個環節就死掉。
+  2. `POST /api/action {action:"createApkUploadSession"}`（沒帶
+     token）→ 正確回 `{"ok":false,"code":"LOGIN_REQUIRED"}`，驗證
+     `requireSession` 關卡有生效。
+- **狀態變化**：Phase C 的 Worker 端全部上線且路徑驗證過會動；第四十六
+  次「遺留」事項 1 完成。
+- **遺留**：第四十六次「遺留」事項 2、3 都還沒解決——真的跑一次
+  `tools/upload-apk.mjs` 上傳一份 APK＋確認 `/appDownload` 能換到
+  downloadUrl 並成功 302，需要使用者從已登入的瀏覽器拿一次
+  session token 才能測完整流程（這台環境沒有能自己生出 session 的
+  管道）；驗證通過後才能收回 GitHub Release。
+- **版本**：無程式碼變更（純部署既有程式碼，`version.js` 已在
+  第四十六次反映：v0.37.0-202607151630）
+
 ## 2026-07-15（下午，第四十六次）— OneDrive 線 Phase C：APK 自架（未部署）
 
 - **任務**：使用者要去游泳，明確授權自主完成一個較大的建置
