@@ -190,7 +190,18 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       "height:calc(min(720px,100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px) - var(--jonaminz-keyboard-inset, 0px));}" +
       "." + PANEL_CLASS + ".size-full{width:min(760px,calc(100vw - 28px));" +
       "height:calc(100dvh - var(--jcl-anchor-top) - " + GAP_BELOW_LAUNCHER + "px - 14px - var(--jonaminz-keyboard-inset, 0px));}" +
-      "." + PANEL_CLASS + ".jcl-panel-hidden{visibility:hidden;pointer-events:none;}";
+      "." + PANEL_CLASS + ".jcl-panel-hidden{visibility:hidden;pointer-events:none;}" +
+      // 2026-07-15：「叫出聊天泡泡」按鈕——使用者主動關掉懸浮泡泡後，
+      // App 開啟時不會自動彈回來（見 syncOverlayBubbleState 的說明），
+      // 這顆按鈕是使用者自己決定「現在要」的手動入口，只在那個狀態下
+      // 才顯示。刻意用固定位置（不是塞進 header.js 的 DOM），因為
+      // header.js 的 render() 每次都會 el.textContent="" 清空重建，
+      // 塞進去會被清掉；獨立元素才不受它的重繪週期影響。
+      ".jonaminz-summon-bubble-btn{position:fixed;top:12px;right:14px;z-index:10001;" +
+      "padding:8px 14px;border:none;border-radius:999px;" +
+      "background:var(--color-primary,#1f3a5f);color:#fff;" +
+      "font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(38,34,32,0.28);" +
+      "cursor:pointer;display:none;}";
     document.head.appendChild(style);
 
     // 每次 mountChat() 執行（也就是每次頁面重新載入）算一個新的 buster，
@@ -581,6 +592,7 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
           var active = Boolean(result && result.active);
           if (active) {
             setInAppLauncherHidden(true);
+            hideSummonBubbleButton();
             return;
           }
           // 2026-07-15（使用者實機回饋）：手機這種攜帶裝置（也就是跑在
@@ -592,22 +604,41 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
           // 圓圓大頭貼當入口，不受影響。
           if (typeof plugin.hasOverlayPermission !== "function") {
             setInAppLauncherHidden(false);
+            hideSummonBubbleButton();
             return;
           }
           plugin.hasOverlayPermission()
             .then(function (permResult) {
               if (!permResult || !permResult.granted) {
                 setInAppLauncherHidden(false);
+                hideSummonBubbleButton();
                 return null;
               }
-              // 樂觀讓位：假設接下來會成功開啟，先讓位掉這顆大頭貼，
-              // 真的失敗才切回來顯示——避免「先冒出來一下又馬上消失」
-              // 的閃爍。
-              setInAppLauncherHidden(true);
-              return plugin.openOverlayBubble();
+              // 2026-07-15（使用者提出）：使用者上次是不是「主動」拖到
+              // ✕ 關掉泡泡——是的話尊重這個選擇，不要又自動彈回來，
+              // 改顯示「叫出聊天泡泡」按鈕讓使用者自己決定何時要泡泡；
+              // 沒有這支方法（舊版 App）就維持原本「有權限就自動彈」。
+              if (typeof plugin.getOverlayAutoPopupPreference !== "function") {
+                setInAppLauncherHidden(true);
+                return plugin.openOverlayBubble();
+              }
+              return plugin.getOverlayAutoPopupPreference().then(function (prefResult) {
+                var autoPopupEnabled = Boolean(prefResult && prefResult.enabled);
+                if (!autoPopupEnabled) {
+                  setInAppLauncherHidden(false);
+                  showSummonBubbleButton();
+                  return "SKIP_AUTO_LAUNCH";
+                }
+                // 樂觀讓位：假設接下來會成功開啟，先讓位掉這顆大頭貼，
+                // 真的失敗才切回來顯示——避免「先冒出來一下又馬上消失」
+                // 的閃爍。
+                setInAppLauncherHidden(true);
+                return plugin.openOverlayBubble();
+              });
             })
             .then(function (openResult) {
-              if (!openResult) return; // 上一步沒授權，已經處理過顯示狀態
+              if (!openResult || openResult === "SKIP_AUTO_LAUNCH") return;
+              hideSummonBubbleButton();
               if (openResult.status !== "opened") {
                 setInAppLauncherHidden(false);
               }
@@ -617,6 +648,38 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
             });
         })
         .catch(function () {});
+    }
+
+    // 「叫出聊天泡泡」按鈕：獨立於 header.js 的 DOM 之外（見上面 CSS
+    // 註解說明原因），只在「有權限但使用者上次主動關掉」這個狀態下
+    // 才顯示；按下去手動重新開啟懸浮泡泡。
+    var summonBubbleBtn = null;
+    function ensureSummonBubbleButton() {
+      if (summonBubbleBtn) return summonBubbleBtn;
+      summonBubbleBtn = document.createElement("button");
+      summonBubbleBtn.type = "button";
+      summonBubbleBtn.className = "jonaminz-summon-bubble-btn";
+      summonBubbleBtn.textContent = "🫧 開啟泡泡";
+      summonBubbleBtn.addEventListener("click", function () {
+        var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.JonaminzNative;
+        if (!plugin || typeof plugin.openOverlayBubble !== "function") return;
+        plugin.openOverlayBubble()
+          .then(function (result) {
+            if (result && result.status === "opened") {
+              hideSummonBubbleButton();
+              setInAppLauncherHidden(true);
+            }
+          })
+          .catch(function () {});
+      });
+      document.body.appendChild(summonBubbleBtn);
+      return summonBubbleBtn;
+    }
+    function showSummonBubbleButton() {
+      ensureSummonBubbleButton().style.display = "block";
+    }
+    function hideSummonBubbleButton() {
+      if (summonBubbleBtn) summonBubbleBtn.style.display = "none";
     }
 
     syncOverlayBubbleState();
