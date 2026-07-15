@@ -586,73 +586,71 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
 
     function syncOverlayBubbleState() {
       var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.JonaminzNative;
-      if (!plugin || typeof plugin.isOverlayBubbleActive !== "function") return;
+      if (!plugin || typeof plugin.isOverlayBubbleActive !== "function") {
+        // 桌機／純瀏覽器：沒有這支外掛，維持原本用網頁內建圓圓大頭貼
+        // 當入口，不受以下邏輯影響。
+        return;
+      }
+      // 2026-07-15（使用者實機回饋：兩個入口同時出現很怪）：手機這種
+      // 攜帶裝置（跑在 Capacitor App 裡）永遠不顯示網頁內建的圓圓
+      // 大頭貼——只有「懸浮泡泡運作中（畫面上什麼都不顯示）」或「叫出
+      // 聊天泡泡」按鈕這兩種互斥狀態，不要讓兩種入口同時存在造成混亂。
+      setInAppLauncherHidden(true);
       plugin.isOverlayBubbleActive()
         .then(function (result) {
           var active = Boolean(result && result.active);
           if (active) {
-            setInAppLauncherHidden(true);
             hideSummonBubbleButton();
             return;
           }
-          // 2026-07-15（使用者實機回饋）：手機這種攜帶裝置（也就是跑在
-          // Capacitor App 裡，這支外掛只有那邊才存在）如果已經授權過
-          // 「顯示在其他應用程式上層」，開啟/回到 App 就自動彈出懸浮
-          // 泡泡，不用每次手動點；還沒授權過的話維持原本手動流程，
-          // 不要自動跳去系統設定頁（那樣太突兀）。桌機版（純瀏覽器，
-          // 沒有這支外掛）本來就不會走到這裡，維持用網頁內建的那顆
-          // 圓圓大頭貼當入口，不受影響。
+          // 已經授權過「顯示在其他應用程式上層」的話，開啟/回到 App
+          // 就自動彈出懸浮泡泡，不用每次手動點；還沒授權過、或使用者
+          // 上次主動關閉過的話，改顯示「叫出聊天泡泡」按鈕，不自動跳
+          // 系統設定頁（太突兀）也不自動彈回來（尊重使用者的選擇）。
           if (typeof plugin.hasOverlayPermission !== "function") {
-            setInAppLauncherHidden(false);
-            hideSummonBubbleButton();
+            showSummonBubbleButton();
             return;
           }
           plugin.hasOverlayPermission()
             .then(function (permResult) {
               if (!permResult || !permResult.granted) {
-                setInAppLauncherHidden(false);
-                hideSummonBubbleButton();
+                showSummonBubbleButton();
                 return null;
               }
-              // 2026-07-15（使用者提出）：使用者上次是不是「主動」拖到
-              // ✕ 關掉泡泡——是的話尊重這個選擇，不要又自動彈回來，
-              // 改顯示「叫出聊天泡泡」按鈕讓使用者自己決定何時要泡泡；
-              // 沒有這支方法（舊版 App）就維持原本「有權限就自動彈」。
               if (typeof plugin.getOverlayAutoPopupPreference !== "function") {
-                setInAppLauncherHidden(true);
                 return plugin.openOverlayBubble();
               }
               return plugin.getOverlayAutoPopupPreference().then(function (prefResult) {
                 var autoPopupEnabled = Boolean(prefResult && prefResult.enabled);
                 if (!autoPopupEnabled) {
-                  setInAppLauncherHidden(false);
                   showSummonBubbleButton();
                   return "SKIP_AUTO_LAUNCH";
                 }
-                // 樂觀讓位：假設接下來會成功開啟，先讓位掉這顆大頭貼，
-                // 真的失敗才切回來顯示——避免「先冒出來一下又馬上消失」
-                // 的閃爍。
-                setInAppLauncherHidden(true);
                 return plugin.openOverlayBubble();
               });
             })
             .then(function (openResult) {
               if (!openResult || openResult === "SKIP_AUTO_LAUNCH") return;
-              hideSummonBubbleButton();
-              if (openResult.status !== "opened") {
-                setInAppLauncherHidden(false);
+              if (openResult.status === "opened") {
+                hideSummonBubbleButton();
+              } else {
+                showSummonBubbleButton();
               }
             })
             .catch(function () {
-              setInAppLauncherHidden(false);
+              showSummonBubbleButton();
             });
         })
-        .catch(function () {});
+        .catch(function () {
+          showSummonBubbleButton();
+        });
     }
 
     // 「叫出聊天泡泡」按鈕：獨立於 header.js 的 DOM 之外（見上面 CSS
-    // 註解說明原因），只在「有權限但使用者上次主動關掉」這個狀態下
-    // 才顯示；按下去手動重新開啟懸浮泡泡。
+    // 註解說明原因）。手機（Capacitor App）上是圓圓大頭貼永遠隱藏後
+    // 唯一的入口，只要懸浮泡泡目前沒在跑（不管是還沒授權過、還是
+    // 使用者上次主動關掉）就會顯示；按下去交給 openOverlayBubble()
+    // 自己判斷該開啟還是帶去系統設定頁。
     var summonBubbleBtn = null;
     function ensureSummonBubbleButton() {
       if (summonBubbleBtn) return summonBubbleBtn;
@@ -685,6 +683,14 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     syncOverlayBubbleState();
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") syncOverlayBubbleState();
+    });
+    // 2026-07-15（使用者實機回饋）：關閉懸浮泡泡（拖到✕／點通知）不會
+    // 讓 App 本體真的離開前景（懸浮泡泡是疊在上面的獨立視窗，不是
+    // Activity 切換），單靠 visibilitychange 永遠等不到觸發時機，只能
+    // 等使用者剛好切換畫面才「順便」更新——原生端關閉的當下直接推這個
+    // 事件過來，不用再猜/等。
+    window.addEventListener("jonaminz-bubble-state-changed", function () {
+      syncOverlayBubbleState();
     });
 
     function handleBubbleRequest(mode) {
