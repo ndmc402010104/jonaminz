@@ -595,6 +595,72 @@ button, textarea { font: inherit; }
 }
 .jonaminz-chat-shared-card-discuss:hover { background: var(--color-accent); }
 
+/* ---- OneDrive 線 Phase B：圖片訊息（2026-07-15）。---- */
+.jonaminz-chat-image-bubble {
+  max-width: 220px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  line-height: 0;
+}
+.jonaminz-chat-image-bubble img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+.jonaminz-chat-image-bubble img.is-loading {
+  filter: blur(6px);
+  transform: scale(1.03);
+}
+.jonaminz-chat-image-unshared {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: var(--color-primary);
+}
+.jonaminz-chat-image-send-btn {
+  border: none;
+  background: var(--color-primary-2);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.jonaminz-chat-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.jonaminz-chat-image-lightbox[hidden] { display: none; }
+.jonaminz-chat-image-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+.jonaminz-chat-image-lightbox-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 16px;
+  cursor: pointer;
+}
+
 .jonaminz-chat-composer {
   display: flex;
   gap: var(--space-2);

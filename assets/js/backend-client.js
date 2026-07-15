@@ -208,6 +208,18 @@
     return call("clearDoneProjectTasks", payload, options);
   }
 
+  function requestImageUpload(payload, options) {
+    return call("requestImageUpload", payload, options);
+  }
+
+  function sendImageMessage(payload, options) {
+    return call("sendImageMessage", payload, options);
+  }
+
+  function getImageUrls(payload, options) {
+    return call("getImageUrls", payload, options);
+  }
+
   // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
   // call() 這種 fetch POST——這裡只負責把 baseUrl 接出來給呼叫端組網址。
   function getWorkerBaseUrlForRedirect() {
@@ -249,6 +261,9 @@
     addProjectTask: addProjectTask,
     toggleProjectTask: toggleProjectTask,
     deleteProjectTask: deleteProjectTask,
-    clearDoneProjectTasks: clearDoneProjectTasks
+    clearDoneProjectTasks: clearDoneProjectTasks,
+    requestImageUpload: requestImageUpload,
+    sendImageMessage: sendImageMessage,
+    getImageUrls: getImageUrls
   };
 })();

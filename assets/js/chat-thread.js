@@ -245,8 +245,16 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var readObserver = null;
     var contextMenuOpenedAt = 0;
     var timePeekMessageId = null;
-    // 樂觀 UI：已送出但 poll 回應還沒收錄的訊息（{client_message_id, body}）
+    // 樂觀 UI：已送出但 poll 回應還沒收錄的訊息（{client_message_id, body}
+    // 或圖片訊息 {client_message_id, kind:'image', previewUrl, w, h}）
     var pendingMessages = [];
+    // OneDrive 線 Phase B（2026-07-15）：downloadUrl 短效（約1小時），
+    // 記憶體快取，itemId → downloadUrl（null 代表查過但沒有，例如分享
+    // 還沒生效）；inFlight 避免同一個 itemId 短時間內重複發請求。
+    var imageUrlCache = {};
+    var imageUrlFetchInFlight = {};
+    var imageUrlErrorRetried = {};
+    var selectedImageFile = null;
 
     function maybeMarkRead() {
       if (!isVisible) return;
@@ -355,6 +363,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       var otherDelivery = deliveryState[otherIdentity()] || {};
       var messagesById = {};
       messages.forEach(function (mm) { messagesById[mm.id] = mm; });
+      ensureImageUrls(messages);
 
       renderNotifPanel(unreadCount);
 
@@ -432,7 +441,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
         var readByOther = mine && otherRead.lastReadMessageId === m.id;
         var deleted = Boolean(m.deleted_at);
-        var canEditOrDelete = mine && !deleted && m.kind !== "shared_item";
+        // 圖片訊息比照 shared_item：不能編輯（沒有文字內容可編輯），
+        // 這一版也先不開放刪除，跟既有行為一致，不節外生枝。
+        var canEditOrDelete = mine && !deleted && m.kind !== "shared_item" && m.kind !== "image";
         var canReplyOrReact = !deleted;
 
         // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
@@ -445,7 +456,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var quoted = messagesById[m.reply_to_message_id];
           if (quoted) {
             var quotedLabel = quoted.sender_identity === identity ? "我" : (IDENTITY_LABEL[quoted.sender_identity] || quoted.sender_identity);
-            var quotedSnippet = quoted.kind === "shared_item" ? "[分享的內容]" : (quoted.deleted_at ? "此訊息已刪除" : quoted.body);
+            var quotedSnippet = quoted.kind === "shared_item" ? "[分享的內容]" :
+              (quoted.kind === "image" ? "[圖片]" : (quoted.deleted_at ? "此訊息已刪除" : quoted.body));
             replyQuoteHtml = '<div class="jonaminz-chat-reply-quote">' + escapeHtml(quotedLabel) + "：" +
               escapeHtml(String(quotedSnippet || "").slice(0, 60)) + "</div>";
           } else {
@@ -479,6 +491,23 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var bodyHtml;
         if (deleted) {
           bodyHtml = '<div class="jonaminz-chat-bubble is-deleted">此訊息已刪除</div>';
+        } else if (m.kind === "image" && m.metadata && m.metadata.itemId) {
+          // OneDrive 線 Phase B：先畫 metadata 裡的模糊縮圖（不用等
+          // Graph），imageUrlCache 有真正的 downloadUrl 才換成真圖。
+          // 真圖載入失敗（downloadUrl 過期、分享被撤銷）就清快取，
+          // 下一次 render 會重新去要一次，最多重試一輪不無限循環。
+          var imgMeta = m.metadata;
+          var realUrl = imageUrlCache[imgMeta.itemId];
+          var imgSrc = realUrl || imgMeta.thumbDataUri || "";
+          var aspect = imgMeta.w && imgMeta.h ? (imgMeta.w + "/" + imgMeta.h) : "1/1";
+          var showUnsharedHint = mine && imgMeta.sharedOk === false;
+          bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
+            '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(imgMeta.itemId) + '">' +
+            '<img src="' + escapeHtml(imgSrc) + '" alt="圖片" style="aspect-ratio:' + aspect + '"' +
+            (realUrl ? "" : ' class="is-loading"') + '>' +
+            "</div>" +
+            (showUnsharedHint ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這張圖</p>' : "") +
+            reactionsHtml + "</div>";
         } else if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
           var item = sharedItems[m.shared_item_id];
           var viewerSeen = Boolean(item.seenState && item.seenState[identity]);
@@ -512,7 +541,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
           (canEditOrDelete ? " data-editable=\"true\"" : "") +
           (deleted ? ' data-deleted="true"' : "") +
           (canReplyOrReact ? " data-reactable=\"true\"" : "") +
-          (!deleted && m.kind !== "shared_item" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
+          (!deleted && m.kind !== "shared_item" && m.kind !== "image" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
           bodyHtml +
           "</div>";
@@ -556,6 +585,16 @@ title/url（見 `requestHostContext()`，宿主端實作在
       // 就看到自己的訊息，不用等 API 往返＋下一次 poll（原本 1~2 秒的
       // 空窗就是這樣來的）。
       pendingMessages.forEach(function (p) {
+        if (p.kind === "image") {
+          html +=
+            '<div class="jonaminz-chat-message is-pending" data-mine="true">' +
+            '<div class="jonaminz-chat-bubble-col">' +
+            '<div class="jonaminz-chat-image-bubble">' +
+            '<img src="' + escapeHtml(p.previewUrl) + '" alt="圖片" style="aspect-ratio:' +
+            (p.w || 1) + "/" + (p.h || 1) + '"></div></div></div>' +
+            '<div class="jonaminz-chat-delivery-tick">傳送中...</div>';
+          return;
+        }
         html +=
           '<div class="jonaminz-chat-message is-pending" data-mine="true">' +
           '<div class="jonaminz-chat-bubble-col">' +
@@ -727,6 +766,154 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
     }
 
+    // ---------- OneDrive 線 Phase B：圖片訊息（2026-07-15） ----------
+    // 見 AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.1。前一輪（第十五輪）已經
+    // 做完「選圖＋本機預覽」，這裡接上真正的壓縮／上傳／送出。
+
+    // 只解碼一次原始圖片，同時產出「要上傳的壓縮版」（最長邊 1600px，
+    // JPEG q0.8）跟「blur-up 縮圖」（最長邊 24px，直接存進訊息
+    // metadata，歷史訊息不用等 Graph 就能先顯示模糊版）。
+    function prepareImageForUpload(file) {
+      return new Promise(function (resolve, reject) {
+        var objectUrl = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          var longest = Math.max(img.width, img.height) || 1;
+
+          var fullScale = Math.min(1, 1600 / longest);
+          var fullW = Math.max(1, Math.round(img.width * fullScale));
+          var fullH = Math.max(1, Math.round(img.height * fullScale));
+          var fullCanvas = document.createElement("canvas");
+          fullCanvas.width = fullW;
+          fullCanvas.height = fullH;
+          fullCanvas.getContext("2d").drawImage(img, 0, 0, fullW, fullH);
+
+          var thumbScale = Math.min(1, 24 / longest);
+          var thumbW = Math.max(1, Math.round(img.width * thumbScale));
+          var thumbH = Math.max(1, Math.round(img.height * thumbScale));
+          var thumbCanvas = document.createElement("canvas");
+          thumbCanvas.width = thumbW;
+          thumbCanvas.height = thumbH;
+          thumbCanvas.getContext("2d").drawImage(img, 0, 0, thumbW, thumbH);
+          var thumbDataUri = thumbCanvas.toDataURL("image/jpeg", 0.5);
+
+          fullCanvas.toBlob(function (blob) {
+            URL.revokeObjectURL(objectUrl);
+            if (!blob) { reject(new Error("圖片壓縮失敗")); return; }
+            resolve({
+              blob: blob,
+              w: fullW,
+              h: fullH,
+              thumbDataUri: thumbDataUri,
+              previewUrl: URL.createObjectURL(blob)
+            });
+          }, "image/jpeg", 0.8);
+        };
+        img.onerror = function () {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("圖片讀取失敗"));
+        };
+        img.src = objectUrl;
+      });
+    }
+
+    // 壓縮 → 樂觀上泡泡（本機 blob URL，立即可見）→ 跟 Worker 要上傳
+    // 位址 → 位元組直傳 Graph（不經過 Worker）→ 上傳完成後叫
+    // sendImageMessage（Worker 端會嘗試分享給對方帳號＋寫進聊天訊息）。
+    // 失敗照文字訊息同一套回滾方式。
+    function sendImage(file) {
+      if (sending) return;
+      sending = true;
+      els.action.disabled = true;
+      if (els.imagePreviewBanner) els.imagePreviewBanner.hidden = true;
+
+      var pendingCmid = identity + "-img-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      var previewUrlToRevoke = null;
+
+      prepareImageForUpload(file)
+        .then(function (prepared) {
+          previewUrlToRevoke = prepared.previewUrl;
+          pendingMessages.push({
+            client_message_id: pendingCmid,
+            kind: "image",
+            previewUrl: prepared.previewUrl,
+            w: prepared.w,
+            h: prepared.h
+          });
+          if (lastPollData) render(lastPollData);
+
+          return window.JonaminzBackend.requestImageUpload({ token: token })
+            .then(function (uploadTarget) {
+              if (!uploadTarget || !uploadTarget.ok) {
+                throw new Error((uploadTarget && uploadTarget.error) || "無法取得上傳位址");
+              }
+              return fetch(uploadTarget.uploadUrl, {
+                method: "PUT",
+                headers: {
+                  "Content-Range": "bytes 0-" + (prepared.blob.size - 1) + "/" + prepared.blob.size
+                },
+                body: prepared.blob
+              });
+            })
+            .then(function (putResponse) {
+              if (!putResponse.ok) {
+                throw new Error("上傳到 OneDrive 失敗（HTTP " + putResponse.status + "）");
+              }
+              return putResponse.json();
+            })
+            .then(function (driveItem) {
+              return window.JonaminzBackend.sendImageMessage({
+                token: token,
+                itemId: driveItem.id,
+                w: prepared.w,
+                h: prepared.h,
+                thumbDataUri: prepared.thumbDataUri,
+                clientMessageId: pendingCmid
+              });
+            });
+        })
+        .then(function () {
+          return poll();
+        })
+        .catch(function (error) {
+          els.status.textContent = "傳送圖片失敗：" + (error.message || String(error));
+          pendingMessages = pendingMessages.filter(function (p) { return p.client_message_id !== pendingCmid; });
+          if (lastPollData) render(lastPollData);
+        })
+        .then(function () {
+          sending = false;
+          els.action.disabled = false;
+          if (previewUrlToRevoke) URL.revokeObjectURL(previewUrlToRevoke);
+        });
+    }
+
+    // downloadUrl 短效（約1小時），批次跟 Worker 要——只問還沒快取、
+    // 沒有 in-flight 請求的 itemId，回來後整批塞進快取再重畫一次。
+    function ensureImageUrls(messages) {
+      var need = [];
+      messages.forEach(function (m) {
+        if (m.kind !== "image" || !m.metadata || !m.metadata.itemId) return;
+        var itemId = m.metadata.itemId;
+        if (imageUrlCache[itemId] !== undefined || imageUrlFetchInFlight[itemId]) return;
+        need.push({ itemId: itemId, ownerIdentity: m.metadata.ownerIdentity });
+        imageUrlFetchInFlight[itemId] = true;
+      });
+      if (!need.length) return;
+      window.JonaminzBackend.getImageUrls({ token: token, items: need })
+        .then(function (result) {
+          need.forEach(function (item) { delete imageUrlFetchInFlight[item.itemId]; });
+          if (result && result.ok && result.urls) {
+            Object.keys(result.urls).forEach(function (itemId) {
+              imageUrlCache[itemId] = result.urls[itemId];
+            });
+            if (lastPollData) render(lastPollData);
+          }
+        })
+        .catch(function () {
+          need.forEach(function (item) { delete imageUrlFetchInFlight[item.itemId]; });
+        });
+    }
+
     function closeEmojiPanel() {
       els.emojiPanel.hidden = true;
     }
@@ -838,7 +1025,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             els.searchResults.innerHTML = results.map(function (m) {
               var mine = m.sender_identity === identity;
               var label = mine ? "我" : (IDENTITY_LABEL[otherIdentity()] || otherIdentity());
-              var snippet = m.kind === "shared_item" ? "[分享的內容]" : m.body;
+              var snippet = m.kind === "shared_item" ? "[分享的內容]" : (m.kind === "image" ? "[圖片]" : m.body);
               return '<div class="jonaminz-chat-search-result" data-search-result data-message-id="' + escapeHtml(m.id) + '">' +
                 '<span class="jonaminz-chat-search-result-meta">' + escapeHtml(label) + " · " +
                 escapeHtml(formatTime(m.created_at)) + "</span>" +
@@ -938,10 +1125,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
         "</div>" +
         '<div class="jonaminz-chat-discuss-banner jonaminz-chat-image-preview-banner" data-image-preview-banner hidden>' +
         '<img data-image-preview-thumb alt="預覽圖片">' +
-        '<span>圖片已選好，等 OneDrive 接上這步才能真的送出</span>' +
+        '<button type="button" class="jonaminz-chat-image-send-btn" data-image-send>傳送</button>' +
         '<button type="button" data-image-preview-cancel aria-label="取消">✕</button>' +
         "</div>" +
         '<div class="jonaminz-chat-context-menu" data-context-menu hidden></div>' +
+        '<div class="jonaminz-chat-image-lightbox" data-image-lightbox hidden>' +
+        '<img data-image-lightbox-img alt="圖片">' +
+        '<button type="button" class="jonaminz-chat-image-lightbox-close" data-image-lightbox-close aria-label="關閉">✕</button>' +
+        "</div>" +
         '<div class="jonaminz-chat-composer">' +
         '<div class="jonaminz-chat-plus-wrap">' + plusButtonHtml + "</div>" +
         '<div class="jonaminz-chat-input-shell">' +
@@ -983,6 +1174,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.imageInput = root.querySelector("[data-image-input]");
       els.imagePreviewBanner = root.querySelector("[data-image-preview-banner]");
       els.imagePreviewThumb = root.querySelector("[data-image-preview-thumb]");
+      els.imageLightbox = root.querySelector("[data-image-lightbox]");
+      els.imageLightboxImg = root.querySelector("[data-image-lightbox-img]");
       els.sharedListToggle = root.querySelector("[data-shared-list-toggle]");
       els.sharedListPanel = root.querySelector("[data-shared-list-panel]");
       els.settingsToggle = root.querySelector("[data-settings-toggle]");
@@ -1030,13 +1223,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
               els.status.textContent = "分享失敗：" + (error.message || String(error));
             });
         });
-        // 2026-07-14（第十五輪）：圖片分享——這輪只做「調用手機相機/相簿
-        // 權限＋本機預覽」，使用者明確要求儲存位置下一輪才接 OneDrive，
-        // 這裡刻意不呼叫任何送出/上傳 action，只示範權限流程能動。
+        // 2026-07-15（OneDrive 線 Phase B）：第十五輪只做了「調用手機
+        // 相機/相簿權限＋本機預覽」，這裡接上真正的送出（見 sendImage/
+        // prepareImageForUpload）。
         if (els.imageInput) {
           els.imageInput.addEventListener("change", function () {
             var file = els.imageInput.files && els.imageInput.files[0];
             if (!file) return;
+            selectedImageFile = file;
             var reader = new FileReader();
             reader.onload = function () {
               if (els.imagePreviewThumb) els.imagePreviewThumb.src = String(reader.result || "");
@@ -1048,7 +1242,15 @@ title/url（見 `requestHostContext()`，宿主端實作在
         }
         if (els.imagePreviewBanner) {
           els.imagePreviewBanner.addEventListener("click", function (event) {
+            if (event.target.closest("[data-image-send]")) {
+              var fileToSend = selectedImageFile;
+              selectedImageFile = null;
+              if (els.imagePreviewThumb) els.imagePreviewThumb.src = "";
+              if (fileToSend) sendImage(fileToSend);
+              return;
+            }
             if (!event.target.closest("[data-image-preview-cancel]")) return;
+            selectedImageFile = null;
             els.imagePreviewBanner.hidden = true;
             if (els.imagePreviewThumb) els.imagePreviewThumb.src = "";
           });
@@ -1060,6 +1262,34 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
       }
 
+      // 圖片 lightbox：點圖片本身或背景任何地方都關閉，跟關閉按鈕一致——
+      // 全螢幕預覽不需要精準點在✕上才能收起來。
+      if (els.imageLightbox) {
+        els.imageLightbox.addEventListener("click", function () {
+          els.imageLightbox.hidden = true;
+          if (els.imageLightboxImg) els.imageLightboxImg.src = "";
+        });
+      }
+
+      // downloadUrl 短效（約1小時），真的載入失敗時清快取重新要一次——
+      // error 事件不 bubble，用 capture 在外層攔截。重試狀態要記在
+      // itemId 上（不是 DOM 元素的 dataset）：render() 每次都整個重建
+      // <img>，舊元素上做的標記留不住，會變成一直失敗就一直觸發、
+      // 一直 render() 的無窮迴圈。
+      els.thread.addEventListener("error", function (event) {
+        var img = event.target;
+        if (!img || img.tagName !== "IMG") return;
+        var bubble = img.closest("[data-image-bubble]");
+        if (!bubble) return;
+        var itemId = bubble.dataset.itemId;
+        if (!itemId || imageUrlErrorRetried[itemId]) return;
+        imageUrlErrorRetried[itemId] = true;
+        delete imageUrlCache[itemId];
+        // render() 內部本來就會呼叫 ensureImageUrls()（涵蓋 olderMessages
+        // 合併後的完整訊息清單，不是只有最近一次 poll 的那一批）。
+        if (lastPollData) render(lastPollData);
+      }, true);
+
       els.thread.addEventListener("click", function (event) {
         var loadMoreBtn = event.target.closest("[data-load-more]");
         if (loadMoreBtn) {
@@ -1070,6 +1300,15 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (discussBtn) {
           setDiscussTarget(discussBtn.dataset.itemId, discussBtn.dataset.itemTitle);
           els.input.focus();
+          return;
+        }
+        var imageBubble = event.target.closest("[data-image-bubble]");
+        if (imageBubble) {
+          var bubbleImg = imageBubble.querySelector("img");
+          if (bubbleImg && bubbleImg.src && els.imageLightbox && els.imageLightboxImg) {
+            els.imageLightboxImg.src = bubbleImg.src;
+            els.imageLightbox.hidden = false;
+          }
           return;
         }
         var card = event.target.closest("[data-shared-card]");

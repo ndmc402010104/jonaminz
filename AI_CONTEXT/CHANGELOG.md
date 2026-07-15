@@ -20,6 +20,61 @@
 
 ---
 
+## 2026-07-15（下午，第四十二次）— OneDrive 線 Phase B：圖片訊息完整實作（未部署）
+
+- **任務**：使用者授權在他小睡期間自主完成 OneDrive Phase B（圖片
+  分享）第一版，照 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §2 的設計
+  （單一副本＋Graph 原生分享，不是雙寫鏡射）。發現composer 的「+」
+  選單早在第十五輪就做好「選圖＋權限＋本機預覽」的骨架（刻意不呼叫
+  任何上傳 action，等 OneDrive 接上），這輪直接接上真正的上傳/分享/
+  顯示邏輯，不是從零開始。
+- **變更**：
+  - 新 schema `backend/supabase/chat_image_schema.sql`（**尚未套用**）：
+    `chat_messages.kind` 加 `'image'`、新增 `metadata` jsonb 欄位；
+    `onedrive_account` 加 `account_email`（`/invite` 分享要用）。
+  - `worker.js`：`ONEDRIVE_SCOPE` 加上 `Files.ReadWrite`（`/invite`／
+    `sharedWithMe` 不在 `.AppFolder` 範圍內，這是本輪唯一需要使用者
+    手動處理的前置步驟——見下方「遺留」）；`handleOnedriveCallback`
+    連接當下順便問 Graph `/me` 存 `account_email`；新增三個 action：
+    `requestImageUpload`（傳送者自己的 token 開 Graph 上傳 session）、
+    `sendImageMessage`（`/invite` 分享給對方帳號＋寫訊息，分享失敗不
+    擋發送）、`getImageUrls`（自己的圖查自己帳號，對方的圖查
+    `sharedWithMe`，批次處理）。
+  - `backend-client.js` 加三個對應 wrapper。
+  - `chat-thread.js`：`prepareImageForUpload()` 一次解碼原圖同時產出
+    「上傳用壓縮版」（最長邊1600px，JPEG q0.8）與「blur-up縮圖」
+    （最長邊24px，直接進 metadata）；`sendImage()` 串起樂觀 UI（本機
+    blob URL 立即上泡泡）→上傳→分享→送訊息，失敗照文字訊息同一套
+    回滾；`ensureImageUrls()` 批次跟 Worker 換短效 downloadUrl 並快取；
+    render() 新增 `kind==='image'` 分支（含 mine 專屬的「對方尚未能
+    看到這張圖」提示）；圖片載入失敗（downloadUrl過期）自動重試一次
+    （用 itemId 而非 DOM 節點記重試狀態，避免無窮迴圈）；新增全螢幕
+    lightbox；接上原本就存在的預覽 banner（補「傳送」按鈕，取代第
+    十五輪「等OneDrive接上這步」的佔位文字）。
+  - `page-chat-panel.css`／`page-chat.css` 各自加圖片泡泡／lightbox
+    樣式（同元件不同外殼，兩份各自完整）。
+  - 所有改動已通過 `node --check` 語法檢查與 `wrangler deploy
+    --dry-run` esbuild 打包驗證。
+- **狀態變化**：Phase B 程式碼**全部完成**，但**尚未套用 schema、
+  尚未 wrangler deploy**——這兩步驟照專案規則需要使用者確認才執行，
+  使用者當下不在線，全部程式碼先寫完＋push，等使用者回來一次確認。
+- **遺留**（使用者回來後要做的事）：
+  1. 確認要不要套用 `chat_image_schema.sql`＋部署這次的 Worker
+     改動（下一輪一次問清楚）。
+  2. **需要手動處理**：Azure Portal 幫 App registration 加
+     `Files.ReadWrite` 這個 Graph delegated 權限（見
+     `ONEDRIVE_LINE_SPEC.md` §6 第 5 點）——加完之後 Jonathan／Minz
+     都要重新走一次 `/auth/onedrive/start`（`start` 帶
+     `prompt=consent`，會出示含新權限的同意畫面）換一份含新 scope 的
+     refresh token，舊的 token 不會自動長出新權限。
+  3. 沒有圖形化瀏覽器可以互動測試 CORS 直傳（`createUploadSession`
+     回的 uploadUrl 能不能直接被瀏覽器 PUT），照規格這是 Phase B
+     「第一件事先驗證」的項目，目前**未驗證**，理論上可行（Graph 的
+     uploadUrl 設計上就是給瀏覽器直傳用的），但沒有實機測試不能
+     宣稱「一定沒問題」——建議部署後第一次真人測試就是這個驗證。
+- **版本**：v0.36.0-202607151532（尚未部署到 Worker／尚未套用 schema，
+  版本號已反映在程式碼裡，`wrangler deploy` 完成後才會真的生效）
+
 ## 2026-07-15（下午，第四十一次）— 兩入口衝突簡化為互斥；關閉即時推播；狀態列圖示
 
 - **任務**：使用者實測第四十輪後回報：(1) 手機上同時看到「App內圓圓

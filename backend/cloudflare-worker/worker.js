@@ -116,6 +116,17 @@
   實際拿 access token 打 Graph `me/drive/special/approot` 驗證連線是否
   真的可用（不只是「有存 refresh_token」這種表面狀態），Phase A 的
   驗收動作。
+- `requestImageUpload` / `sendImageMessage` / `getImageUrls`：OneDrive
+  線 Phase B（2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2）圖片
+  訊息，單一副本＋Graph 原生分享，不是雙寫鏡射。`requestImageUpload`
+  用傳送者自己的 token 開 Graph 上傳 session，前端直接 PUT 位元組給
+  Graph（不經過這個 Worker）；`sendImageMessage` 對 Graph
+  `/items/{id}/invite` 把項目分享給對方帳號（失敗不擋訊息發送）後寫
+  `chat_messages`（`kind:'image'`，`metadata` 存 itemId／ownerIdentity／
+  縮圖等）；`getImageUrls` 依呼叫者是不是圖片擁有者，分別查自己帳號
+  或對方的 `sharedWithMe` 換短效 downloadUrl。這條線需要
+  `Files.ReadWrite` 權限（見 ONEDRIVE_SCOPE 常數旁註解），只有
+  `Files.ReadWrite.AppFolder` 不夠。
 - `listProjectTasks` / `addProjectTask` / `toggleProjectTask` /
   `deleteProjectTask` / `clearDoneProjectTasks`：`pages/admin/journal/`
   （決策與待辦頁）的待辦看板，2026-07-15 新增。單一全域清單，兩條
@@ -353,6 +364,18 @@ export default {
 
       if (action === "testOnedriveConnection") {
         return json(await testOnedriveConnection(env, payload), 200);
+      }
+
+      if (action === "requestImageUpload") {
+        return json(await requestImageUpload(env, payload), 200);
+      }
+
+      if (action === "sendImageMessage") {
+        return json(await sendImageMessage(env, payload), 200);
+      }
+
+      if (action === "getImageUrls") {
+        return json(await getImageUrls(env, payload), 200);
       }
 
       if (action === "listProjectTasks") {
@@ -1194,7 +1217,7 @@ async function logout(env, payload) {
 // resource embedding（靠 chat_message_reactions.message_id 這條既有 FK 自動
 // 偵測），一次查詢就把每則訊息底下的表情反應一起帶出來，不用前端再問一次。
 var CHAT_MESSAGE_SELECT =
-  "id,sender_identity,body,kind,created_at,edited_at,deleted_at,client_message_id," +
+  "id,sender_identity,body,kind,metadata,created_at,edited_at,deleted_at,client_message_id," +
   "shared_item_id,reply_to_message_id,chat_message_reactions(identity,emoji)";
 
 let cachedChatRoomId = null;
@@ -2453,7 +2476,13 @@ async function handleGoogleCallback(env, url) {
 // 瀏覽器（refresh token 全程只活在 Supabase，前端從頭到尾拿不到）。----------
 
 const ONEDRIVE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.dev/auth/onedrive/callback";
-const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder offline_access";
+// 2026-07-15（Phase B）：加 Files.ReadWrite——分享給對方帳號（/invite）
+// 跟讀對方分享給我的項目（sharedWithMe）不在 .AppFolder 的範圍內，
+// 那個 scope 只保證「碰得到自己的 App Folder」，不代表能對別人的
+// 帳號發出分享邀請或讀取別人的東西。已經連接過的帳號要重新走一次
+// /auth/onedrive/start 才會拿到含這個新權限的 refresh token（`start`
+// 帶 prompt=consent，會秀新的同意畫面）。
+const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder Files.ReadWrite offline_access";
 const ONEDRIVE_AUTHORIZE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
 const ONEDRIVE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
 
@@ -2562,7 +2591,23 @@ async function handleOnedriveCallback(env, url) {
     return htmlResponse("OneDrive 連接失敗：Microsoft 沒有回傳 refresh_token（scope 或帳號類型可能不對）。", 502);
   }
 
-  await saveOnedriveRefreshToken(env, identity, tokenData.refresh_token);
+  // Phase B 的 /invite 分享機制需要對方的 Microsoft 帳號 email 當
+  // recipients 參數，連接當下順便問 Graph 要一次存起來——這一步失敗
+  // 不擋連接本身（email 只在 Phase B 用得到，Phase A 的核心是
+  // refresh_token），存 null 就好，之後要用時才會發現沒有 email。
+  var accountEmail = null;
+  try {
+    const meResponse = await fetch(
+      "https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName",
+      { headers: { Authorization: "Bearer " + tokenData.access_token } }
+    );
+    if (meResponse.ok) {
+      const me = await meResponse.json();
+      accountEmail = me.mail || me.userPrincipalName || null;
+    }
+  } catch (ignored) {}
+
+  await saveOnedriveRefreshToken(env, identity, tokenData.refresh_token, accountEmail);
   onedriveTokenCache[identity] = {
     accessToken: tokenData.access_token,
     expiresAt: Date.now() + (Number(tokenData.expires_in) || 3600) * 1000
@@ -2589,7 +2634,7 @@ function htmlResponse(message, status) {
 async function fetchOnedriveAccountRow(env, identity) {
   const url = env.SUPABASE_URL.replace(/\/+$/, "") +
     "/rest/v1/onedrive_account?identity=eq." + encodeURIComponent(identity) +
-    "&select=identity,refresh_token,connected_at";
+    "&select=identity,refresh_token,connected_at,account_email";
   const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
@@ -2607,13 +2652,16 @@ async function fetchAllOnedriveAccountRows(env) {
   return response.json();
 }
 
-async function saveOnedriveRefreshToken(env, identity, refreshToken) {
+async function saveOnedriveRefreshToken(env, identity, refreshToken, accountEmail) {
   const upsertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account";
   const row = {
     identity: identity,
     refresh_token: refreshToken,
     updated_at: new Date().toISOString()
   };
+  // 只有真的傳了 email 才帶這個 key——refresh 流程（getOnedriveAccessToken）
+  // 只換 token 沒有重新問 email，不能讓那條路徑把既有的 email 覆蓋成 null。
+  if (accountEmail) row.account_email = accountEmail;
   const response = await fetch(upsertUrl, {
     method: "POST",
     headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
@@ -2710,6 +2758,204 @@ async function testOnedriveConnection(env, payload) {
   }
   const folder = await response.json();
   return { ok: true, folderId: folder.id, folderName: folder.name, webUrl: folder.webUrl };
+}
+
+// ---------- OneDrive 線 Phase B：圖片訊息（2026-07-15，單一副本＋
+// Graph 原生分享，見 AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2）。圖片位元組
+// 全程不經過 Worker——前端直傳 Graph、下載換短效 downloadUrl。----------
+
+// 傳送者用自己的 access token 開一個上傳位址，前端直接 PUT 位元組給
+// Graph（不經過這個 Worker）。存進傳送者自己 App Folder 底下的
+// chat/ 子資料夾，檔名用隨機 token 避免碰撞。
+async function requestImageUpload(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  let accessToken;
+  try {
+    accessToken = await getOnedriveAccessToken(env, identity);
+  } catch (error) {
+    return { ok: false, error: "OneDrive 尚未連接：" + (error.message || String(error)) };
+  }
+  const filename = "chat-" + randomToken() + ".jpg";
+  const response = await fetch(
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/chat/" + filename + ":/createUploadSession",
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename" } })
+    }
+  );
+  if (!response.ok) {
+    return { ok: false, error: "Graph HTTP " + response.status + ": " + (await response.text()) };
+  }
+  const session = await response.json();
+  if (!session.uploadUrl) {
+    return { ok: false, error: "Graph 沒有回傳 uploadUrl" };
+  }
+  return { ok: true, uploadUrl: session.uploadUrl };
+}
+
+// 前端把圖片位元組直傳 Graph、拿到 itemId 之後呼叫這支：(1) 用傳送者
+// 的 token 對 Graph 發「分享給特定人」邀請，把這個項目授權給對方帳號
+// 讀取——**失敗不擋訊息發送**，只是對方暫時看不到這張圖（例如對方
+// 還沒連接 OneDrive，或還沒補 account_email）；(2) 寫進聊天訊息。
+// 跟 sendChatMessage 一樣支援 clientMessageId 幂等重試。
+async function sendImageMessage(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const itemId = String((payload && payload.itemId) || "").trim();
+  if (!itemId) {
+    return { ok: false, code: "ITEM_ID_REQUIRED", error: "itemId is required" };
+  }
+  const w = Number(payload && payload.w) || 0;
+  const h = Number(payload && payload.h) || 0;
+  const thumbDataUri = String((payload && payload.thumbDataUri) || "");
+  const clientMessageId = String((payload && payload.clientMessageId) || "").trim() || randomToken();
+  const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+
+  var sharedOk = false;
+  try {
+    const peerRow = await fetchOnedriveAccountRow(env, peerIdentity);
+    if (peerRow && peerRow.account_email) {
+      const accessToken = await getOnedriveAccessToken(env, identity);
+      const inviteResponse = await fetch(
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(itemId) + "/invite",
+        {
+          method: "POST",
+          headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipients: [{ email: peerRow.account_email }],
+            requireSignIn: true,
+            sendInvitation: false,
+            roles: ["read"]
+          })
+        }
+      );
+      sharedOk = inviteResponse.ok;
+    }
+  } catch (ignored) {}
+
+  const insertUrl = base + "/rest/v1/chat_messages";
+  const insertBody = {
+    room_id: roomId,
+    sender_identity: identity,
+    client_message_id: clientMessageId,
+    kind: "image",
+    body: "[圖片]",
+    metadata: {
+      itemId: itemId,
+      ownerIdentity: identity,
+      w: w,
+      h: h,
+      thumbDataUri: thumbDataUri,
+      sharedOk: sharedOk
+    }
+  };
+  const response = await fetch(insertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify(insertBody)
+  });
+
+  if (response.status === 409) {
+    // 同一個 clientMessageId 已經送過——回傳既有那筆，不視為錯誤，跟
+    // sendChatMessage 同一套幂等邏輯。
+    const existingUrl =
+      base + "/rest/v1/chat_messages?room_id=eq." + roomId +
+      "&sender_identity=eq." + identity +
+      "&client_message_id=eq." + encodeURIComponent(clientMessageId) +
+      "&select=" + CHAT_MESSAGE_SELECT + "&limit=1";
+    const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
+    const rows = await existingRes.json();
+    return { ok: true, message: rows[0] || null, sharedOk: sharedOk };
+  }
+
+  if (!response.ok) {
+    throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+
+  const rows = await response.json();
+  await fetch(
+    base + "/rest/v1/chat_typing_state?room_id=eq." + roomId + "&identity=eq." + identity,
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  ).catch(function () {});
+  await sendPushToIdentity(env, peerIdentity, IDENTITY_LABEL[identity] || identity, "傳送了一張照片");
+  return { ok: true, message: rows[0] || null, sharedOk: sharedOk };
+}
+
+// 圖片訊息顯示：呼叫者自己傳的圖直接用自己的 token 查該項目；對方傳的
+// 圖用呼叫者自己的 token 查 sharedWithMe，比對 remoteItem.id 找對應
+// 項目——查不到（分享還沒生效／被撤銷）就回 null，前端顯示對應提示，
+// 不是壞圖示。downloadUrl 短效（約1小時），前端自己快取。
+async function getImageUrls(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const items = Array.isArray(payload && payload.items) ? payload.items : [];
+  if (!items.length) {
+    return { ok: true, urls: {} };
+  }
+
+  let accessToken;
+  try {
+    accessToken = await getOnedriveAccessToken(env, identity);
+  } catch (error) {
+    return { ok: false, error: "OneDrive 尚未連接：" + (error.message || String(error)) };
+  }
+
+  var urls = {};
+  var ownItems = items.filter(function (item) { return item.ownerIdentity === identity; });
+  var peerItems = items.filter(function (item) { return item.ownerIdentity !== identity; });
+
+  await Promise.all(ownItems.map(async function (item) {
+    try {
+      const response = await fetch(
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId) +
+          "?$select=id,@microsoft.graph.downloadUrl",
+        { headers: { Authorization: "Bearer " + accessToken } }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        urls[item.itemId] = data["@microsoft.graph.downloadUrl"] || null;
+      } else {
+        urls[item.itemId] = null;
+      }
+    } catch (ignored) {
+      urls[item.itemId] = null;
+    }
+  }));
+
+  if (peerItems.length) {
+    try {
+      const sharedResponse = await fetch(
+        "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe",
+        { headers: { Authorization: "Bearer " + accessToken } }
+      );
+      if (sharedResponse.ok) {
+        const sharedData = await sharedResponse.json();
+        const sharedList = sharedData.value || [];
+        peerItems.forEach(function (item) {
+          const match = sharedList.filter(function (entry) {
+            return entry.remoteItem && entry.remoteItem.id === item.itemId;
+          })[0];
+          urls[item.itemId] = (match && match.remoteItem && match.remoteItem["@microsoft.graph.downloadUrl"]) || null;
+        });
+      } else {
+        peerItems.forEach(function (item) { urls[item.itemId] = null; });
+      }
+    } catch (ignored) {
+      peerItems.forEach(function (item) { urls[item.itemId] = null; });
+    }
+  }
+
+  return { ok: true, urls: urls };
 }
 
 // ---------- 「決策與待辦」頁（pages/admin/journal/）的待辦看板，
