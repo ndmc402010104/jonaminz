@@ -84,6 +84,15 @@
 8. **Grep 工具對中文路徑可能靜默失敗**〔使用者〕：在本專案（路徑含「文件/程式碼」）
    搜尋無結果時，先懷疑工具吃不到中文路徑，改用 Bash 的 rg/grep 驗證，
    不要直接斷定「不存在」。
+   **同一台機器上還有一個相關陷阱**〔2026-07-15 實測抓到〕：Bash 裡
+   用 `curl -d '{"text":"中文..."}'` 這種把中文字直接當 command-line
+   argument 傳給 `curl.exe`（原生 Windows binary）的寫法，中文字元會
+   在 argv 編碼轉換時被壞掉（byte 數變少，存進 DB 是亂碼，不是單純
+   顯示問題——已用 `--trace-ascii` 的 byte 數比對證實）。**POST body
+   裡帶中文字時，一律先用 Write 工具或 heredoc 寫進暫存 JSON 檔，
+   再用 `curl -d @檔案路徑`**，不要把中文字直接寫在 inline 的
+   `-d '...'` 裡；純 ASCII 內容（token、id 之類）不受影響可以繼續
+   inline。
 9. **新增頁面照 `pages/README.md` 的五步流程**〔repo〕，bootstrap script 從根目錄
    index.html 原樣複製，只改 `data-jonaminz-page-id` 和內容。
 10. **待辦板「你想叫我做的」項目修完，不能自己標記完成**〔使用者，
