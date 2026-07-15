@@ -1307,8 +1307,14 @@ System App：
 - **Shared 獨立瀏覽列表已補成完整版（2026-07-15）**：全部／未讀篩選
   tab、🗂 icon 未讀紅點、每筆「討論」按鈕直接綁 composer，細節與過程中
   抓到的 render() 作用域 bug 見 CHANGELOG 第四十八次條目。
-- 沒做：貼圖面板、檔案附件、送往其他 App 的 destinations registry、
-  後台首頁摘要、真正的 WebSocket/Realtime 推播（目前是 polling，Web
+- **決策圖已上線（2026-07-15）**：「決策與待辦」頁新增候選項目清單，
+  跟待辦板用 `source_map_id` 雙向連動（加入後候選消失、✕ 刪除後候選
+  重新出現），細節見 CHANGELOG 第五十九次條目。
+- **Chat 檔案附件已上線（2026-07-15，決策圖第一個畢業的候選項目）**：
+  沿用圖片訊息的 OneDrive 上傳/分享管道，細節見 CHANGELOG 第六十次
+  條目，跟圖片訊息共用同一個「雙方要重新連接 OneDrive」的前提。
+- 沒做：貼圖面板、送往其他 App 的 destinations registry、後台首頁
+  摘要、真正的 WebSocket/Realtime 推播（目前是 polling，Web
   Push 只解決「App 關閉時
   的系統通知」，不是即時雙向連線）、端對端加密——這些多半在交接包的
   「不准做」清單裡，或屬於使用者任務書明確排除/延後的範圍，或需要全新

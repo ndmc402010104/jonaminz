@@ -127,6 +127,11 @@
   或對方的 `sharedWithMe` 換短效 downloadUrl。這條線需要
   `Files.ReadWrite` 權限（見 ONEDRIVE_SCOPE 常數旁註解），只有
   `Files.ReadWrite.AppFolder` 不夠。
+- `requestFileUpload` / `sendFileMessage`：Chat 檔案附件（2026-07-15，
+  從「決策圖」候選項目畢業），跟圖片訊息共用同一套單一副本＋Graph
+  分享管道，差別是保留原始檔名（不像圖片固定轉 `.jpg`）、不壓縮/不做
+  縮圖、`kind:'file'`。下載換 URL 直接沿用 `getImageUrls`（那支邏輯
+  跟檔案類型完全無關，只是查 itemId 換 downloadUrl，不另外重複做一支）。
 - `createApkUploadSession` ／ `GET /appDownload`：OneDrive 線 Phase C
   （2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）APK 自架。
   本機建完 `jonaminz-mobile-app` 的 APK 後，`tools/upload-apk.mjs`
@@ -426,6 +431,14 @@ export default {
 
       if (action === "getImageUrls") {
         return json(await getImageUrls(env, payload), 200);
+      }
+
+      if (action === "requestFileUpload") {
+        return json(await requestFileUpload(env, payload), 200);
+      }
+
+      if (action === "sendFileMessage") {
+        return json(await sendFileMessage(env, payload), 200);
       }
 
       if (action === "listProjectTasks") {
@@ -3101,6 +3114,136 @@ async function getImageUrls(env, payload) {
   }
 
   return { ok: true, urls: urls };
+}
+
+// ---------- Chat 檔案附件（2026-07-15，決策圖候選項目「畢業」出來的
+// 功能）：跟圖片訊息共用同一套「單一副本＋Graph 原生分享」管道，差別
+// 只在檔名保留原樣（不像圖片固定轉 .jpg）、不做壓縮/縮圖、下載端顯示
+// 檔名+檔案大小的卡片而不是縮圖。getImageUrls 對「查 itemId 換
+// downloadUrl」這件事完全跟檔案類型無關，直接沿用，不另外做一支
+// getFileUrls。----------
+
+// Graph 路徑不能出現這些字元；使用者上傳的原始檔名可能帶著，先清乾淨
+// 再拿去組 Graph 路徑，避免整支 action 因為路徑不合法而失敗。
+function sanitizeGraphFileName(name) {
+  var cleaned = String(name || "").replace(/[\\\/:*?"<>|]/g, "_").trim();
+  return cleaned || "file";
+}
+
+async function requestFileUpload(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  let accessToken;
+  try {
+    accessToken = await getOnedriveAccessToken(env, identity);
+  } catch (error) {
+    return { ok: false, error: "OneDrive 尚未連接：" + (error.message || String(error)) };
+  }
+  const requestedName = sanitizeGraphFileName(payload && payload.fileName);
+  const filename = randomToken() + "-" + requestedName;
+  const response = await fetch(
+    "https://graph.microsoft.com/v1.0/me/drive/special/approot:/chat/" + encodeURIComponent(filename) + ":/createUploadSession",
+    {
+      method: "POST",
+      headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename" } })
+    }
+  );
+  if (!response.ok) {
+    return { ok: false, error: "Graph HTTP " + response.status + ": " + (await response.text()) };
+  }
+  const session = await response.json();
+  if (!session.uploadUrl) {
+    return { ok: false, error: "Graph 沒有回傳 uploadUrl" };
+  }
+  return { ok: true, uploadUrl: session.uploadUrl };
+}
+
+async function sendFileMessage(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const itemId = String((payload && payload.itemId) || "").trim();
+  if (!itemId) {
+    return { ok: false, code: "ITEM_ID_REQUIRED", error: "itemId is required" };
+  }
+  const fileName = sanitizeGraphFileName(payload && payload.fileName);
+  const fileSize = Number(payload && payload.fileSize) || 0;
+  const mimeType = String((payload && payload.mimeType) || "");
+  const clientMessageId = String((payload && payload.clientMessageId) || "").trim() || randomToken();
+  const peerIdentity = identity === "jonathan" ? "minz" : "jonathan";
+  const roomId = await resolveChatRoomId(env);
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+
+  var sharedOk = false;
+  try {
+    const peerRow = await fetchOnedriveAccountRow(env, peerIdentity);
+    if (peerRow && peerRow.account_email) {
+      const accessToken = await getOnedriveAccessToken(env, identity);
+      const inviteResponse = await fetch(
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(itemId) + "/invite",
+        {
+          method: "POST",
+          headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipients: [{ email: peerRow.account_email }],
+            requireSignIn: true,
+            sendInvitation: false,
+            roles: ["read"]
+          })
+        }
+      );
+      sharedOk = inviteResponse.ok;
+    }
+  } catch (ignored) {}
+
+  const insertUrl = base + "/rest/v1/chat_messages";
+  const insertBody = {
+    room_id: roomId,
+    sender_identity: identity,
+    client_message_id: clientMessageId,
+    kind: "file",
+    body: "[檔案] " + fileName,
+    metadata: {
+      itemId: itemId,
+      ownerIdentity: identity,
+      fileName: fileName,
+      fileSize: fileSize,
+      mimeType: mimeType,
+      sharedOk: sharedOk
+    }
+  };
+  const response = await fetch(insertUrl, {
+    method: "POST",
+    headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
+    body: JSON.stringify(insertBody)
+  });
+
+  if (response.status === 409) {
+    const existingUrl =
+      base + "/rest/v1/chat_messages?room_id=eq." + roomId +
+      "&sender_identity=eq." + identity +
+      "&client_message_id=eq." + encodeURIComponent(clientMessageId) +
+      "&select=" + CHAT_MESSAGE_SELECT + "&limit=1";
+    const existingRes = await fetch(existingUrl, { method: "GET", headers: supabaseHeaders(env) });
+    const rows = await existingRes.json();
+    return { ok: true, message: rows[0] || null, sharedOk: sharedOk };
+  }
+
+  if (!response.ok) {
+    throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+
+  const rows = await response.json();
+  await fetch(
+    base + "/rest/v1/chat_typing_state?room_id=eq." + roomId + "&identity=eq." + identity,
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  ).catch(function () {});
+  await sendPushToIdentity(env, peerIdentity, IDENTITY_LABEL[identity] || identity, "傳送了一個檔案：" + fileName);
+  return { ok: true, message: rows[0] || null, sharedOk: sharedOk };
 }
 
 // ---------- 「決策與待辦」頁（pages/admin/journal/）的待辦看板，

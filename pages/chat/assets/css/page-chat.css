@@ -670,6 +670,38 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   font-size: 10px;
   color: var(--color-primary);
 }
+/* Chat 檔案附件（2026-07-15）：跟圖片泡泡共用同一套上傳/分享管道，
+   這裡畫「檔名＋大小」卡片，不是縮圖。 */
+.jonaminz-chat-file-bubble {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 260px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.jonaminz-chat-file-icon {
+  font-size: 22px;
+  flex: 0 0 auto;
+}
+.jonaminz-chat-file-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.jonaminz-chat-file-name {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jonaminz-chat-file-size {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
 .jonaminz-chat-image-send-btn {
   border: none;
   background: var(--color-primary-2);

@@ -20,6 +20,43 @@
 
 ---
 
+## 2026-07-15（晚上，第六十次）— Chat 檔案附件上線（決策圖第一個畢業的候選項目）
+
+- **任務**：使用者要求「幫我先做 chat 接著做工具包」——從決策圖挑選
+  「Chat 檔案附件」實作。
+- **變更**：
+  - 新 schema `backend/supabase/chat_file_attachment_schema.sql`
+    （已套用）：`chat_messages.kind` 加 `'file'`，沿用 Phase B 就有的
+    `metadata` jsonb 欄位，不用新增欄位。
+  - `worker.js` 新增 `requestFileUpload`／`sendFileMessage`：跟圖片
+    訊息共用同一套「單一副本＋Graph 原生分享」管道，差別是保留原始
+    檔名（`sanitizeGraphFileName` 清掉 Graph 路徑不合法字元）、不壓縮
+    /不做縮圖。下載換 downloadUrl **直接沿用既有的 `getImageUrls`**
+    ——那支邏輯本來就跟檔案類型無關，只是查 itemId 換 downloadUrl，
+    不重複做一支 `getFileUrls`。
+  - `assets/js/chat-thread.js`：composer 的「+」選單加「分享檔案」；
+    新增 `sendFile()`（跟 `sendImage()` 同一套上傳流程，但省略
+    `prepareImageForUpload` 的解碼/壓縮/縮圖那層，直接把原始 File
+    當 Blob PUT 給 Graph）；`render()` 新增 `kind==='file'` 分支，
+    畫「圖示＋檔名＋大小」卡片（不是縮圖），點擊解析下載連結後開新
+    分頁；`ensureImageUrls()` 的過濾條件放寬成同時處理 `image`／
+    `file` 兩種 kind。新增 `formatFileSize()` 工具函式。
+  - `page-chat-panel.css`／`page-chat.css` 各自加檔案卡片樣式
+    （`.jonaminz-chat-file-bubble` 等，兩邊獨立一份，跟圖片泡泡同一個
+    「同元件不同外殼」原則）。
+- **驗證**：寫一個 iframe 包裹的 Playwright harness（`inPanel` 判斷
+  需要真的在 iframe 裡才會啟用「+」選單，跟正式站台的面板情境一致）
+  完整測過：選檔→本機預覽顯示檔名/大小→按傳送→`requestFileUpload`／
+  `sendFileMessage` 收到正確 payload→訊息正確渲染成檔案卡片→點擊
+  正確解析 downloadUrl 並開新分頁。部署後另外用 curl 確認
+  `requestFileUpload` 沒登入時正確擋下。
+- **狀態變化**：決策圖第一個被實作出來的候選項目——這條「加入候選→
+  挑一個做→做完」的閉環走過一次真實案例。
+- **遺留**：跟 Phase B 圖片訊息共用同一個尚未解決的前提：雙方需要
+  重新連接 OneDrive 才能拿到 `Files.ReadWrite` 新 scope，在那之前
+  `/invite` 分享步驟會失敗（不擋傳送，只是對方看不到）。
+- **版本**：v0.42.0-202607152006
+
 ## 2026-07-15（晚上，第五十九次）— 決策圖加 source_map_id：✕ 刪除要回到決策圖
 
 - **任務**：使用者釐清規則：「如果是你建議我的決策圖，那我按 ✕ 要回到

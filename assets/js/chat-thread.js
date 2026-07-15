@@ -126,6 +126,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
   }
 
+  // Chat 檔案附件用：把 bytes 換成 KB/MB 這種人看得懂的字串。
+  function formatFileSize(bytes) {
+    var n = Number(bytes) || 0;
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+    return (n / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
   function initialOf(id) {
     var label = IDENTITY_LABEL[id] || id || "?";
     return label.charAt(0).toUpperCase();
@@ -256,6 +264,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var imageUrlFetchInFlight = {};
     var imageUrlErrorRetried = {};
     var selectedImageFile = null;
+    var selectedFile = null;
 
     function maybeMarkRead() {
       if (!isVisible) return;
@@ -444,9 +453,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
         var readByOther = mine && otherRead.lastReadMessageId === m.id;
         var deleted = Boolean(m.deleted_at);
-        // 圖片訊息比照 shared_item：不能編輯（沒有文字內容可編輯），
+        // 圖片/檔案訊息比照 shared_item：不能編輯（沒有文字內容可編輯），
         // 這一版也先不開放刪除，跟既有行為一致，不節外生枝。
-        var canEditOrDelete = mine && !deleted && m.kind !== "shared_item" && m.kind !== "image";
+        var canEditOrDelete = mine && !deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file";
         var canReplyOrReact = !deleted;
 
         // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
@@ -460,7 +469,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (quoted) {
             var quotedLabel = quoted.sender_identity === identity ? "我" : (IDENTITY_LABEL[quoted.sender_identity] || quoted.sender_identity);
             var quotedSnippet = quoted.kind === "shared_item" ? "[分享的內容]" :
-              (quoted.kind === "image" ? "[圖片]" : (quoted.deleted_at ? "此訊息已刪除" : quoted.body));
+              (quoted.kind === "image" ? "[圖片]" :
+              (quoted.kind === "file" ? "[檔案]" : (quoted.deleted_at ? "此訊息已刪除" : quoted.body)));
             replyQuoteHtml = '<div class="jonaminz-chat-reply-quote">' + escapeHtml(quotedLabel) + "：" +
               escapeHtml(String(quotedSnippet || "").slice(0, 60)) + "</div>";
           } else {
@@ -511,6 +521,23 @@ title/url（見 `requestHostContext()`，宿主端實作在
             "</div>" +
             (showUnsharedHint ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這張圖</p>' : "") +
             reactionsHtml + "</div>";
+        } else if (m.kind === "file" && m.metadata && m.metadata.itemId) {
+          // 跟圖片訊息共用同一套 OneDrive 上傳/分享/換 downloadUrl 管道
+          // （見 ensureImageUrls），差別只在這裡畫「檔名＋大小」卡片，
+          // 不是縮圖——一般檔案沒有縮圖可以先顯示。
+          var fileMeta = m.metadata;
+          var fileUrl = imageUrlCache[fileMeta.itemId];
+          var fileUnshared = mine && fileMeta.sharedOk === false;
+          bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
+            '<div class="jonaminz-chat-file-bubble" data-file-bubble data-item-id="' + escapeHtml(fileMeta.itemId) +
+            '" data-download-url="' + escapeHtml(fileUrl || "") + '">' +
+            '<span class="jonaminz-chat-file-icon">📄</span>' +
+            '<div class="jonaminz-chat-file-info">' +
+            '<div class="jonaminz-chat-file-name">' + escapeHtml(fileMeta.fileName || "檔案") + '</div>' +
+            '<div class="jonaminz-chat-file-size">' + escapeHtml(formatFileSize(fileMeta.fileSize)) + '</div>' +
+            "</div></div>" +
+            (fileUnshared ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這個檔案</p>' : "") +
+            reactionsHtml + "</div>";
         } else if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
           var item = sharedItems[m.shared_item_id];
           var viewerSeen = Boolean(item.seenState && item.seenState[identity]);
@@ -544,7 +571,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
           (canEditOrDelete ? " data-editable=\"true\"" : "") +
           (deleted ? ' data-deleted="true"' : "") +
           (canReplyOrReact ? " data-reactable=\"true\"" : "") +
-          (!deleted && m.kind !== "shared_item" && m.kind !== "image" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
+          (!deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
           bodyHtml +
           "</div>";
@@ -595,6 +622,19 @@ title/url（見 `requestHostContext()`，宿主端實作在
             '<div class="jonaminz-chat-image-bubble">' +
             '<img src="' + escapeHtml(p.previewUrl) + '" alt="圖片" style="aspect-ratio:' +
             (p.w || 1) + "/" + (p.h || 1) + '"></div></div></div>' +
+            '<div class="jonaminz-chat-delivery-tick">傳送中...</div>';
+          return;
+        }
+        if (p.kind === "file") {
+          html +=
+            '<div class="jonaminz-chat-message is-pending" data-mine="true">' +
+            '<div class="jonaminz-chat-bubble-col">' +
+            '<div class="jonaminz-chat-file-bubble">' +
+            '<span class="jonaminz-chat-file-icon">📄</span>' +
+            '<div class="jonaminz-chat-file-info">' +
+            '<div class="jonaminz-chat-file-name">' + escapeHtml(p.fileName || "檔案") + '</div>' +
+            '<div class="jonaminz-chat-file-size">' + escapeHtml(formatFileSize(p.fileSize)) + '</div>' +
+            "</div></div></div></div>" +
             '<div class="jonaminz-chat-delivery-tick">傳送中...</div>';
           return;
         }
@@ -890,12 +930,77 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
     }
 
+    // Chat 檔案附件：跟 sendImage 同一套上傳流程，但不用
+    // prepareImageForUpload 那層解碼/壓縮/縮圖——一般檔案沒有「畫面」
+    // 可以先畫縮圖，直接把原始 File 物件當 Blob PUT 給 Graph。
+    function sendFile(file) {
+      if (sending) return;
+      sending = true;
+      els.action.disabled = true;
+      if (els.filePreviewBanner) els.filePreviewBanner.hidden = true;
+
+      var pendingCmid = identity + "-file-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      var fileName = file.name || "檔案";
+      var fileSize = file.size || 0;
+      var mimeType = file.type || "";
+
+      pendingMessages.push({
+        client_message_id: pendingCmid,
+        kind: "file",
+        fileName: fileName,
+        fileSize: fileSize
+      });
+      if (lastPollData) render(lastPollData);
+
+      window.JonaminzBackend.requestFileUpload({ token: token, fileName: fileName })
+        .then(function (uploadTarget) {
+          if (!uploadTarget || !uploadTarget.ok) {
+            throw new Error((uploadTarget && uploadTarget.error) || "無法取得上傳位址");
+          }
+          return fetch(uploadTarget.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Range": "bytes 0-" + (file.size - 1) + "/" + file.size
+            },
+            body: file
+          });
+        })
+        .then(function (putResponse) {
+          if (!putResponse.ok) {
+            throw new Error("上傳到 OneDrive 失敗（HTTP " + putResponse.status + "）");
+          }
+          return putResponse.json();
+        })
+        .then(function (driveItem) {
+          return window.JonaminzBackend.sendFileMessage({
+            token: token,
+            itemId: driveItem.id,
+            fileName: fileName,
+            fileSize: fileSize,
+            mimeType: mimeType,
+            clientMessageId: pendingCmid
+          });
+        })
+        .then(function () {
+          return poll();
+        })
+        .catch(function (error) {
+          els.status.textContent = "傳送檔案失敗：" + (error.message || String(error));
+          pendingMessages = pendingMessages.filter(function (p) { return p.client_message_id !== pendingCmid; });
+          if (lastPollData) render(lastPollData);
+        })
+        .then(function () {
+          sending = false;
+          els.action.disabled = false;
+        });
+    }
+
     // downloadUrl 短效（約1小時），批次跟 Worker 要——只問還沒快取、
     // 沒有 in-flight 請求的 itemId，回來後整批塞進快取再重畫一次。
     function ensureImageUrls(messages) {
       var need = [];
       messages.forEach(function (m) {
-        if (m.kind !== "image" || !m.metadata || !m.metadata.itemId) return;
+        if ((m.kind !== "image" && m.kind !== "file") || !m.metadata || !m.metadata.itemId) return;
         var itemId = m.metadata.itemId;
         if (imageUrlCache[itemId] !== undefined || imageUrlFetchInFlight[itemId]) return;
         need.push({ itemId: itemId, ownerIdentity: m.metadata.ownerIdentity });
@@ -1028,7 +1133,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
             els.searchResults.innerHTML = results.map(function (m) {
               var mine = m.sender_identity === identity;
               var label = mine ? "我" : (IDENTITY_LABEL[otherIdentity()] || otherIdentity());
-              var snippet = m.kind === "shared_item" ? "[分享的內容]" : (m.kind === "image" ? "[圖片]" : m.body);
+              var snippet = m.kind === "shared_item" ? "[分享的內容]" :
+                (m.kind === "image" ? "[圖片]" : (m.kind === "file" ? "[檔案]" : m.body));
               return '<div class="jonaminz-chat-search-result" data-search-result data-message-id="' + escapeHtml(m.id) + '">' +
                 '<span class="jonaminz-chat-search-result-meta">' + escapeHtml(label) + " · " +
                 escapeHtml(formatTime(m.created_at)) + "</span>" +
@@ -1129,6 +1235,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           '<button type="button" data-share-current>分享目前內容</button>' +
           '<button type="button" data-pick-image>分享圖片（相機／相簿）</button>' +
           '<input type="file" accept="image/*" data-image-input hidden>' +
+          '<button type="button" data-pick-file>分享檔案</button>' +
+          '<input type="file" data-file-input hidden>' +
           "</div>"
         : '<button type="button" class="jonaminz-chat-plus-btn" data-plus disabled ' +
           'title="附件與更多動作——之後開放" aria-label="更多功能（尚未開放）">+</button>';
@@ -1191,6 +1299,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<button type="button" class="jonaminz-chat-image-send-btn" data-image-send>傳送</button>' +
         '<button type="button" data-image-preview-cancel aria-label="取消">✕</button>' +
         "</div>" +
+        '<div class="jonaminz-chat-discuss-banner jonaminz-chat-file-preview-banner" data-file-preview-banner hidden>' +
+        '<span data-file-preview-name></span>' +
+        '<button type="button" class="jonaminz-chat-image-send-btn" data-file-send>傳送</button>' +
+        '<button type="button" data-file-preview-cancel aria-label="取消">✕</button>' +
+        "</div>" +
         '<div class="jonaminz-chat-context-menu" data-context-menu hidden></div>' +
         '<div class="jonaminz-chat-image-lightbox" data-image-lightbox hidden>' +
         '<img data-image-lightbox-img alt="圖片">' +
@@ -1237,6 +1350,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.imageInput = root.querySelector("[data-image-input]");
       els.imagePreviewBanner = root.querySelector("[data-image-preview-banner]");
       els.imagePreviewThumb = root.querySelector("[data-image-preview-thumb]");
+      els.fileInput = root.querySelector("[data-file-input]");
+      els.filePreviewBanner = root.querySelector("[data-file-preview-banner]");
+      els.filePreviewName = root.querySelector("[data-file-preview-name]");
       els.imageLightbox = root.querySelector("[data-image-lightbox]");
       els.imageLightboxImg = root.querySelector("[data-image-lightbox-img]");
       els.sharedListToggle = root.querySelector("[data-shared-list-toggle]");
@@ -1266,6 +1382,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (event.target.closest("[data-pick-image]")) {
             closePlusPanel();
             if (els.imageInput) els.imageInput.click();
+            return;
+          }
+          if (event.target.closest("[data-pick-file]")) {
+            closePlusPanel();
+            if (els.fileInput) els.fileInput.click();
             return;
           }
           if (!event.target.closest("[data-share-current]")) return;
@@ -1317,6 +1438,32 @@ title/url（見 `requestHostContext()`，宿主端實作在
             selectedImageFile = null;
             els.imagePreviewBanner.hidden = true;
             if (els.imagePreviewThumb) els.imagePreviewThumb.src = "";
+          });
+        }
+        // Chat 檔案附件：跟圖片選取器同一套「選檔→本機預覽→傳送/取消」
+        // 流程，差別是預覽只顯示檔名（沒有縮圖可看），選了就直接記著
+        // File 物件，等按「傳送」才真的呼叫 sendFile。
+        if (els.fileInput) {
+          els.fileInput.addEventListener("change", function () {
+            var file = els.fileInput.files && els.fileInput.files[0];
+            if (!file) return;
+            selectedFile = file;
+            if (els.filePreviewName) els.filePreviewName.textContent = file.name + "（" + formatFileSize(file.size) + "）";
+            if (els.filePreviewBanner) els.filePreviewBanner.hidden = false;
+            els.fileInput.value = "";
+          });
+        }
+        if (els.filePreviewBanner) {
+          els.filePreviewBanner.addEventListener("click", function (event) {
+            if (event.target.closest("[data-file-send]")) {
+              var fileToSend = selectedFile;
+              selectedFile = null;
+              if (fileToSend) sendFile(fileToSend);
+              return;
+            }
+            if (!event.target.closest("[data-file-preview-cancel]")) return;
+            selectedFile = null;
+            els.filePreviewBanner.hidden = true;
           });
         }
         document.addEventListener("click", function (event) {
@@ -1372,6 +1519,16 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (bubbleImg && bubbleImg.src && els.imageLightbox && els.imageLightboxImg) {
             els.imageLightboxImg.src = bubbleImg.src;
             els.imageLightbox.hidden = false;
+          }
+          return;
+        }
+        var fileBubble = event.target.closest("[data-file-bubble]");
+        if (fileBubble) {
+          var downloadUrl = fileBubble.dataset.downloadUrl;
+          if (downloadUrl) {
+            window.open(downloadUrl, "_blank", "noopener");
+          } else {
+            window.alert("下載連結還在準備中，稍後再試一次");
           }
           return;
         }
