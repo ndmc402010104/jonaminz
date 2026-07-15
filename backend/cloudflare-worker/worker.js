@@ -2553,7 +2553,12 @@ const ONEDRIVE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.de
 // 帳號發出分享邀請或讀取別人的東西。已經連接過的帳號要重新走一次
 // /auth/onedrive/start 才會拿到含這個新權限的 refresh token（`start`
 // 帶 prompt=consent，會秀新的同意畫面）。
-const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder Files.ReadWrite offline_access";
+// 2026-07-15（同日稍後）：加 User.Read——account_email 一直存不進去，
+// 用暫時的診斷 action 直接打 Graph /me 查證，實際回應是 401（不是
+// 403），代表換到的 access token 完全沒有讀取個人資料的權限，
+// User.Read 從來沒有被要求過。跟上面 Files.ReadWrite 同一個情況：
+// 使用者兩人都要再重新連接一次才能拿到含這個新權限的 token。
+const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder Files.ReadWrite offline_access User.Read";
 const ONEDRIVE_AUTHORIZE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
 const ONEDRIVE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
 

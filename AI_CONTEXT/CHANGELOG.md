@@ -20,6 +20,35 @@
 
 ---
 
+## 2026-07-15（晚上，第六十七次）— account_email 真正根因：OneDrive scope 從來沒要 User.Read
+
+- **任務**：使用者回報「我明明就又連接了啊」——查資料庫發現
+  `connected_at`／`updated_at` 確實是剛剛的新時間（證明上一輪修的
+  connected_at bug 真的有效、也證明使用者真的有重新連接成功），但
+  `account_email` 還是 null，不是使用者沒做，是別的原因。使用者也
+  指出：我在質疑「你沒有重新連接」之前，應該先查一下連接時間再說。
+- **變更**：
+  - 加一段**暫時的診斷 action**（`debugOnedriveMe`，只讀、不改資料）
+    直接呼叫 Graph `/me`，部署後 curl 打一次，拿到真正的答案：HTTP
+    **401**，代表換到的 access token 從來沒有 `User.Read` 這個讀取
+    個人資料的權限——`ONEDRIVE_SCOPE` 常數裡從來沒有申請過這個
+    scope，跟連接成不成功、重新連接幾次都無關，查完立刻把診斷段落
+    拿掉，不留在正式程式碼裡。
+  - `ONEDRIVE_SCOPE` 加上 `User.Read`（跟 Files.ReadWrite 那次同樣的
+    情況：已經連接過的帳號要重新走一次 `/auth/onedrive/start` 才會
+    拿到含新權限的 token）。
+- **驗證**：`node --check`＋`wrangler deploy --dry-run` 驗證過，部署
+  後用 curl 對正式環境的診斷 action 拿到過 401 這個關鍵證據，才確定
+  是這個原因，不是憑猜測就動手改。
+- **狀態變化**：這是本輪第三個卡在 OneDrive scope 不夠的具體原因
+  （Files.ReadWrite→User.Read），使用者跟 Minz 這次重新連接後理論上
+  才會真的拿到完整權限。
+- **遺留**：等使用者跟 Minz 這次重新連接後確認 `account_email` 真的
+  存進去了——`User.Read` 通常是 Azure App 註冊的預設權限，理論上不用
+  再去 Portal 加，但沒有 100%把握，如果這次還是拿不到 email 要回頭
+  檢查 Azure Portal 的權限清單。
+- **版本**：v0.44.0-202607152207
+
 ## 2026-07-15（晚上，第六十六次）— 檔案下載失敗訊息區分「還在等」跟「確定拿不到」
 
 - **任務**：使用者問「一直顯示下載連結還在準備中，這樣應該對嗎」。
