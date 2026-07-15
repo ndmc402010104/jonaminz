@@ -20,6 +20,16 @@
 
 ---
 
+## 2026-07-15（下午，第四十五次）— OneDrive 連接連結改開新分頁
+
+- **任務**：使用者回報點「重新連接」會把後台頁面整個導到 Microsoft
+  權限頁，希望開新分頁。
+- **變更**：`pages/admin/assets/js/app.js` 的 `data-onedrive-connect`／
+  `data-onedrive-reconnect` 兩個 `<a>` 都加 `target="_blank"
+  rel="noopener"`。
+- **遺留**：無。
+- **版本**：v0.36.2-202607151620
+
 ## 2026-07-15（下午，第四十四次）— OneDrive 帳號卡片補「重新連接」按鈕
 
 - **任務**：使用者已在 Azure Portal 手動加好 `Files.ReadWrite` 權限

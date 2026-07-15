@@ -169,7 +169,7 @@ index.html／page-admin.css 檔頭說明）。三個入口（Theme／Contract �
       el.innerHTML =
         '<p><strong>' + escapeHtml(label) + '</strong>：已連接（' + escapeHtml(account.connectedAt || "") + '）</p>' +
         '<button type="button" class="jonaminz-admin-onedrive-test" data-onedrive-test>測試連線</button>' +
-        '<a class="jonaminz-admin-onedrive-connect" data-onedrive-reconnect>重新連接</a>' +
+        '<a class="jonaminz-admin-onedrive-connect" data-onedrive-reconnect target="_blank" rel="noopener">重新連接</a>' +
         '<span data-onedrive-test-result></span>';
       var testBtn = el.querySelector("[data-onedrive-test]");
       testBtn.addEventListener("click", function () {
@@ -201,7 +201,7 @@ index.html／page-admin.css 檔頭說明）。三個入口（Theme／Contract �
 
     el.innerHTML =
       '<p><strong>' + escapeHtml(label) + '</strong>：尚未連接。</p>' +
-      '<a class="jonaminz-admin-onedrive-connect" data-onedrive-connect>連接 OneDrive</a>';
+      '<a class="jonaminz-admin-onedrive-connect" data-onedrive-connect target="_blank" rel="noopener">連接 OneDrive</a>';
     var connectLink = el.querySelector("[data-onedrive-connect]");
     window.JonaminzBackend.getWorkerBaseUrlForRedirect().then(function (baseUrl) {
       connectLink.href = baseUrl + "/auth/onedrive/start?token=" + encodeURIComponent(token || "") +
