@@ -97,18 +97,22 @@
   送到伺服器）。
 - `GET /auth/onedrive/start` ／ `GET /auth/onedrive/callback`：OneDrive
   線 Phase A（2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）。不是
-  使用者登入，是把 Jonathan 的個人 OneDrive App Folder 授權給這個
-  App 的一次性連接動作，跟 Google 登入共用 `oauth_states` 表擋 CSRF
-  （`return_origin` 欄位這裡存的是發起連接的登入身分，不是要導回的
-  網域）。`start` 要求呼叫者已登入且是 `jonathan`（單一帳號的儲存
-  空間，不接受 Minz 發起）；`callback` 用 authorization code 跟
-  Microsoft 換 refresh token 存進 `onedrive_account` 表（見
-  `backend/supabase/onedrive_schema.sql`），完成後回一頁純文字結果
+  使用者登入，是把「這個 App 讀寫某人 OneDrive App Folder」的授權動作
+  ——**雙帳號模式**：Jonathan／Minz 各自連自己的 OneDrive（兩人都想
+  從自己帳號查得到聊天圖庫；Phase B 傳圖只上傳一份到傳送者帳號，用
+  Graph 原生分享機制授權對方讀取，不重複佔用兩份容量）。跟 Google
+  登入共用 `oauth_states` 表擋 CSRF（`return_origin` 欄位這裡存的是
+  發起連接的登入身分，不是要導回的網域）。`start` 要求呼叫者已登入，
+  連接的就是呼叫者自己的帳號（不能指定連別人的）；`callback` 用
+  authorization code 跟 Microsoft 換 refresh token 存進
+  `onedrive_account` 表（見 `backend/supabase/onedrive_schema.sql`，
+  `identity` 是 primary key，兩人各一列），完成後回一頁純文字結果
   （沒有 session token 要交回瀏覽器）。
-- `getOnedriveStatus`：讀 `onedrive_account` 有沒有連接，公開給任何
-  已登入身分查。`testOnedriveConnection`：實際拿 access token 打
-  Graph `me/drive/special/approot` 驗證連線是否真的可用（不只是「有
-  存 refresh_token」這種表面狀態），Phase A 的驗收動作。
+- `getOnedriveStatus`：回傳 Jonathan／Minz 兩人各自的連接狀態（後台
+  要同時畫兩張卡片），任何已登入身分都能查。`testOnedriveConnection`：
+  只測**呼叫者自己**的帳號，實際拿 access token 打 Graph
+  `me/drive/special/approot` 驗證連線是否真的可用（不只是「有存
+  refresh_token」這種表面狀態），Phase A 的驗收動作。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -2404,16 +2408,19 @@ async function handleGoogleCallback(env, url) {
 }
 
 // ---------- OneDrive 線 Phase A：授權底座（2026-07-15，見
-// AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）。這不是使用者登入——是把 Jonathan
-// 的個人 OneDrive「App Folder」授權給這個 App 讀寫的一次性連接動作，
-// 用同一套 oauth_states 表擋 CSRF（跟 Google 登入共用表、不同語意：
-// return_origin 這裡存的是發起連接的登入身分，不是要導回的網域）。
-// 只有 Jonathan 能發起連接（單一帳號、單一使用者的儲存空間，見
-// onedrive_schema.sql 的 connected_by check）；redirect_uri 直接用這個
-// Worker 自己的網域（跟 GOOGLE_REDIRECT_URI 同一個模式），不需要另外
-// 在 jonaminz.com 開一個中繼頁面——連接完成後看到的就是 Worker 直接
-// 回的純文字結果頁，沒有 session token 要交回瀏覽器（refresh token
-// 全程只活在 Supabase，前端從頭到尾拿不到）。----------
+// AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）。這不是使用者登入——是把「這個
+// App 讀寫某人 OneDrive App Folder」的授權，雙帳號模式：Jonathan／
+// Minz 各自連自己的 OneDrive（2026-07-15 使用者決策：兩人都想從自己
+// 帳號查得到聊天圖庫；Phase B 傳圖只上傳一份到傳送者帳號，用 Graph
+// 原生的「分享給特定人」授權對方帳號讀取，不重複佔用兩份容量——見
+// SPEC 的取捨記錄）。用同一套 oauth_states 表擋 CSRF（跟 Google 登入
+// 共用表、不同語意：return_origin 這裡存的是發起連接的登入身分，不是
+// 要導回的網域）。連接誰的帳號＝呼叫者自己的登入身分，不能選（`start`
+// 不接受指定 identity 參數，永遠是 `requireSession` 解出來的那個人）；
+// redirect_uri 直接用這個 Worker 自己的網域（跟 GOOGLE_REDIRECT_URI
+// 同一個模式），不需要另外在 jonaminz.com 開一個中繼頁面——連接完成
+// 後看到的就是 Worker 直接回的純文字結果頁，沒有 session token 要交回
+// 瀏覽器（refresh token 全程只活在 Supabase，前端從頭到尾拿不到）。----------
 
 const ONEDRIVE_REDIRECT_URI = "https://jonaminz-backend.ndmc402010104.workers.dev/auth/onedrive/callback";
 const ONEDRIVE_SCOPE = "Files.ReadWrite.AppFolder offline_access";
@@ -2427,13 +2434,8 @@ async function handleOnedriveStart(env, url) {
 
   const token = url.searchParams.get("token") || "";
   const identity = await requireSession(env, { token: token });
-  if (identity !== "jonathan") {
-    return new Response(
-      identity
-        ? "只有 Jonathan 能連接 OneDrive（這個儲存空間是單一帳號共用）。"
-        : "請先登入 jonaminz 再連接 OneDrive。",
-      { status: 403 }
-    );
+  if (!identity) {
+    return new Response("請先登入 jonaminz 再連接 OneDrive。", { status: 403 });
   }
 
   const state = randomToken();
@@ -2496,7 +2498,7 @@ async function handleOnedriveCallback(env, url) {
   if (!stateRow || new Date(stateRow.expires_at).getTime() < Date.now()) {
     return htmlResponse("OneDrive 連接失敗：連結已過期，請重新從後台發起連接。", 400);
   }
-  const connectedBy = stateRow.return_origin === "minz" ? "minz" : "jonathan";
+  const identity = stateRow.return_origin === "minz" ? "minz" : "jonathan";
 
   const tokenResponse = await fetch(ONEDRIVE_TOKEN_URL, {
     method: "POST",
@@ -2522,9 +2524,11 @@ async function handleOnedriveCallback(env, url) {
     return htmlResponse("OneDrive 連接失敗：Microsoft 沒有回傳 refresh_token（scope 或帳號類型可能不對）。", 502);
   }
 
-  await saveOnedriveRefreshToken(env, tokenData.refresh_token, connectedBy);
-  cachedOnedriveAccessToken = tokenData.access_token;
-  cachedOnedriveTokenExpiresAt = Date.now() + (Number(tokenData.expires_in) || 3600) * 1000;
+  await saveOnedriveRefreshToken(env, identity, tokenData.refresh_token);
+  onedriveTokenCache[identity] = {
+    accessToken: tokenData.access_token,
+    expiresAt: Date.now() + (Number(tokenData.expires_in) || 3600) * 1000
+  };
 
   return htmlResponse("OneDrive 已連接成功！可以關掉這個分頁了。", 200);
 }
@@ -2544,8 +2548,10 @@ function htmlResponse(message, status) {
   );
 }
 
-async function fetchOnedriveAccountRow(env) {
-  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account?id=eq.1&select=refresh_token,connected_by,connected_at";
+async function fetchOnedriveAccountRow(env, identity) {
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") +
+    "/rest/v1/onedrive_account?identity=eq." + encodeURIComponent(identity) +
+    "&select=identity,refresh_token,connected_at";
   const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
@@ -2554,12 +2560,20 @@ async function fetchOnedriveAccountRow(env) {
   return rows[0] || null;
 }
 
-async function saveOnedriveRefreshToken(env, refreshToken, connectedBy) {
+async function fetchAllOnedriveAccountRows(env) {
+  const url = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account?select=identity,connected_at";
+  const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return response.json();
+}
+
+async function saveOnedriveRefreshToken(env, identity, refreshToken) {
   const upsertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/onedrive_account";
   const row = {
-    id: 1,
+    identity: identity,
     refresh_token: refreshToken,
-    connected_by: connectedBy,
     updated_at: new Date().toISOString()
   };
   const response = await fetch(upsertUrl, {
@@ -2572,16 +2586,16 @@ async function saveOnedriveRefreshToken(env, refreshToken, connectedBy) {
   }
 }
 
-// access token 用 module 變數快取（同一個 isolate 存活期間重複使用，
-// 跟 getFcmAccessToken 同一個模式），過期前 5 分鐘就換新。
-var cachedOnedriveAccessToken = null;
-var cachedOnedriveTokenExpiresAt = 0;
+// access token 用 module 變數快取，跟 getFcmAccessToken 同一個模式，
+// 差別是這裡兩個人各自的 token 要分開存——一個物件，key 是 identity。
+var onedriveTokenCache = {};
 
-async function getOnedriveAccessToken(env) {
-  if (cachedOnedriveAccessToken && Date.now() < cachedOnedriveTokenExpiresAt - 5 * 60 * 1000) {
-    return cachedOnedriveAccessToken;
+async function getOnedriveAccessToken(env, identity) {
+  const cached = onedriveTokenCache[identity];
+  if (cached && Date.now() < cached.expiresAt - 5 * 60 * 1000) {
+    return cached.accessToken;
   }
-  const row = await fetchOnedriveAccountRow(env);
+  const row = await fetchOnedriveAccountRow(env, identity);
   if (!row || !row.refresh_token) {
     throw new Error("OneDrive 還沒連接");
   }
@@ -2600,32 +2614,41 @@ async function getOnedriveAccessToken(env) {
     throw new Error("OneDrive token refresh failed: HTTP " + tokenResponse.status + " " + (await tokenResponse.text()));
   }
   const tokenData = await tokenResponse.json();
-  cachedOnedriveAccessToken = tokenData.access_token;
-  cachedOnedriveTokenExpiresAt = Date.now() + (Number(tokenData.expires_in) || 3600) * 1000;
+  onedriveTokenCache[identity] = {
+    accessToken: tokenData.access_token,
+    expiresAt: Date.now() + (Number(tokenData.expires_in) || 3600) * 1000
+  };
   // 個人帳號的 refresh token 會滾動更新——回應帶新的一定要覆蓋存檔，
   // 不然舊的用完之後（通常幾個月的效期）整條線就斷了。
   if (tokenData.refresh_token && tokenData.refresh_token !== row.refresh_token) {
-    await saveOnedriveRefreshToken(env, tokenData.refresh_token, row.connected_by || "jonathan");
+    await saveOnedriveRefreshToken(env, identity, tokenData.refresh_token);
   }
-  return cachedOnedriveAccessToken;
+  return onedriveTokenCache[identity].accessToken;
 }
 
+// 回傳兩人各自的連接狀態（不是只回呼叫者自己那一個）——後台頁面要同時
+// 畫「你」跟「另一半」兩張狀態卡片。
 async function getOnedriveStatus(env, payload) {
   const identity = await requireSession(env, payload);
   if (!identity) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
-  const row = await fetchOnedriveAccountRow(env);
-  return {
-    ok: true,
-    connected: Boolean(row),
-    connectedBy: row ? row.connected_by : null,
-    connectedAt: row ? row.connected_at : null
-  };
+  const rows = await fetchAllOnedriveAccountRows(env);
+  const accounts = { jonathan: null, minz: null };
+  rows.forEach(function (row) {
+    if (row.identity === "jonathan" || row.identity === "minz") {
+      accounts[row.identity] = { connected: true, connectedAt: row.connected_at };
+    }
+  });
+  if (!accounts.jonathan) accounts.jonathan = { connected: false, connectedAt: null };
+  if (!accounts.minz) accounts.minz = { connected: false, connectedAt: null };
+  return { ok: true, accounts: accounts };
 }
 
-// Phase A 的驗收動作：確認 access token 真的能對 Graph 說話、App Folder
-// 真的存在——不是只驗證「有存 refresh_token」這種表面狀態。
+// Phase A 的驗收動作：確認呼叫者「自己」的帳號 access token 真的能對
+// Graph 說話、App Folder 真的存在——不是只驗證「有存 refresh_token」
+// 這種表面狀態。只測自己的，不能測對方的（沒有理由讓 Jonathan 的
+// session 去戳 Minz 帳號的連線狀態）。
 async function testOnedriveConnection(env, payload) {
   const identity = await requireSession(env, payload);
   if (!identity) {
@@ -2633,7 +2656,7 @@ async function testOnedriveConnection(env, payload) {
   }
   let accessToken;
   try {
-    accessToken = await getOnedriveAccessToken(env);
+    accessToken = await getOnedriveAccessToken(env, identity);
   } catch (error) {
     return { ok: false, error: error.message || String(error) };
   }

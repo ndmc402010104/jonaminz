@@ -184,7 +184,13 @@ index.html 檔頭說明）。舊版 .jonaminz-admin-hero / .jonaminz-admin-title
   color: var(--color-text-muted);
 }
 
-/* ---------- OneDrive 連接狀態（Phase A，2026-07-15） ---------- */
+/* ---------- OneDrive 連接狀態（Phase A，2026-07-15；雙帳號兩張卡片並排） ---------- */
+
+.jonaminz-admin-onedrive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
 
 .jonaminz-admin-onedrive-connect,
 .jonaminz-admin-onedrive-test {

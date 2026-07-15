@@ -100,19 +100,25 @@ index.html／page-admin.css 檔頭說明）。三個入口（Theme／Contract �
       '</section>' +
       '<section class="jonaminz-admin-registrations">' +
         '<p class="jonaminz-admin-section-title">OneDrive（圖片分享／App 發佈用）</p>' +
-        '<div data-onedrive-status>讀取中...</div>' +
+        '<div class="jonaminz-admin-onedrive-grid">' +
+          '<div data-onedrive-status="jonathan">讀取中...</div>' +
+          '<div data-onedrive-status="minz">讀取中...</div>' +
+        '</div>' +
       '</section>';
   }
 
-  // 2026-07-15（OneDrive 線 Phase A）：只顯示狀態＋一次性連接按鈕，不做
-  // 更多——圖片分享／APK 發佈的實際功能是後面 Phase B/C 的事，這裡只
-  // 負責驗證授權底座真的接得通（見 AI_CONTEXT/ONEDRIVE_LINE_SPEC.md）。
-  function renderOnedriveSection(identity) {
-    var el = document.querySelector("[data-onedrive-status]");
-    if (!el) return;
-
+  // 2026-07-15（OneDrive 線 Phase A，雙帳號模式）：Jonathan／Minz 各自
+  // 連自己的 OneDrive（兩人都想從自己帳號查得到聊天圖庫，見
+  // AI_CONTEXT/ONEDRIVE_LINE_SPEC.md 的決策記錄）。這裡同時畫兩張卡片
+  // ——「連接」連結／「測試連線」按鈕只出現在**登入者自己**那張卡片上
+  // （只能連接／測試自己的帳號，`testOnedriveConnection` 後端也只測
+  // 呼叫者自己身分，見 worker.js）；另一半那張卡片永遠只是唯讀狀態。
+  function renderOnedriveSection(myIdentity) {
     if (!window.JonaminzBackend || typeof window.JonaminzBackend.getOnedriveStatus !== "function") {
-      el.textContent = "後端尚未載入。";
+      ["jonathan", "minz"].forEach(function (id) {
+        var el = document.querySelector('[data-onedrive-status="' + id + '"]');
+        if (el) el.textContent = "後端尚未載入。";
+      });
       return;
     }
 
@@ -122,49 +128,74 @@ index.html／page-admin.css 檔頭說明）。三個入口（Theme／Contract �
     window.JonaminzBackend.getOnedriveStatus({ token: token })
       .then(function (response) {
         if (!response || !response.ok) {
-          el.textContent = "狀態讀取失敗：" + ((response && response.error) || "未知錯誤");
-          return;
-        }
-        if (response.connected) {
-          el.innerHTML =
-            '<p>已連接（' + escapeHtml(IDENTITY_LABEL[response.connectedBy] || response.connectedBy) + ' 於 ' +
-              escapeHtml(response.connectedAt || "") + ' 連接）。</p>' +
-            '<button type="button" class="jonaminz-admin-onedrive-test" data-onedrive-test>測試連線</button>' +
-            '<span data-onedrive-test-result></span>';
-          var testBtn = el.querySelector("[data-onedrive-test]");
-          testBtn.addEventListener("click", function () {
-            testBtn.disabled = true;
-            var resultEl = el.querySelector("[data-onedrive-test-result]");
-            resultEl.textContent = " 測試中...";
-            window.JonaminzBackend.testOnedriveConnection({ token: token })
-              .then(function (result) {
-                testBtn.disabled = false;
-                resultEl.textContent = (result && result.ok)
-                  ? " 成功：App Folder「" + (result.folderName || "") + "」可讀寫"
-                  : " 失敗：" + ((result && result.error) || "未知錯誤");
-              })
-              .catch(function (error) {
-                testBtn.disabled = false;
-                resultEl.textContent = " 失敗：" + (error && error.message ? error.message : String(error));
-              });
+          var errorMessage = "狀態讀取失敗：" + ((response && response.error) || "未知錯誤");
+          ["jonathan", "minz"].forEach(function (id) {
+            var el = document.querySelector('[data-onedrive-status="' + id + '"]');
+            if (el) el.textContent = errorMessage;
           });
           return;
         }
 
-        if (identity !== "jonathan") {
-          el.textContent = "尚未連接（只有 Jonathan 能連接）。";
-          return;
-        }
-
-        el.innerHTML = '<a class="jonaminz-admin-onedrive-connect" data-onedrive-connect>連接 OneDrive</a>';
-        var connectLink = el.querySelector("[data-onedrive-connect]");
-        window.JonaminzBackend.getWorkerBaseUrlForRedirect().then(function (baseUrl) {
-          connectLink.href = baseUrl + "/auth/onedrive/start?token=" + encodeURIComponent(token || "");
+        ["jonathan", "minz"].forEach(function (id) {
+          renderOnedriveCard(id, myIdentity, response.accounts[id], token);
         });
       })
       .catch(function (error) {
-        el.textContent = "狀態讀取失敗：" + (error && error.message ? error.message : String(error));
+        var errorMessage = "狀態讀取失敗：" + (error && error.message ? error.message : String(error));
+        ["jonathan", "minz"].forEach(function (id) {
+          var el = document.querySelector('[data-onedrive-status="' + id + '"]');
+          if (el) el.textContent = errorMessage;
+        });
       });
+  }
+
+  function renderOnedriveCard(cardIdentity, myIdentity, account, token) {
+    var el = document.querySelector('[data-onedrive-status="' + cardIdentity + '"]');
+    if (!el) return;
+    var label = IDENTITY_LABEL[cardIdentity] || cardIdentity;
+    var isMine = cardIdentity === myIdentity;
+
+    if (account && account.connected) {
+      el.innerHTML =
+        '<p><strong>' + escapeHtml(label) + '</strong>：已連接（' + escapeHtml(account.connectedAt || "") + '）</p>' +
+        (isMine
+          ? '<button type="button" class="jonaminz-admin-onedrive-test" data-onedrive-test>測試連線</button>' +
+            '<span data-onedrive-test-result></span>'
+          : '');
+      if (isMine) {
+        var testBtn = el.querySelector("[data-onedrive-test]");
+        testBtn.addEventListener("click", function () {
+          testBtn.disabled = true;
+          var resultEl = el.querySelector("[data-onedrive-test-result]");
+          resultEl.textContent = " 測試中...";
+          window.JonaminzBackend.testOnedriveConnection({ token: token })
+            .then(function (result) {
+              testBtn.disabled = false;
+              resultEl.textContent = (result && result.ok)
+                ? " 成功：App Folder「" + (result.folderName || "") + "」可讀寫"
+                : " 失敗：" + ((result && result.error) || "未知錯誤");
+            })
+            .catch(function (error) {
+              testBtn.disabled = false;
+              resultEl.textContent = " 失敗：" + (error && error.message ? error.message : String(error));
+            });
+        });
+      }
+      return;
+    }
+
+    if (!isMine) {
+      el.innerHTML = '<p><strong>' + escapeHtml(label) + '</strong>：尚未連接。</p>';
+      return;
+    }
+
+    el.innerHTML =
+      '<p><strong>' + escapeHtml(label) + '</strong>：尚未連接。</p>' +
+      '<a class="jonaminz-admin-onedrive-connect" data-onedrive-connect>連接 OneDrive</a>';
+    var connectLink = el.querySelector("[data-onedrive-connect]");
+    window.JonaminzBackend.getWorkerBaseUrlForRedirect().then(function (baseUrl) {
+      connectLink.href = baseUrl + "/auth/onedrive/start?token=" + encodeURIComponent(token || "");
+    });
   }
 
   // pending 數量跟 pages/admin/contracts/ 用同一支 action、同一個

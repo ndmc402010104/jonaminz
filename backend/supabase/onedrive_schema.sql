@@ -1,19 +1,23 @@
 -- 檔案位置：jonaminz/backend/supabase/onedrive_schema.sql
 -- 用途：OneDrive 線 Phase A（授權底座）要用的資料表。見
--- AI_CONTEXT/ONEDRIVE_LINE_SPEC.md——圖片分享跟自架 APK 發佈共用同一組
--- OneDrive 授權（Jonathan 個人帳號、App Folder 權限）。
+-- AI_CONTEXT/ONEDRIVE_LINE_SPEC.md——雙帳號鏡射模式：Jonathan／Minz
+-- 各自連自己的 OneDrive，Phase B 傳圖片時同一張圖分別上傳進兩人各自
+-- 的 App Folder，兩人都能從自己的帳號查到完整聊天圖庫（2026-07-15
+-- 使用者決策：「兩邊都想要有自己的資料可以查詢」）。
 --
--- 不改既有 schema 檔；這份是新增檔案，全部用 if not exists / add column
--- if not exists 這種冪等寫法，可以放心重複執行。在 Supabase SQL Editor
--- 貼上執行即可，跟這個專案其他 *_schema.sql 同一套流程。
+-- 2026-07-15 二次修訂：上一版是單列表（id=1，只存 Jonathan 一個帳號），
+-- 部署當下沒有任何資料（0 rows），這裡直接改成 identity 當 primary
+-- key 的兩列表，不是 add column 的漸進式修改。
+--
+-- 全部用 if not exists / add column if not exists 這種冪等寫法，可以
+-- 放心重複執行。在 Supabase SQL Editor 貼上執行即可，跟這個專案其他
+-- *_schema.sql 同一套流程。
 
--- 單列表：這個 App 只連一個 OneDrive 帳號（Jonathan 的），id 固定是 1，
--- 不是每個使用者一列。refresh_token 是長效憑證（個人帳號會滾動更新，
--- Worker 每次拿它換 access token 時，回應帶新的就要覆蓋這一列）。
+drop table if exists onedrive_account;
+
 create table if not exists onedrive_account (
-  id integer primary key check (id = 1),
+  identity text primary key check (identity in ('jonathan', 'minz')),
   refresh_token text not null,
-  connected_by text not null check (connected_by in ('jonathan', 'minz')),
   connected_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

@@ -20,6 +20,45 @@
 
 ---
 
+## 2026-07-15（上午，第三十三次）— OneDrive 線改雙帳號模式
+
+- **任務**：使用者追問「onedrive能夠一次用兩個帳號嗎」，討論後決定
+  Phase A 從「單一帳號（只有 Jonathan 連 OneDrive）」改成「雙帳號」
+  ——Jonathan／Minz 各自連自己的 OneDrive，各自都能從自己帳號查得到
+  聊天圖庫。過程中也討論了 Phase B 該用「雙寫鏡射（兩份實體副本）」
+  還是「單一副本＋Graph 原生分享」，使用者選後者（省空間、只上傳
+  一次），明確接受代價：傳送者若之後斷開連線，對方連同舊照片一起
+  看不到（不是獨立副本）——使用者的判斷是兩人本來就共用資源池，這
+  代價可以接受。決策記錄完整寫進 `ONEDRIVE_LINE_SPEC.md` §0.1，供
+  之後任何人回頭查「為什麼選這個」。
+- **變更**：
+  - `onedrive_schema.sql`：`onedrive_account` 從單列表（`id=1`）改成
+    `identity` 為 primary key 的兩列表（drop 重建，部署當下 0 rows，
+    無資料流失）。已套用到 `jonaminz-db`。
+  - `worker.js`：`/auth/onedrive/start` 從「只准 jonathan」改成兩個
+    身分都能發起（各自只能連自己的帳號）；
+    `getOnedriveAccessToken`／token 快取／`fetchOnedriveAccountRow`／
+    `saveOnedriveRefreshToken` 全部加上 `identity` 參數，快取從單一
+    變數改成物件（key 是 identity）；`getOnedriveStatus` 改回傳兩人
+    各自的連接狀態；`testOnedriveConnection` 改成只測呼叫者自己的
+    帳號。已 `wrangler deploy`。
+  - `pages/admin/` 首頁的 OneDrive 區塊改成兩張並排卡片（Jonathan／
+    Minz 各一張），「連接」／「測試連線」只出現在登入者自己那張卡片
+    上，另一半那張永遠唯讀。
+  - `ONEDRIVE_LINE_SPEC.md` 整份改寫成 v2.0：新增 §0.1 決策記錄，
+    §1/§2 的 Phase B 資料流改成「傳送者上傳→Graph `/invite` 分享給
+    對方→對方查 `sharedWithMe` 顯示」，§6 補上 Phase B 需要額外的
+    `Files.ReadWrite` 權限（跟單帳號版不同，那時完全不用碰對方的
+    東西）。
+- **狀態變化**：OneDrive 線 Phase A 從「單帳號已部署」變「雙帳號已
+  部署」。Jonathan **跟** Minz 都要各自完成連接才算 Phase A 驗收
+  通過（之前只需要 Jonathan 一人）。
+- **遺留**：使用者要做 SPEC §6 的 Azure 註冊（一次性）＋兩人各自
+  按「連接 OneDrive」。GitHub Issue #1 的 checklist 需要同步更新成
+  兩人都要連接。Phase B 待開工時記得先在 Azure 補
+  `Files.ReadWrite` 權限。
+- **版本**：v0.34.1-202607151030
+
 ## 2026-07-15（早上，第三十二次）— OneDrive 線 Phase A 實作＋部署
 
 - **任務**：照 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` 實作 Phase A（授權
