@@ -20,6 +20,36 @@
 
 ---
 
+## 2026-07-15（晚上，第六十五次）— App 內下拉重新整理頁面（決策圖外、使用者直接交辦）
+
+- **任務**：使用者明確要求「只要放到右邊（你想叫我做的）的都要做」，
+  接著實作「APP 內下拉要可以重新整理頁面」。
+- **變更**（`jonaminz-mobile-app` repo）：
+  - `MainActivity.java` 新增 `setupPullToRefresh()`：查證發現
+    `res/layout/activity_main.xml` 其實從來沒被用到——
+    `BridgeActivity.onCreate()` 永遠呼叫 Capacitor 內建的
+    `capacitor_bridge_layout_main.xml`（在 node_modules 裡，不能直接
+    改，改了下次同步會被蓋掉）。改用標準手法：`super.onCreate()`
+    建好 WebView 之後，程式碼把它從原本的 CoordinatorLayout 拔出來、
+    包進新建的 `SwipeRefreshLayout`、再放回原本位置——下拉觸發
+    `webView.reload()`。刻意排在既有的 `setupKeyboardInsetPipe()`
+    之後執行，讓那支已經調過好幾輪的鍵盤 inset 邏輯先掛好監聽在
+    「原本」的 CoordinatorLayout 上，兩者不互相干擾。
+  - `build.gradle` 加 `androidx.swiperefreshlayout` 依賴；
+    `versionCode` 3、`versionName` 換新時間戳（照今天訂的規矩）。
+- **驗證**：`gradlew assembleDebug` 編譯成功（中間踩到一次 OneDrive
+  資料夾同步造成的暫時性建置錯誤「not a regular file」，`rm -rf
+  app/build` 兩次＋等待後正常重建，是已知的環境陷阱不是程式碼問題）
+  ，`aapt dump badging` 確認版本號正確嵌入。**沒有真機測試**——本機
+  無線 ADB 連線已過期，改用已上線的 OneDrive Phase C 自架發佈管道
+  上傳這版 APK，請使用者自己下載安裝驗證下拉手感跟重新整理是否正常。
+- **狀態變化**：待辦板上這筆項目跟另外兩個真的 bug 一起移回
+  `for_user` 等驗證。決策時間軸補上這筆（歸在「泡泡與 App 發佈」線，
+  因為是原生 Android 層級的改動）。
+- **遺留**：等使用者實機驗證下拉手感／重新整理是否正常。
+- **版本**：v0.43.4-202607152139（jonaminz repo，純文件+決策時間軸
+  異動；`jonaminz-mobile-app` repo 另有自己的 versionCode 3）
+
 ## 2026-07-15（晚上，第六十四次）— 修 OneDrive connected_at 沒更新＋明訂「每次回覆都查待辦板」
 
 - **任務**：使用者連續糾正三次：(1) 我沒有真的處理 `for_claude` 裡
