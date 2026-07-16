@@ -1306,7 +1306,7 @@ System App：
   §2.3/§7。**2026-07-16 追加**：`createApkUploadSession` 新增第二種
   認證方式——跟個人登入 session 分開、不會過期的密鑰，存在
   `agent_secrets` 表（Cloudflare-secret 式保管箱，使用者自己在
-  `pages/admin/toolkit/`「Agent 存取」小節輸入名稱／值管理，不是
+  `pages/admin/secrets/`「Agent 密鑰保管箱」小節輸入名稱／值管理，不是
   Worker 自動產生），見 CHANGELOG 同日「APK 上傳專用固定密鑰」與
   「Agent 密鑰保管箱改版」兩則條目。
 - **Shared 獨立瀏覽列表已補成完整版（2026-07-15）**：全部／未讀篩選

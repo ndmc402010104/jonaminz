@@ -131,7 +131,7 @@
     `pages/admin/toolkit/` 上的連結）指向新版——使用者永遠從同一個
     地方下載，不用每次跟 agent 要新連結/新檔案。
     **`<token>` 拿法（2026-07-16 同日再改進，見下一條 §2-12）**：
-    優先用 `pages/admin/toolkit/`「Agent 存取」小節裡使用者自己存進去
+    優先用 `pages/admin/secrets/`「Agent 密鑰保管箱」小節裡使用者自己存進去
     的專用密鑰（`agent_secrets` 表，`name='apk_upload_token'` 那筆）
     ——agent 不能直接查 Supabase `sessions` 表撈現成使用者登入 token 來用
     （Auto Mode 的安全分類器會擋下、判定為未授權讓真實登入憑證出現在
@@ -156,7 +156,7 @@
     不是這張表唯一的用途。任何 agent（Claude／Codex／其他 CLI
     工具）只要讀過這份文件、有 Supabase 存取權，就能用同一個地方，
     不會綁死在單一 agent 或需要每個新 session 重新設定一次。使用者
-    自己在後台（`pages/admin/toolkit/`「Agent 存取」小節）輸入
+    自己在後台（`pages/admin/secrets/`「Agent 密鑰保管箱」小節）輸入
     「名稱／值」新增，需要換的時候自己上去改，不是 Worker 自動產生。
     `listAgentSecrets`／`setAgentSecret`／`deleteAgentSecret` 三支只給
     已登入的人管理清單本身（新增/刪除/看名稱與更新時間），**都不把

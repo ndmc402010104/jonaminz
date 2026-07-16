@@ -5,6 +5,12 @@ loading task，不可以自己決定 css/shell ready。
 
 2026-07-15：從「決策圖」候選項目挑選實作。目前只有兩個快速連結，之後
 如果有更多常用工具/網址，往 TOOLS 這個陣列加就好，不用改版面結構。
+
+2026-07-16：曾經短暫加過一節「Agent 密鑰保管箱」（自動產生 APK 上傳
+鑰匙、後來又改成 Cloudflare-secret 式），使用者指出這頁的定位是「給人
+拿來用的」快速連結（開啟網址／複製網址），密鑰保管箱是「人存進去給
+agent 用」的東西，性質不一樣，搬去獨立的 `pages/admin/secrets/`——
+這頁恢復成純靜態、不呼叫任何 Worker action，不載入 backend-client.js。
 */
 (function () {
   "use strict";
@@ -75,137 +81,13 @@ loading task，不可以自己決定 css/shell ready。
     });
   }
 
-  // 2026-07-16（同日改版兩次）：第一版是 Worker 自動產生單一把 APK
-  // 專用鑰匙，使用者回饋不是他要的——他要的是「像 Cloudflare secret
-  // 那種保管箱」，而且範圍比 APK 上傳大很多：使用者原話「我不是有
-  // 很多 supabase cloudflare 需要的 api 嗎？是不是弄一個地方存進去
-  // 讓你可以取用，但是又不會卡到其他 agent 不能用、每次要設定」——
-  // 這是給任何 agent（不只 Claude）用的通用憑證保管箱，自己選名稱/
-  // 值存進來，需要時直接讀，`apk_upload_token` 只是第一個放進去的
-  // 項目，不是唯一用途。這裡只列名稱＋更新時間（不顯示 value，跟
-  // Cloudflare 一樣「能覆蓋、不能讀回」），「+」展開新增表單（名稱／
-  // 值兩個欄位）。
-  function formatLocalDateTime(value) {
-    if (!value) return "";
-    try {
-      return new Date(value).toLocaleString("zh-TW", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", hour12: false
-      });
-    } catch (error) {
-      return String(value);
-    }
-  }
-
-  function agentSecretRowHtml(secret) {
-    return (
-      '<div class="jonaminz-toolkit-secret-row" data-secret-row="' + escapeHtml(secret.name) + '">' +
-        '<div class="jonaminz-toolkit-secret-info">' +
-          '<span class="jonaminz-toolkit-secret-name">' + escapeHtml(secret.name) + '</span>' +
-          '<span class="jonaminz-toolkit-card-note">上次更新：' + escapeHtml(formatLocalDateTime(secret.updated_at)) + '</span>' +
-        '</div>' +
-        '<button type="button" class="jonaminz-toolkit-copy-btn" data-delete-secret="' + escapeHtml(secret.name) + '">刪除</button>' +
-      '</div>'
-    );
-  }
-
-  function renderAgentSecretsSection() {
-    var el = document.querySelector("[data-agent-secrets]");
-    if (!el) return;
-    var token = (window.JonaminzIdentity && window.JonaminzIdentity.readToken)
-      ? window.JonaminzIdentity.readToken() : null;
-
-    function refresh() {
-      el.textContent = "讀取中...";
-      window.JonaminzBackend.listAgentSecrets({ token: token })
-        .then(function (response) {
-          if (!response || !response.ok) {
-            el.textContent = "讀取失敗：" + ((response && response.error) || "未知錯誤");
-            return;
-          }
-          var secrets = response.secrets || [];
-          el.innerHTML =
-            '<div data-secret-list>' +
-              (secrets.length
-                ? secrets.map(agentSecretRowHtml).join("")
-                : '<p class="jonaminz-toolkit-card-note">目前沒有存任何密鑰。</p>') +
-            '</div>' +
-            '<button type="button" class="jonaminz-toolkit-open-btn" data-add-secret-toggle>+ 新增密鑰</button>' +
-            '<form data-add-secret-form hidden>' +
-              '<input type="text" placeholder="名稱（例如 apk_upload_token）" data-secret-name-input class="jonaminz-admin-retention-input" style="width:auto;min-width:220px;">' +
-              '<input type="text" placeholder="值" data-secret-value-input class="jonaminz-admin-retention-input" style="width:auto;min-width:280px;">' +
-              '<button type="submit" class="jonaminz-toolkit-open-btn">儲存</button>' +
-            '</form>' +
-            '<div data-secret-result></div>';
-
-          el.querySelector("[data-add-secret-toggle]").addEventListener("click", function () {
-            el.querySelector("[data-add-secret-form]").hidden = false;
-            this.hidden = true;
-            el.querySelector("[data-secret-name-input]").focus();
-          });
-
-          el.querySelector("[data-add-secret-form]").addEventListener("submit", function (event) {
-            event.preventDefault();
-            var name = el.querySelector("[data-secret-name-input]").value.trim();
-            var value = el.querySelector("[data-secret-value-input]").value;
-            if (!name || !value) {
-              el.querySelector("[data-secret-result]").textContent = "名稱跟值都要填";
-              return;
-            }
-            window.JonaminzBackend.setAgentSecret({ token: token, name: name, value: value })
-              .then(function (saveResponse) {
-                if (!saveResponse || !saveResponse.ok) {
-                  el.querySelector("[data-secret-result]").textContent =
-                    "失敗：" + ((saveResponse && saveResponse.error) || "未知錯誤");
-                  return;
-                }
-                refresh();
-              })
-              .catch(function (error) {
-                el.querySelector("[data-secret-result]").textContent =
-                  "失敗：" + (error && error.message ? error.message : String(error));
-              });
-          });
-
-          el.querySelector("[data-secret-list]").addEventListener("click", function (event) {
-            var btn = event.target.closest("[data-delete-secret]");
-            if (!btn) return;
-            var name = btn.dataset.deleteSecret;
-            if (!window.confirm("確定要刪除「" + name + "」這個密鑰嗎？如果 agent 還在用它，之後就會失效。")) return;
-            window.JonaminzBackend.deleteAgentSecret({ token: token, name: name })
-              .then(function (deleteResponse) {
-                if (!deleteResponse || !deleteResponse.ok) {
-                  el.querySelector("[data-secret-result]").textContent =
-                    "失敗：" + ((deleteResponse && deleteResponse.error) || "未知錯誤");
-                  return;
-                }
-                refresh();
-              })
-              .catch(function (error) {
-                el.querySelector("[data-secret-result]").textContent =
-                  "失敗：" + (error && error.message ? error.message : String(error));
-              });
-          });
-        })
-        .catch(function (error) {
-          el.textContent = "讀取失敗：" + (error && error.message ? error.message : String(error));
-        });
-    }
-    refresh();
-  }
-
   function render() {
     var root = document.querySelector("[data-app-root]");
     if (!root) return;
     root.innerHTML = '<div class="jonaminz-toolkit-list" data-toolkit-list>' +
       TOOLS.map(toolCardHtml).join("") +
-      "</div>" +
-      '<section class="jonaminz-connections-section">' +
-        '<p class="jonaminz-admin-section-title">Agent 密鑰保管箱</p>' +
-        '<p class="jonaminz-toolkit-card-note">任何 agent（Claude／Codex／其他 CLI 工具）需要重複用到的憑證都存這裡——Supabase／Cloudflare API token、APK 上傳鑰匙等，設一次大家都能用，不用每次重新給。</p>' +
-        '<div data-agent-secrets>讀取中...</div>' +
-      '</section>';
-    bindCopyButtons(root);
+      "</div>";
+    bindCopyButtons(root.querySelector("[data-toolkit-list]"));
   }
 
   function init() {
@@ -213,7 +95,6 @@ loading task，不可以自己決定 css/shell ready。
       try {
         render();
         window.JonaminzLoading.done(READY_TASK);
-        renderAgentSecretsSection();
       } catch (error) {
         console.error("[jonaminz] admin/toolkit app.js init failed", error);
         window.JonaminzLoading.fail(READY_TASK, error);

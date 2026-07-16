@@ -78,7 +78,19 @@
       "showInNav": false,
       "entry": {
         "styles": ["/pages/admin/toolkit/assets/css/page-admin-toolkit.css"],
-        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/toolkit/assets/js/app.js"],
+        "afterScripts": ["/pages/admin/toolkit/assets/js/app.js"],
+        "loadingTasks": ["app-ready"]
+      }
+    },
+    "admin-secrets": {
+      "pageId": "admin-secrets",
+      "title": "Agent 密鑰保管箱",
+      "path": "/pages/admin/secrets/",
+      "group": "admin",
+      "showInNav": false,
+      "entry": {
+        "styles": ["/pages/admin/secrets/assets/css/page-admin-secrets.css"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/secrets/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     },

@@ -165,7 +165,7 @@ Minz 讀圖 ──▶ Worker 用 Minz 自己的 access token 查
   session token 太麻煩，新增一把跟個人登入分開、不會過期的密鑰認證
   路徑（見 `requireSessionOrAgentToken()`）。值存在 `agent_secrets`
   表（`name='apk_upload_token'` 那筆）——使用者要求要像「Cloudflare
-  secret api 儲存那種模式」，在 `pages/admin/toolkit/`「Agent 存取」
+  secret api 儲存那種模式」，在 `pages/admin/secrets/`「Agent 密鑰保管箱」
   小節自己輸入名稱／值存進去，不是 Worker 自動產生（第一版是自動
   產生、只看一次不能讀回，使用者當面回饋不是他要的，改成這版取代
   第一版）。`payload.token` 放這把鑰匙一樣能用，
@@ -296,6 +296,6 @@ grant select, insert, update, delete on onedrive_account to service_role;
   `tools/upload-apk.mjs`，用 Jonathan 帳號存放；真機下載安裝已驗證
   過多次）。2026-07-16 追加：`createApkUploadSession` 除了原本的登入
   session，也接受一把跟個人登入分開、不會過期的密鑰（存在
-  `agent_secrets` 表，`pages/admin/toolkit/`「Agent 存取」小節自己
+  `agent_secrets` 表，`pages/admin/secrets/`「Agent 密鑰保管箱」小節自己
   輸入名稱／值管理，像 Cloudflare secret 保管箱），解決「agent 每次
   build 完都要跟使用者要 token」的協作痛點。

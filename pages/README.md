@@ -41,12 +41,20 @@
   簡介文字/照片），版型跟 `pages/jonathan/` 對稱。公開頁面，不需要登入。
 - `pages/admin/toolkit/` — 工具包頁（2026-07-15，從「決策圖」候選項目
   挑選實作）：常用開發/發佈連結卡片（local dev 區網測試網址、APK 下載
-  連結）。**2026-07-16 起不再是純靜態頁**——新增「Agent 存取」小節
-  （查看/輪替 APK 上傳專用固定密鑰），要呼叫 Worker action，已在
-  `config.json` 補上 `backend-client.js`（原本這裡寫「不呼叫任何
-  Worker action」是舊版狀態，加新功能時務必記得同步更新
-  `config.json` 的 `afterScripts`，這條規則本身就是被漏掉一次才補上
-  的教訓）。
+  連結），純靜態頁面，不呼叫任何 Worker action，沒有載入
+  `backend-client.js`。**2026-07-16 曾經短暫加過「Agent 存取」小節**，
+  使用者指出這頁是「給人拿來用的」快速連結，密鑰保管箱是「人存進去給
+  agent 用」的東西性質不一樣，已搬去獨立的 `pages/admin/secrets/`，
+  這頁恢復純靜態——**加新功能到既有頁面時務必檢查這頁本來的定位陳述
+  還成不成立，`config.json` 的 `afterScripts` 也要跟著同步**，這條
+  規則本身就是被漏掉一次才補上的教訓。
+- `pages/admin/secrets/`（2026-07-16 新增）— Agent 密鑰保管箱：任何
+  agent（Claude／Codex／其他 CLI 工具）需要重複用到的憑證都存這裡
+  （Supabase／Cloudflare API token、APK 上傳鑰匙等），使用者原話
+  「很像 cloudflare secret api 儲存那種模式」——只能新增/覆蓋/刪除，
+  存進去之後看不到值，只看得到名稱跟更新時間。跟工具包頁刻意分開：
+  工具包是「人要用的連結」，這頁是「人存給 agent 用的憑證」，兩種
+  東西混在同一頁會搞不清楚頁面定位。
 - `pages/admin/connections/` — 連線狀態頁（2026-07-15，從後台首頁搬
   出來）：外部服務連線健康檢查，目前只有 OneDrive（連接狀態／測試連線
   ／重新連接／App Folder 網址）一個小節，之後接其他外部服務也放這頁，

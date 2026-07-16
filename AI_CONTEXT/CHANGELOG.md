@@ -20,6 +20,58 @@
 
 ---
 
+## 2026-07-16（早上，第十筆）— Agent 密鑰保管箱獨立成頁＋畫面重做＋搬進既有 Supabase/Google 憑證
+
+- **任務**：使用者用過保管箱後，接連提出四件事：(1) 加一顆「覆蓋」
+  按鈕，點了直接把名稱帶進表單不用重打；(2) 確認「覆蓋」的安全模型
+  ——這機制到底有沒有真的防到什麼；(3) 這東西放在工具包頁適不適合，
+  工具包該是給人用的連結，這是人存給 agent 用的憑證，性質不同；
+  (4) 順手把 repo 根目錄兩個敏感憑證檔案（`suprabase db pw.txt`／
+  `google oAuth pw.json`）裡還用得到的東西搬進保管箱、其餘刪掉。
+- **變更**：
+  - **新頁 `pages/admin/secrets/`**（照 `pages/README.md` 五步流程）
+    ——保管箱從 `pages/admin/toolkit/` 搬出來獨立成頁，`config.json`
+    新增 `admin-secrets` entry，後台首頁 (`pages/admin/assets/js/app.js`)
+    加一張卡片連過去。`pages/admin/toolkit/`（app.js／CSS／
+    `config.json`）復原成 2026-07-15 的純靜態版本，不再載入
+    `backend-client.js`。
+  - **畫面重做**（使用者原話「這個table實在太醜了」）：新
+    `page-admin-secrets.css`，每筆密鑰改成卡片＋🔑符號，「覆蓋」
+    （中性灰）跟「刪除」（crimson 危險色，跟決策板既有刪除按鈕配色
+    一致）兩個按鈕分開；新增表單改成有 label 的直式表單＋「取消」
+    按鈕可以收合，不用重新整理頁面。
+  - **「覆蓋」按鈕**：點了呼叫 `openForm(name)`，把既有名稱帶進表單
+    欄位、展開表單、游標跳到「值」欄位，不用手動複製貼上舊名稱；
+    存檔邏輯不變（`setAgentSecret` 本來就是同名覆蓋）。
+  - **憑證搬移**：讀取兩個檔案後找到 4 筆——Supabase DB 密碼、一組
+    標註 `jonaminz-migration-temp` 的 Supabase Management API token、
+    Google OAuth `client_id`／`client_secret`。第一次嘗試「使用者說
+    你判斷」被 Auto Mode 安全機制擋下（未具體點名要曝光哪些憑證），
+    改成明確列出 4 筆讓使用者確認範圍後，使用者又回「你判斷不會用到
+    的刪掉」——最終判斷：DB 密碼／Google client_id／client_secret
+    是還在用的基礎設施，存進 `agent_secrets`（`supabase_db_password`／
+    `google_oauth_client_id`／`google_oauth_client_secret`）；
+    Management API token 標註臨時、沒有現成使用管道，不搬。兩個原始
+    檔案已從硬碟刪除（本來就不在 git 追蹤範圍）。
+- **狀態變化**：保管箱正式從「工具包頁的一個小節」變成獨立頁面；
+  裡面已經有 3 筆真實憑證（`supabase_db_password`／
+  `google_oauth_client_id`／`google_oauth_client_secret`），等使用者
+  存 `apk_upload_token` 後會是第 4 筆。
+- **驗證**：`node --check` 全數通過（secrets 頁 app.js／復原後的
+  toolkit app.js／journal app.js／admin 首頁 app.js），
+  `config.json` JSON 語法驗證通過。純前端＋文件變更，沒有動 Worker
+  邏輯，不需要 `wrangler deploy`。**沒有瀏覽器實測**——請使用者去
+  `/pages/admin/secrets/` 看一次新畫面，順便確認「覆蓋」按鈕行為
+  符合預期。
+- **遺留**：那組 `jonaminz-migration-temp` 的 Supabase Management API
+  token 現在只有 Supabase 系統自己知道還活不活著，原始檔案已刪、
+  沒有備份——如果它其實還在用，需要使用者自己去 Supabase 後台確認；
+  如果不需要了，建議直接去撤銷，不要讓一組沒人記得的 token 一直
+  有效。
+- **版本**：`v0.46.10-202607161051`。
+
+---
+
 ## 2026-07-16（早上，第九筆）— 明確定位 agent_secrets 是「通用」憑證保管箱，不只給 APK 用
 
 - **任務**：使用者澄清真正想要的功能範圍——原話「其實我要的功能是我
