@@ -331,6 +331,24 @@ export default {
       }
     }
 
+    // 2026-07-16：Chat 檔案下載改走這條，不再讓前端直接 fetch() Graph
+    // 的 downloadUrl——那條路手機瀏覽器測試證實會被 CORS 擋掉（Graph
+    // 的短效 downloadUrl 沒有開放跨網域 fetch，只能瀏覽器直接導航過去
+    // 才行），原本前端 fetch 失敗會 fallback 成 window.open() 開新分頁，
+    // 使用者回報「一樣會跳轉，而且手機測試無法下載」就是一直在踩這個
+    // fallback，不是真的修好過。改用跟 /appDownload 一樣的做法：Worker
+    // 自己對 Graph 發 fetch（伺服器對伺服器，不受瀏覽器 CORS 限制），
+    // 拿到真正內容後把 body 串流回瀏覽器，帶 Content-Disposition，
+    // 瀏覽器只會看到「這個網址回應了一個檔案」，不會經過任何轉址。
+    // 故意不走 POST /api/action——要讓 <a href> 直接可以導航過去。
+    if (request.method === "GET" && url.pathname === "/downloadChatFile") {
+      try {
+        return await handleDownloadChatFile(env, url);
+      } catch (error) {
+        return new Response("Download failed: " + (error.message || String(error)), { status: 500 });
+      }
+    }
+
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS_HEADERS });
     }
@@ -3468,6 +3486,85 @@ async function getImageUrls(env, payload) {
   }
 
   return { ok: true, urls: urls };
+}
+
+// ---------- Chat 檔案下載代理（2026-07-16）。原本前端直接 fetch()
+// Graph 短效 downloadUrl 再組 Blob 下載——手機瀏覽器實測會被 CORS
+// 擋掉（Graph 的 downloadUrl 不開放跨來源 fetch），靜默失敗後退回
+// window.open()，造成使用者回報的「跳轉」+「手機無法下載」兩個症狀。
+// 改用跟 handleAppDownload 一樣的做法：Worker 用查詢者自己的 token
+// 向 Graph 解析出真正的 downloadUrl，再把檔案位元組串流回來，搭配
+// Content-Disposition: attachment 觸發下載，不會有跨來源問題。
+
+async function resolveChatFileDownloadUrl(env, identity, itemId, ownerIdentity) {
+  const accessToken = await getOnedriveAccessToken(env, identity);
+  if (ownerIdentity === identity) {
+    const response = await fetch(
+      "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(itemId),
+      { headers: { Authorization: "Bearer " + accessToken } }
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data["@microsoft.graph.downloadUrl"] || null;
+  }
+  // 對方傳的檔案：跟 getImageUrls 的 peerItems 分支同一套做法——先查
+  // sharedWithMe 找到對應項目的 driveId，再對該項目查一次完整資料。
+  const sharedResponse = await fetch(
+    "https://graph.microsoft.com/v1.0/me/drive/sharedWithMe",
+    { headers: { Authorization: "Bearer " + accessToken } }
+  );
+  if (!sharedResponse.ok) return null;
+  const sharedData = await sharedResponse.json();
+  const sharedList = sharedData.value || [];
+  const match = sharedList.filter(function (entry) {
+    return entry.remoteItem && entry.remoteItem.id === itemId;
+  })[0];
+  if (!match || !match.remoteItem) return null;
+  const driveId = match.remoteItem.parentReference && match.remoteItem.parentReference.driveId;
+  if (!driveId) return null;
+  const detailResponse = await fetch(
+    "https://graph.microsoft.com/v1.0/drives/" + encodeURIComponent(driveId) +
+      "/items/" + encodeURIComponent(itemId),
+    { headers: { Authorization: "Bearer " + accessToken } }
+  );
+  if (!detailResponse.ok) return null;
+  const detailData = await detailResponse.json();
+  return detailData["@microsoft.graph.downloadUrl"] || null;
+}
+
+async function handleDownloadChatFile(env, url) {
+  const token = url.searchParams.get("token") || "";
+  const itemId = url.searchParams.get("itemId") || "";
+  const ownerIdentity = url.searchParams.get("ownerIdentity") || "";
+  const fileName = url.searchParams.get("fileName") || "download";
+  if (!itemId || !ownerIdentity) {
+    return new Response("缺少 itemId 或 ownerIdentity 參數。", { status: 400 });
+  }
+  const identity = await requireSession(env, { token: token });
+  if (!identity) {
+    return new Response("未登入或登入已過期，請重新整理頁面再試一次。", { status: 401 });
+  }
+  let downloadUrl;
+  try {
+    downloadUrl = await resolveChatFileDownloadUrl(env, identity, itemId, ownerIdentity);
+  } catch (error) {
+    return new Response("取得下載連結失敗：" + (error.message || String(error)), { status: 502 });
+  }
+  if (!downloadUrl) {
+    return new Response("無法取得下載連結——對方的分享權限可能還沒開通，或這個檔案已經被自動清理。", { status: 404 });
+  }
+  const fileResponse = await fetch(downloadUrl);
+  if (!fileResponse.ok || !fileResponse.body) {
+    return new Response("下載檔案內容失敗（HTTP " + fileResponse.status + "）。", { status: 502 });
+  }
+  const headers = {
+    "Content-Type": "application/octet-stream",
+    "Content-Disposition": 'attachment; filename="' + fileName.replace(/[":\\]/g, "") + '"',
+    "Cache-Control": "no-store"
+  };
+  const contentLength = fileResponse.headers.get("Content-Length");
+  if (contentLength) headers["Content-Length"] = contentLength;
+  return new Response(fileResponse.body, { status: 200, headers: headers });
 }
 
 // ---------- 通用設定表（app_settings，2026-07-16）與 Chat 檔案自動過期

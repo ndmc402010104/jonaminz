@@ -551,11 +551,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
           // （見 ensureImageUrls），差別只在這裡畫「檔名＋大小」卡片，
           // 不是縮圖——一般檔案沒有縮圖可以先顯示。
           var fileMeta = m.metadata;
-          var fileUrl = imageUrlCache[fileMeta.itemId];
           var fileUnshared = mine && fileMeta.sharedOk === false;
           bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
             '<div class="jonaminz-chat-file-bubble" data-file-bubble data-item-id="' + escapeHtml(fileMeta.itemId) +
-            '" data-download-url="' + escapeHtml(fileUrl || "") +
+            '" data-owner-identity="' + escapeHtml(fileMeta.ownerIdentity || "") +
             '" data-file-name="' + escapeHtml(fileMeta.fileName || "檔案") + '">' +
             '<span class="jonaminz-chat-file-icon">📄</span>' +
             '<div class="jonaminz-chat-file-info">' +
@@ -1291,18 +1290,25 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
 
     function buildUI() {
-      var plusButtonHtml = inPanel
-        ? '<button type="button" class="jonaminz-chat-plus-btn" data-plus ' +
-          'aria-label="更多功能" aria-haspopup="true">+</button>' +
-          '<div class="jonaminz-chat-plus-panel" data-plus-panel hidden>' +
-          '<button type="button" data-share-current>分享目前內容</button>' +
-          '<button type="button" data-pick-image>分享圖片（相機／相簿）</button>' +
-          '<input type="file" accept="image/*" data-image-input hidden>' +
-          '<button type="button" data-pick-file>分享檔案</button>' +
-          '<input type="file" data-file-input hidden>' +
-          "</div>"
-        : '<button type="button" class="jonaminz-chat-plus-btn" data-plus disabled ' +
-          'title="附件與更多動作——之後開放" aria-label="更多功能（尚未開放）">+</button>';
+      // 2026-07-16（使用者真機回報「手機無法加入照片，那個加不能按」）：
+      // 原本這整個 + 面板（含選圖片/選檔案）都被 inPanel 擋住，只有
+      // 「分享目前內容」真的需要面板情境（要跟父層 iframe 要
+      // requestHostContext()），選圖片/選檔案是單純的檔案挑選器＋上傳，
+      // 跟是不是嵌在面板裡完全無關，不該被一起擋掉——這是早期開發
+      // 留下的過度保守限制（按鈕文字自己都寫「之後開放」），使用者在
+      // 獨立頁面（/pages/chat/）測試時整個附件功能因此完全按不動。
+      // 改成一律顯示完整 + 面板，只有「分享目前內容」這個選項本身
+      // 才依 inPanel 決定要不要出現。
+      var plusButtonHtml =
+        '<button type="button" class="jonaminz-chat-plus-btn" data-plus ' +
+        'aria-label="更多功能" aria-haspopup="true">+</button>' +
+        '<div class="jonaminz-chat-plus-panel" data-plus-panel hidden>' +
+        (inPanel ? '<button type="button" data-share-current>分享目前內容</button>' : "") +
+        '<button type="button" data-pick-image>分享圖片（相機／相簿）</button>' +
+        '<input type="file" accept="image/*" data-image-input hidden>' +
+        '<button type="button" data-pick-file>分享檔案</button>' +
+        '<input type="file" data-file-input hidden>' +
+        "</div>";
 
       root.innerHTML =
         '<section class="jonaminz-chat-head">' +
@@ -1444,7 +1450,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
       }).join("");
 
-      if (inPanel && els.plusPanel) {
+      if (els.plusPanel) {
         els.plus.addEventListener("click", function (event) {
           event.stopPropagation();
           closeEmojiPanel();
@@ -1596,55 +1602,30 @@ title/url（見 `requestHostContext()`，宿主端實作在
         }
         var fileBubble = event.target.closest("[data-file-bubble]");
         if (fileBubble) {
-          var downloadUrl = fileBubble.dataset.downloadUrl;
-          if (downloadUrl) {
-            // 2026-07-15：使用者問「一定要先跳出一個分頁在下載嗎」——
-            // 原本用 window.open 開新分頁再讓瀏覽器接手下載，會多閃一個
-            // 空白分頁，改成 <a download> 同分頁觸發。
-            // 2026-07-16（使用者回報「電腦版可以下載，手機版不行」）：
-            // `download` 屬性對跨網域連結（Graph 的 downloadUrl 是
-            // graph.microsoft.com/SharePoint CDN，跟 jonaminz.com 不同源）
-            // 桌機瀏覽器大多還是會忽略屬性、直接當普通連結開啟＋觸發下載
-            // ，但手機瀏覽器（尤其 iOS Safari／App 內建 WebView）更嚴格，
-            // 常常整個不動作。改成先 fetch 成 blob 再用 blob: URL 觸發
-            // download——blob: 是同源，`download` 屬性在所有平台都可靠，
-            // 也維持不開新分頁的體驗；只有 fetch 失敗（例如 Graph 這個
-            // 短效連結不允許跨網域 fetch）才退回舊的開新分頁方式，那個
-            // 已知在桌機／手機都至少「看得到檔案」。
-            var downloadFileName = fileBubble.dataset.fileName || "檔案";
-            fetch(downloadUrl)
-              .then(function (response) {
-                if (!response.ok) throw new Error("HTTP " + response.status);
-                return response.blob();
-              })
-              .then(function (blob) {
-                var blobUrl = URL.createObjectURL(blob);
-                var downloadLink = document.createElement("a");
-                downloadLink.href = blobUrl;
-                downloadLink.download = downloadFileName;
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-                setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 60000);
-              })
-              .catch(function () {
-                window.open(downloadUrl, "_blank", "noopener");
-              });
-          } else {
-            // 2026-07-15：使用者問「一直顯示還在準備中，這樣對嗎」——
-            // 原本的文案沒有區分「genuinely 還在跟 Worker 要 downloadUrl」
-            // 跟「已經問過、Graph 確定給不出來（多半是分享沒成功，
-            // 例如雙方都還沒用新的 Files.ReadWrite scope 重新連接
-            // OneDrive）」，兩種情況用同一句「稍後再試」誤導使用者以為
-            // 是暫時性的、多等一下就會好——後者不管等多久都不會自己
-            // 好，要先解決分享權限才行。imageUrlCache 沒有這個 key＝
-            // 還沒問過/問題中；有這個 key 但值是 null＝已經問過、確定
-            // 拿不到。
-            var stillLoading = imageUrlCache[fileBubble.dataset.itemId] === undefined;
-            window.alert(stillLoading
-              ? "下載連結還在準備中，稍後再試一次"
-              : "無法取得下載連結——對方可能還沒開通分享權限（雙方都要重新連接 OneDrive 才會恢復，不是等待就會自己好）");
-          }
+          // 2026-07-16（使用者回報「下載一樣會跳轉」+「手機測試無法
+          // 下載」）：先前 blob-fetch 的做法對 Graph 短效 downloadUrl
+          // 一律被 CORS 擋掉（跨網域 fetch 不允許跨來源讀取），靜默
+          // 退回 window.open 的舊分頁行為——兩個症狀是同一個根因。
+          // 改成直接導覽到 Worker 的 /downloadChatFile：由 Worker 用
+          // 自己的 token 向 Graph 解析＋把檔案位元組串流回來，瀏覽器
+          // 收到 Content-Disposition: attachment 直接觸發下載，全程
+          // 不經過 fetch()，不會有跨網域問題（跟 /appDownload 同一套
+          // 已驗證可行的做法）。
+          var downloadFileName = fileBubble.dataset.fileName || "檔案";
+          var downloadItemId = fileBubble.dataset.itemId;
+          var downloadOwnerIdentity = fileBubble.dataset.ownerIdentity;
+          window.JonaminzBackend.getWorkerBaseUrlForRedirect().then(function (baseUrl) {
+            var downloadHref = baseUrl + "/downloadChatFile?token=" + encodeURIComponent(token || "") +
+              "&itemId=" + encodeURIComponent(downloadItemId || "") +
+              "&ownerIdentity=" + encodeURIComponent(downloadOwnerIdentity || "") +
+              "&fileName=" + encodeURIComponent(downloadFileName);
+            var downloadLink = document.createElement("a");
+            downloadLink.href = downloadHref;
+            downloadLink.rel = "noopener";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+          });
           return;
         }
         var card = event.target.closest("[data-shared-card]");

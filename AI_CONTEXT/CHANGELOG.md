@@ -20,6 +20,63 @@
 
 ---
 
+## 2026-07-16（下午，第五筆）— 「+」按鈕在非 panel 頁面被停用、Chat 檔案下載改成伺服器端串流
+
+- **任務**：使用者實測 0839 版 APK 時連續回報三件事，這筆處理前兩件：
+  「現在手機無法加入照片，那個加不能按」、「現在下載一樣會跳轉耶，
+  而且我剛剛手機測試無法下載」（第三件——泡泡收合失敗——待查，見
+  「遺留」）。
+- **變更**：
+  - **「+」附加功能按鈕**（`assets/js/chat-thread.js`）：`plusButtonHtml`
+    原本整個附加面板（含圖片/檔案選擇）只在 `inPanel`（嵌在原生泡泡／
+    chat-panel iframe 裡）才渲染，事件綁定也整段包在
+    `if (inPanel && els.plusPanel)` 底下——在獨立 `/pages/chat/` 頁面
+    上整個「+」按鈕形同被停用，不是只有「分享目前內容」這個真的需要
+    panel context 的功能被擋。改成面板一律渲染，只有「分享目前內容」
+    這顆按鈕本身仍用 `inPanel` 決定要不要插入；事件綁定的 gate 拿掉
+    `inPanel &&`，圖片/檔案挑選、預覽橫幅、傳送這條路徑一律生效。
+  - **Chat 檔案下載改走伺服器端串流**（`backend/cloudflare-worker/
+    worker.js` 新增 `handleDownloadChatFile()` / 
+    `resolveChatFileDownloadUrl()` + `GET /downloadChatFile` 路由；
+    `assets/js/chat-thread.js` 的檔案泡泡點擊改用這個端點）：昨天
+    （7/15）修過一次「電腦版能下載、手機版不行」，改成先 `fetch()`
+    Graph 短效 downloadUrl 轉 blob 再觸發 `<a download>`；今天實測
+    證實這個做法本身就會被 CORS 擋下（Graph 的 downloadUrl 不允許
+    跨網域 `fetch()`），`fetch` 失敗後靜默退回 `window.open()`——這
+    正好同時解釋「跳轉」（退回開新分頁）跟「手機無法下載」（部分
+    行動瀏覽器對這個 fallback 也不理會）兩個症狀。改成跟已驗證可行
+    的 `GET /appDownload` 同一套做法：新增 `GET /downloadChatFile
+    ?token=&itemId=&ownerIdentity=&fileName=`，Worker 用查詢者自己
+    的 token 向 Graph 解析出真正 downloadUrl（own item 直接查，peer
+    item 沿用 `getImageUrls()` 既有的 `sharedWithMe` 比對邏輯），把
+    檔案位元組原樣串流回來，搭配 `Content-Disposition: attachment`
+    觸發下載——全程只是一次 `<a href>` 導覽，不經過 `fetch()`，沒有
+    跨網域問題。前端的檔案泡泡點擊處理器改成先跟
+    `getWorkerBaseUrlForRedirect()` 要 baseUrl 再組這個網址、建立
+    `<a>` 點擊；原本 blob-fetch 那段 JS 跟渲染時附的
+    `data-download-url`／`fileUrl` 快取變數一併移除（新流程不需要
+    預先查好的 downloadUrl，改成點擊當下才向 Worker 要）。
+- **狀態變化**：兩個功能性 bug（附加面板在獨立頁被停用、下載
+  CORS 失敗）從已知問題→已修復待使用者實機驗證。
+- **遺留**：
+  1. 使用者在 for_claude 任務單同一串補充「電腦版要用原生下載，
+     你看一下messenger跟line的作法都是下面小字吧」——這次改成真正
+     的 `<a href>` 導覽已經是「原生下載」（不是 JS blob 手法），但
+     「下面小字」是指檔案泡泡的視覺呈現改成 Messenger/LINE 那種
+     卡片下方小字連結的樣式，這個純視覺改版還沒做，只修了下載機制
+     本身。
+  2. 原生 App 泡泡失焦自動收合（`BubbleOverlayService.java` 的
+     `OnWindowFocusChangeListener`）使用者回報「我直接更新但是功能
+     沒有出來」——0839 版確認已安裝但行為未改變，尚未開始排查根因。
+  3. Chat 圖片訊息顯示（task `5cc22659`）使用者最新回報「還是只有
+     文字顯示阿沒有真的出現圖片」——這次「+」按鈕修復前，獨立頁面
+     的圖片/檔案傳送路徑本來就整個是斷的，不確定使用者稍早的測試
+     是不是在這個壞掉的路徑上做的、還是圖片顯示真的另有 bug，需要
+     使用者用這版重新測一次才能判斷。
+- **版本**：v0.46.16-202607161438
+
+---
+
 ## 2026-07-16（下午，第四筆）— Chat 訊息操作改成 Messenger 式：長按底部操作列＋左滑快速回覆
 
 - **任務**：使用者針對「電腦版下載體驗」的回饋附了兩張真實 Messenger
