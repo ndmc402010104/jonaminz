@@ -85,3 +85,19 @@ button { font: inherit; cursor: pointer; }
   border: 2px solid var(--color-primary);
 }
 .jcl-avatar-btn.has-unread .jcl-badge { display: flex; }
+
+/* 2026-07-16：使用者實機回報「雙重顯示——裡面有一顆被切到的，外面有
+   一顆完整的」。這兩個元素是 2026-07-16 凌晨「角標搬出 iframe」那次
+   改版之前的舊實作，改版後 assets/js/chat-launcher.js 在宿主自己的
+   文件裡疊了一份新的、不會被裁切的角標/在線小綠點，取代這裡的角色
+   ——但這兩支 script（這裡跟宿主端）當初是刻意各自獨立輪詢、互不
+   依賴（見檔頭第 4 點），沒有人把這裡「原本的」畫面表現關掉，只是
+   假設反正會被 iframe 圓形裁掉看不見。事實證明不同瀏覽器/WebView
+   對 iframe 裁切的可靠度不一致，導致兩份角標同時可見。這裡的輪詢
+   邏輯（refresh() 決定要不要顯示大頭貼本體＋字母）還是必要的，不能
+   整支拿掉，只强制隱藏「角標/在線點」這兩個視覺元素，交給宿主端
+   唯一顯示。 */
+.jcl-presence,
+.jcl-badge {
+  display: none !important;
+}
