@@ -20,6 +20,58 @@
 
 ---
 
+## 2026-07-16（下午，第六筆）— jonaminz-mobile-app：泡泡失焦自動收合真正修好（真機 logcat 抓根因）
+
+- **任務**：延續上一筆（`6ae99897`）——使用者回報「泡泡失焦自動收合」
+  裝了 versionCode 4（202607160839）後還是「每次都不收回」，這筆用
+  真機 adb 無線偵錯＋logcat 實際抓到根因並修好。
+- **變更**（`jonaminz-mobile-app` 姐妹 repo，
+  `android/app/src/main/java/com/jonaminz/app/BubbleOverlayService.java`）：
+  - **除錯過程**：先在 `OnWindowFocusChangeListener` 跟 `togglePanel()`
+    加 `Log.d` 打 versionCode 5（202607161513）試裝機，透過使用者手機
+    的無線偵錯（`Settings→開發人員選項→無線偵錯`，配對後用
+    `adb connect <ip>:<port>`／`adb -s <mDNS 名稱> install -r ...`，跟
+    `AI_CONTEXT/PROJECT_STATE.md` §5.1 記載的流程一致）連上後拉
+    logcat，請使用者實機重現（開泡泡→開面板→往上滑回首頁），log
+    證實 `onWindowFocusChanged` 真的有偵測到失焦、也真的呼叫了收合
+    分支，**但視覺上完全沒收合**，卡片維持全尺寸可見可觸控——用截圖
+    跟使用者確認過，卡在畫面上的是整張聊天卡片，不是誤把「泡泡本身
+    本來就會一直飄著」當成 bug。
+  - **根因**：原本失焦收合直接呼叫 `togglePanel()`，跟手動收合共用
+    同一條路徑——180ms 的 `ViewPropertyAnimator`，`withEndAction`
+    裡才真正把 `panelContainer` 設 `INVISIBLE`、視窗旗標改回
+    `FLAG_NOT_TOUCHABLE|FLAG_NOT_FOCUSABLE`。使用者一滑 Home 離開，
+    這個 Service 的行程幾乎立刻被系統（三星 OneUI 的背景凍結／
+    「讓未使用的應用程式休眠」機制，使用者手機是 Samsung SM-F9660／
+    Fold）降到背景優先權，`ViewPropertyAnimator` 靠 Choreographer
+    逐格驅動，常常連第一格動畫都還沒播完就被凍結，`withEndAction`
+    因此永遠沒機會執行——「讓視窗真的消失」這個關鍵狀態變更被卡在
+    一個永遠不會完成的動畫回呼後面。
+  - **修法**：新增 `collapsePanelImmediately()`，失焦收合改叫這個
+    ——不等動畫，直接同步把 `panelContainer` 設 `INVISIBLE`＋視窗旗標
+    改回不可觸控/不可對焦，縮放/透明度用一次性賦值（不用動畫）
+    模擬收合後的終態；即使行程隨時被凍結，真正重要的狀態也已經套用
+    完畢，不會卡住。手動收合（點卡片外／拖到✕）維持原本
+    `togglePanel()` 的平滑動畫不變——那些情境使用者還在前景操作，
+    沒有這個風險，不需要犧牲動畫效果。
+- **狀態變化**：`6ae99897` 從「已裝但沒生效、待查」→ 真機驗證根因＋
+  已修復待使用者重測。
+- **驗證**：`gradlew assembleDebug` 建置成功（過程中遇到一次
+  `packageDebug` 因 OneDrive 同步鎖住 `build/intermediates/.../tmp`
+  資料夾刪不掉導致失敗，手動刪除該資料夾後重跑就正常——這個資料夾
+  鎖住的狀況以後如果再發生，直接刪掉重跑即可，不是真的建置錯誤）。
+  透過 adb 無線偵錯裝上使用者手機（versionCode 6／202607161524），
+  真機重測待使用者確認。
+- **遺留**：這版還留著 `Log.d(TAG, ...)` 診斷用的 log（`TAG =
+  "JonaminzBubble"`），使用者驗收通過後應該找時間拿掉或降級成
+  debug-only（release build 目前沒有 minify/proguard 移除 log 呼叫，
+  雖然不影響功能，但正式版不該留診斷 log）。
+- **版本**：無 jonaminz 本體程式碼變更（`jonaminz-mobile-app` 是姐妹
+  repo，版本號記在它自己的 `android/app/build.gradle`：versionCode
+  6／versionName 202607161524）。
+
+---
+
 ## 2026-07-16（下午，第五筆）— 「+」按鈕在非 panel 頁面被停用、Chat 檔案下載改成伺服器端串流
 
 - **任務**：使用者實測 0839 版 APK 時連續回報三件事，這筆處理前兩件：
