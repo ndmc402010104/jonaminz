@@ -20,6 +20,38 @@
 
 ---
 
+## 2026-07-16（傍晚，第九筆）— 後台首頁四個角標判斷併入 loading gate，不再進畫面後才跳出來
+
+- **任務**：使用者看著後台首頁截圖回報「loading gate 應該把決策與待辦
+  這種跳出待辦的行為加進去，不要看到進入畫面還在跳畫面」——2026-07-16
+  稍早（第 X 輪，見 `pages/admin/assets/js/app.js` 檔頭 2026-07-16
+  那則說明）把未讀/待驗證/連線狀態三個角標判斷改成「背景資訊，不影響
+  loading gate」，這是當時的刻意設計；使用者現在反過來要求要等。
+- **變更**（`pages/admin/assets/js/app.js`）：
+  `renderPendingStatus()`／`renderChatAttention()`／
+  `renderVerifyAttention()`／`renderConnectionsAttention()` 四個函式
+  原本是 fire-and-forget（不 `return` promise），`init()` 呼叫
+  `render()` 後立刻 `window.JonaminzLoading.done(READY_TASK)` 掀開
+  curtain，角標之後才非同步彈出來造成視覺跳動。改成四個函式都
+  `return` 自己的 promise chain，`init()` 用 `Promise.all` 等它們都
+  結束才呼叫 `.done(READY_TASK)`——但套用跟 `entry-core.js` 的
+  `loadThemeWithCap()` 同一招：`Promise.race` 對一個 1500ms 逾時賽跑，
+  逾時就不再等直接放行，維持「背景資訊不該讓慢速/掛掉的後端無限期
+  卡住整頁」的原意，只是從「完全不等」改成「等一下下（最多1.5秒）」。
+  四個函式內部本來就各自有 `.catch()` 吞掉錯誤（顯示文字說明、不
+  rethrow），`Promise.all` 不會因為某一個失敗就整組 reject，這個
+  前提沒被打破。
+- **狀態變化**：後台首頁的角標視覺跳動已修復；`pages/admin/assets/
+  js/app.js` 檔頭 2026-07-16 那則「不擋頁面本身的 all-ready」的說明
+  已經過時（被這次决定推翻），沒有另外改寫舊註解，靠這筆 CHANGELOG
+  記錄新決定即可（RULES.md 慣例：程式碼跟文件不符時以程式碼為準）。
+- **驗證**：`node --check` 通過；純前端變更，沒有動 Worker，不用
+  wrangler deploy。真機/瀏覽器實測待使用者確認（要清一次快取或等
+  10 分鐘 cache 視窗過）。
+- **版本**：v0.46.20-202607161741
+
+---
+
 ## 2026-07-16（傍晚，第八筆追加）— 修正常駐反應按鈕蓋到文字的問題
 
 - **任務**：上一筆上線後使用者立刻回報「符號擋到文字格子了」——右下角
