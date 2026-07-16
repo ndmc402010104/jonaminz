@@ -426,6 +426,7 @@ button, textarea { font: inherit; }
   background: color-mix(in srgb, var(--color-primary-2) 35%, transparent);
 }
 .jonaminz-chat-message {
+  position: relative;
   display: flex;
   gap: var(--space-1);
   align-items: flex-end;
@@ -442,12 +443,7 @@ button, textarea { font: inherit; }
 .jonaminz-chat-message-avatar.is-placeholder { visibility: hidden; }
 .jonaminz-chat-message-avatar.is-tiny { width: 14px; height: 14px; font-size: 7px; }
 .jonaminz-chat-bubble {
-  position: relative;
   padding: 8px 11px;
-  /* 2026-07-16（使用者回報「符號擋到文字格子了」）：右下角常駐反應
-     小按鈕原本沒有留空間，短訊息最後一行文字會被蓋到，額外留右邊距
-     當保留區。 */
-  padding-right: 26px;
   border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm);
   font-size: var(--text-sm);
   line-height: 1.45;
@@ -458,35 +454,49 @@ button, textarea { font: inherit; }
   border: 1px solid var(--color-border);
 }
 
-/* 2026-07-16：泡泡右下角常駐的回應表情小按鈕，取代原本長按才浮出、
-   常跟底部操作列位置卡在一起的反應列（見 chat-thread.js
-   openReactionPicker() 的說明）。image-bubble／file-bubble／
-   shared-card 的 position:relative／padding-right 直接加在後面各自
-   本來的規則區塊裡（不能放在這裡，會被後面的 padding 簡寫覆蓋掉）。 */
-.jonaminz-chat-quick-react-btn {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 11px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.7;
-  box-shadow: var(--shadow-sm);
-  padding: 0;
-  z-index: 2;
-}
-.jonaminz-chat-quick-react-btn:hover,
-.jonaminz-chat-quick-react-btn:focus-visible {
-  opacity: 1;
+/* 2026-07-16（第三輪收斂）：手機長按同時跳出表情反應列＋底部操作列
+   （openContextMenu() 兩個一起叫，位置衝突已在 JS 修好，見
+   openReactionPicker() 的 maxTop 計算）。電腦版另外加 hover 專用
+   工具列（⋮更多／↩回覆／🙂反應），只在滑鼠移到訊息上才浮現，
+   `@media (hover: hover)` 排除觸控裝置。 */
+.jonaminz-chat-hover-toolbar { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .jonaminz-chat-hover-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    position: absolute;
+    top: -12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-md);
+    padding: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    z-index: 5;
+  }
+  .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-hover-toolbar { right: 0; }
+  .jonaminz-chat-message[data-mine="false"] .jonaminz-chat-hover-toolbar { left: 28px; }
+  .jonaminz-chat-message:hover .jonaminz-chat-hover-toolbar {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .jonaminz-chat-hover-toolbar button {
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .jonaminz-chat-hover-toolbar button:hover { background: var(--color-bg-lobby); }
 }
 .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble {
   background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));
@@ -687,9 +697,7 @@ button, textarea { font: inherit; }
 }
 
 .jonaminz-chat-shared-card {
-  position: relative;
   padding: 10px 12px;
-  padding-right: 30px;
   border-radius: var(--radius-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -732,7 +740,6 @@ button, textarea { font: inherit; }
 
 /* ---- OneDrive 線 Phase B：圖片訊息（2026-07-15）。---- */
 .jonaminz-chat-image-bubble {
-  position: relative;
   max-width: 220px;
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -758,13 +765,11 @@ button, textarea { font: inherit; }
 /* Chat 檔案附件（2026-07-15）：跟圖片泡泡共用同一套上傳/分享管道，
    這裡畫「檔名＋大小」卡片，不是縮圖。 */
 .jonaminz-chat-file-bubble {
-  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   max-width: 220px;
   padding: var(--space-2) var(--space-3);
-  padding-right: 30px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-surface);

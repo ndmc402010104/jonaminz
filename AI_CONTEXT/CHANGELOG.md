@@ -20,6 +20,49 @@
 
 ---
 
+## 2026-07-16（傍晚，第十筆）— Chat 表情反應第三輪收斂：手機長按改回兩個一起跳（修好位置衝突），電腦版新增 hover 工具列
+
+- **任務**：使用者看著第八筆上線後的畫面覺得不對，附了 Google Chat
+  風格的參考截圖（訊息上方浮出 ⋮／↩／🙂 三顆圖示），提出「用hover
+  會不會更好，主機用hover，手機常按跟下面的操作列表同時出現不要被
+  遮住功能」。確認方向：手機改回長按同時跳出反應列＋底部操作列（回到
+  第八筆之前的設計，但要修好當初「打架」的位置衝突根因），不再用
+  第八筆做的常駐小按鈕；電腦版另外加 hover 工具列。
+- **變更**（`assets/js/chat-thread.js`／兩份 CSS）：
+  - **拆成三個函式，各自negotiate**：`openReactionPicker(messageEl,
+    x, y)` 只管浮動表情選單；`openActionSheet(messageEl)` 只管底部
+    操作列；`openContextMenu(messageEl, x, y)` 是手機長按用的組合
+    函式，先開 actionSheet（讓它有真實高度可以量）再開
+    reactionPicker。
+  - **真正修好位置衝突的根因**：`openReactionPicker` 的 `maxTop`
+    計算，原本只扣掉表情選單自己的高度＋6px 邊界，沒扣掉底部操作列
+    的高度——如果訊息在畫面下半部，表情選單會算出一個其實會被操作列
+    蓋住的 Y 座標。改成額外扣掉 `els.actionSheetMenu.offsetHeight`
+    （量不到時退回 64px 估計值）。因為 `openContextMenu` 先開
+    actionSheet 才開 reactionPicker，讀 `offsetHeight` 那一刻操作列
+    已經是真實顯示狀態，量到的是準確高度，不是估計值。
+  - **移除**第八筆做的 `quickReactBtnHtml`（每則泡泡右下角常駐小
+    按鈕）與對應的 `.jonaminz-chat-quick-react-btn` CSS、
+    `data-quick-react` 點擊處理、file-bubble／shared-card／文字泡泡
+    為了幫按鈕留空間而加的 `padding-right`，一併復原成第八筆之前的
+    寬度。
+  - **新增電腦版 hover 工具列**（`.jonaminz-chat-hover-toolbar`，
+    `@media (hover: hover) and (pointer: fine)` 排除觸控裝置，避免
+    「點一下才消失」的殘留 hover 問題）：滑鼠移到訊息上，浮出 ⋮
+    （開 `openActionSheet`）／↩（純文字訊息才有，直接
+    `setReplyTarget` 不開選單）／🙂（開 `openReactionPicker`，貼著
+    按鈕本身定位）三顆圖示，跟參考截圖的互動模型一致。
+  - `.jonaminz-chat-message` 加 `position: relative` 當 hover 工具列
+    的定位基準。
+- **狀態變化**：手機表情反應列跟底部操作列的位置衝突真正修好（不是
+  用「分開觸發」迴避問題，是修好座標計算本身）；電腦版多了 hover
+  快速互動，跟手機各自用最適合自己輸入方式的互動模型。
+- **驗證**：`node --check`／CSS 花括號配對數雙檔皆通過。真機/瀏覽器
+  實測待使用者確認（要清一次快取或等 10 分鐘 cache 視窗過）。
+- **版本**：v0.46.21-202607161752
+
+---
+
 ## 2026-07-16（傍晚，第九筆）— 後台首頁四個角標判斷併入 loading gate，不再進畫面後才跳出來
 
 - **任務**：使用者看著後台首頁截圖回報「loading gate 應該把決策與待辦
