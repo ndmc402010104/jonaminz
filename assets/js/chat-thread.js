@@ -1118,46 +1118,64 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
 
     // ---- 長按訊息跳出選單（複製／編輯／刪除／回覆／表情反應）----
+    // 2026-07-16：使用者拿真的 Messenger 截圖說明想要的操作模式——長按
+    // 跳出來的東西分成兩塊：表情反應貼在被按的訊息附近（浮動），其餘
+    // 動作（回覆/複製/編輯/刪除）收在畫面底部一整排的操作列，不是全部
+    // 擠在同一個貼著手指位置的小選單裡（原本的做法，在手機小螢幕上
+    // 常常需要的按鈕位置很尷尬、要精準點到小小一顆）。拆成兩個各自
+    // 獨立顯示/隱藏的元件，共用同一組 data-menu-* 按鈕（點擊行為完全
+    // 沒變，只是換了容器跟排版）。
     function closeContextMenu() {
       if (els.contextMenu) els.contextMenu.hidden = true;
+      if (els.actionSheet) els.actionSheet.hidden = true;
     }
 
     function openContextMenu(messageEl, x, y) {
-      if (!els.contextMenu) return;
+      if (!els.contextMenu && !els.actionSheet) return;
       var messageId = messageEl.dataset.messageId;
       var editable = messageEl.dataset.editable === "true";
       var reactable = messageEl.dataset.reactable === "true";
       var copyText = messageEl.dataset.copyText;
-      var items = [];
-      if (reactable) {
-        items.push('<div class="jonaminz-chat-context-reactions">' +
+
+      if (els.contextMenu) els.contextMenu.hidden = true;
+      if (els.actionSheet) els.actionSheet.hidden = true;
+
+      // 表情反應：浮動貼在被長按的訊息附近，跟 Messenger 的反應列
+      // 同一個位置邏輯。
+      if (reactable && els.contextMenu) {
+        els.contextMenu.innerHTML = '<div class="jonaminz-chat-context-reactions">' +
           REACTION_SET.map(function (emoji) {
             return '<button type="button" data-menu-react data-message-id="' + escapeHtml(messageId) +
               '" data-emoji="' + emoji + '">' + emoji + "</button>";
-          }).join("") + "</div>");
+          }).join("") + "</div>";
+        els.contextMenu.hidden = false;
+        var menuWidth = els.contextMenu.offsetWidth || 120;
+        var menuHeight = els.contextMenu.offsetHeight || 40;
+        var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
+        var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
+        els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
+        els.contextMenu.style.top = Math.max(6, Math.min(y, maxTop)) + "px";
       }
+
+      // 其餘動作：固定貼在畫面底部的一整排，圖示＋文字，跟 Messenger
+      // 截圖裡「回覆／儲存圖像／刪除／更多」那排同一個版型。
+      var actionItems = [];
       if (copyText) {
-        items.push('<button type="button" data-menu-copy data-text="' + escapeHtml(copyText) + '">複製</button>');
-      }
-      if (copyText) {
-        items.push('<button type="button" data-menu-reply data-message-id="' + escapeHtml(messageId) +
-          '" data-text="' + escapeHtml(copyText) + '">回覆</button>');
+        actionItems.push('<button type="button" data-menu-reply data-message-id="' + escapeHtml(messageId) +
+          '" data-text="' + escapeHtml(copyText) + '"><span>↩️</span>回覆</button>');
+        actionItems.push('<button type="button" data-menu-copy data-text="' + escapeHtml(copyText) + '"><span>📋</span>複製</button>');
       }
       if (editable) {
-        items.push('<button type="button" data-menu-edit data-message-id="' + escapeHtml(messageId) +
-          '" data-text="' + escapeHtml(copyText || "") + '">編輯</button>');
-        items.push('<button type="button" data-menu-delete data-message-id="' + escapeHtml(messageId) + '">刪除</button>');
+        actionItems.push('<button type="button" data-menu-edit data-message-id="' + escapeHtml(messageId) +
+          '" data-text="' + escapeHtml(copyText || "") + '"><span>✏️</span>編輯</button>');
+        actionItems.push('<button type="button" data-menu-delete data-message-id="' + escapeHtml(messageId) + '"><span>🗑️</span>刪除</button>');
       }
-      if (!items.length) return;
-      els.contextMenu.innerHTML = items.join("");
-      els.contextMenu.hidden = false;
+      if (actionItems.length && els.actionSheet && els.actionSheetMenu) {
+        els.actionSheetMenu.innerHTML = actionItems.join("");
+        els.actionSheet.hidden = false;
+      }
+
       contextMenuOpenedAt = Date.now();
-      var menuWidth = els.contextMenu.offsetWidth || 120;
-      var menuHeight = els.contextMenu.offsetHeight || 40;
-      var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
-      var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
-      els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
-      els.contextMenu.style.top = Math.max(6, Math.min(y, maxTop)) + "px";
     }
 
     // ---- 搜尋 ----
@@ -1350,6 +1368,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<button type="button" data-file-preview-cancel aria-label="取消">✕</button>' +
         "</div>" +
         '<div class="jonaminz-chat-context-menu" data-context-menu hidden></div>' +
+        '<div class="jonaminz-chat-action-sheet" data-action-sheet hidden>' +
+        '<div class="jonaminz-chat-action-sheet-backdrop" data-action-sheet-backdrop></div>' +
+        '<div class="jonaminz-chat-action-sheet-menu" data-action-sheet-menu></div>' +
+        "</div>" +
+        '<span class="jonaminz-chat-swipe-reply-icon" data-swipe-reply-icon hidden>↩️</span>' +
         '<div class="jonaminz-chat-image-lightbox" data-image-lightbox hidden>' +
         '<img data-image-lightbox-img alt="圖片">' +
         '<button type="button" class="jonaminz-chat-image-lightbox-close" data-image-lightbox-close aria-label="關閉">✕</button>' +
@@ -1390,6 +1413,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.notifDot = root.querySelector("[data-notif-dot]");
       els.notifPanel = root.querySelector("[data-notif-panel]");
       els.contextMenu = root.querySelector("[data-context-menu]");
+      els.actionSheet = root.querySelector("[data-action-sheet]");
+      els.actionSheetMenu = root.querySelector("[data-action-sheet-menu]");
+      els.actionSheetBackdrop = root.querySelector("[data-action-sheet-backdrop]");
+      els.swipeReplyIcon = root.querySelector("[data-swipe-reply-icon]");
       els.replyBanner = root.querySelector("[data-reply-banner]");
       els.replyTitle = root.querySelector("[data-reply-title]");
       els.imageInput = root.querySelector("[data-image-input]");
@@ -1657,13 +1684,42 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (els.thread.scrollTop < 60) loadOlder();
       });
 
-      // ---- 長按訊息跳出複製／編輯／刪除選單 ----
+      // ---- 長按訊息跳出複製／編輯／刪除選單／左滑快速回覆 ----
+      // 2026-07-16：使用者拿 Messenger 截圖要求「左滑有回覆功能」，跟
+      // 長按選單的「回覆」按鈕共用同一支 setReplyTarget，只是多一個
+      // 手勢捷徑。滑動追蹤用獨立的 swipeStart（不是 longPressStart，
+      // 那個一超過 10px 就被 cancelLongPress() 清空，滑動要撐到
+      // pointerup 才算完）。方向判定「鎖定」一次：先看前幾個 px 是
+      // 水平還是垂直位移比較大，垂直就整個放棄（不擋畫面本身的上下
+      // 捲動），水平才繼續、才 preventDefault 擋掉瀏覽器原生的橫向
+      // 手勢。只有 copyText 存在（跟長按選單「回覆」按鈕同一個限制，
+      // 圖片/檔案/分享卡目前都不支援回覆）的訊息才會啟動滑動。
+      var SWIPE_REPLY_THRESHOLD = 56;
+      var SWIPE_REPLY_MAX = 72;
       var longPressTimer = null;
       var longPressStart = null;
+      var swipeStart = null;
+      var swipeMessageEl = null;
+      var swipeBubbleEl = null;
+      var swipeDirectionLocked = null; // null | "horizontal" | "vertical"
+
       function cancelLongPress() {
         if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
         longPressStart = null;
       }
+
+      function resetSwipe(animate) {
+        if (swipeBubbleEl) {
+          swipeBubbleEl.style.transition = animate ? "transform 0.15s ease" : "";
+          swipeBubbleEl.style.transform = "";
+        }
+        if (els.swipeReplyIcon) els.swipeReplyIcon.hidden = true;
+        swipeStart = null;
+        swipeMessageEl = null;
+        swipeBubbleEl = null;
+        swipeDirectionLocked = null;
+      }
+
       els.thread.addEventListener("pointerdown", function (event) {
         if (event.target.closest("[data-discuss-btn], [data-shared-card], [data-load-more]")) return;
         var messageEl = event.target.closest(".jonaminz-chat-message");
@@ -1673,59 +1729,114 @@ title/url（見 `requestHostContext()`，宿主端實作在
           openContextMenu(messageEl, longPressStart.x, longPressStart.y);
           longPressTimer = null;
         }, LONG_PRESS_MS);
+        if (messageEl.dataset.copyText) {
+          swipeStart = { x: event.clientX, y: event.clientY };
+          swipeMessageEl = messageEl;
+          swipeBubbleEl = messageEl.querySelector(".jonaminz-chat-bubble-col");
+        }
       });
       els.thread.addEventListener("pointermove", function (event) {
-        if (!longPressStart) return;
-        var dx = event.clientX - longPressStart.x;
-        var dy = event.clientY - longPressStart.y;
-        if (Math.sqrt(dx * dx + dy * dy) > 10) cancelLongPress();
+        if (longPressStart) {
+          var ldx = event.clientX - longPressStart.x;
+          var ldy = event.clientY - longPressStart.y;
+          if (Math.sqrt(ldx * ldx + ldy * ldy) > 10) cancelLongPress();
+        }
+        if (!swipeStart || !swipeBubbleEl) return;
+        var dx = event.clientX - swipeStart.x;
+        var dy = event.clientY - swipeStart.y;
+        if (!swipeDirectionLocked) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          swipeDirectionLocked = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
+          if (swipeDirectionLocked === "vertical") return; // 垂直捲動：放棄滑動追蹤，不擋畫面捲動
+        }
+        if (swipeDirectionLocked !== "horizontal") return;
+        if (dx >= 0) {
+          swipeBubbleEl.style.transition = "";
+          swipeBubbleEl.style.transform = "";
+          if (els.swipeReplyIcon) els.swipeReplyIcon.hidden = true;
+          return;
+        }
+        event.preventDefault();
+        var clamped = Math.max(dx, -SWIPE_REPLY_MAX);
+        swipeBubbleEl.style.transition = "";
+        swipeBubbleEl.style.transform = "translateX(" + clamped + "px)";
+        if (els.swipeReplyIcon) {
+          var rect = swipeMessageEl.getBoundingClientRect();
+          els.swipeReplyIcon.hidden = false;
+          els.swipeReplyIcon.style.opacity = String(Math.min(1, Math.abs(clamped) / SWIPE_REPLY_THRESHOLD));
+          els.swipeReplyIcon.style.top = (rect.top + rect.height / 2 - 12) + "px";
+          els.swipeReplyIcon.style.left = (rect.right - 28) + "px";
+        }
       });
-      els.thread.addEventListener("pointerup", cancelLongPress);
-      els.thread.addEventListener("pointercancel", cancelLongPress);
-
-      if (els.contextMenu) {
-        els.contextMenu.addEventListener("click", function (event) {
-          var reactBtn = event.target.closest("[data-menu-react]");
-          if (reactBtn) {
-            closeContextMenu();
-            window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: reactBtn.dataset.messageId, emoji: reactBtn.dataset.emoji })
-              .then(function () { return poll(); })
-              .catch(function () {});
-            return;
-          }
-          var replyBtn = event.target.closest("[data-menu-reply]");
-          if (replyBtn) {
-            setReplyTarget(replyBtn.dataset.messageId, replyBtn.dataset.text);
-            closeContextMenu();
+      els.thread.addEventListener("pointerup", function (event) {
+        cancelLongPress();
+        if (swipeDirectionLocked === "horizontal" && swipeMessageEl && swipeStart) {
+          var dx = event.clientX - swipeStart.x;
+          if (dx <= -SWIPE_REPLY_THRESHOLD) {
+            setReplyTarget(swipeMessageEl.dataset.messageId, swipeMessageEl.dataset.copyText);
             els.input.focus();
-            return;
           }
-          var copyBtn = event.target.closest("[data-menu-copy]");
-          if (copyBtn) {
-            try { navigator.clipboard.writeText(copyBtn.dataset.text || ""); } catch (error) {}
-            closeContextMenu();
-            return;
-          }
-          var editBtn = event.target.closest("[data-menu-edit]");
-          if (editBtn) {
-            setEditTarget(editBtn.dataset.messageId, editBtn.dataset.text);
-            closeContextMenu();
-            return;
-          }
-          var deleteBtn = event.target.closest("[data-menu-delete]");
-          if (deleteBtn) {
-            closeContextMenu();
-            if (!window.confirm("確定要刪除這則訊息嗎？")) return;
-            window.JonaminzBackend.deleteChatMessage({ token: token, messageId: deleteBtn.dataset.messageId })
-              .then(function () { return poll(); })
-              .catch(function (error) {
-                els.status.textContent = "刪除失敗：" + (error.message || String(error));
-              });
-          }
-        });
+        }
+        resetSwipe(true);
+      });
+      els.thread.addEventListener("pointercancel", function () {
+        cancelLongPress();
+        resetSwipe(true);
+      });
+
+      // 表情反應（浮動選單）跟其他動作（底部操作列）是兩個獨立容器，
+      // 但按鈕種類（data-menu-*）跟點擊行為完全共用，同一支函式掛在
+      // 兩個容器上，不要維護兩份一樣的邏輯。
+      function handleContextMenuClick(event) {
+        var reactBtn = event.target.closest("[data-menu-react]");
+        if (reactBtn) {
+          closeContextMenu();
+          window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: reactBtn.dataset.messageId, emoji: reactBtn.dataset.emoji })
+            .then(function () { return poll(); })
+            .catch(function () {});
+          return;
+        }
+        var replyBtn = event.target.closest("[data-menu-reply]");
+        if (replyBtn) {
+          setReplyTarget(replyBtn.dataset.messageId, replyBtn.dataset.text);
+          closeContextMenu();
+          els.input.focus();
+          return;
+        }
+        var copyBtn = event.target.closest("[data-menu-copy]");
+        if (copyBtn) {
+          try { navigator.clipboard.writeText(copyBtn.dataset.text || ""); } catch (error) {}
+          closeContextMenu();
+          return;
+        }
+        var editBtn = event.target.closest("[data-menu-edit]");
+        if (editBtn) {
+          setEditTarget(editBtn.dataset.messageId, editBtn.dataset.text);
+          closeContextMenu();
+          return;
+        }
+        var deleteBtn = event.target.closest("[data-menu-delete]");
+        if (deleteBtn) {
+          closeContextMenu();
+          if (!window.confirm("確定要刪除這則訊息嗎？")) return;
+          window.JonaminzBackend.deleteChatMessage({ token: token, messageId: deleteBtn.dataset.messageId })
+            .then(function () { return poll(); })
+            .catch(function (error) {
+              els.status.textContent = "刪除失敗：" + (error.message || String(error));
+            });
+        }
+      }
+
+      if (els.contextMenu) els.contextMenu.addEventListener("click", handleContextMenuClick);
+      if (els.actionSheetMenu) els.actionSheetMenu.addEventListener("click", handleContextMenuClick);
+      if (els.actionSheetBackdrop) els.actionSheetBackdrop.addEventListener("click", closeContextMenu);
+
+      if (els.contextMenu || els.actionSheet) {
         document.addEventListener("click", function (event) {
-          if (els.contextMenu.hidden) return;
-          if (event.target.closest(".jonaminz-chat-context-menu")) return;
+          var contextMenuOpen = els.contextMenu && !els.contextMenu.hidden;
+          var actionSheetOpen = els.actionSheet && !els.actionSheet.hidden;
+          if (!contextMenuOpen && !actionSheetOpen) return;
+          if (event.target.closest(".jonaminz-chat-context-menu, .jonaminz-chat-action-sheet-menu")) return;
           // 防呆：長按放開的那個手勢，同一時間也會在底下的訊息元素上
           // 冒出一個合成的 click 事件——如果不擋，選單剛開就被這個
           // 「點在選單外面」的判斷立刻關掉。跟 chat-launcher.js 的

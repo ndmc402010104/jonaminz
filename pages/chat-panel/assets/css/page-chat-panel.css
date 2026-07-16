@@ -277,6 +277,61 @@ button, textarea { font: inherit; }
 .jonaminz-chat-context-menu button:hover { background: var(--color-bg-lobby); }
 .jonaminz-chat-context-menu button[data-menu-delete] { color: var(--color-primary-2); }
 
+/* 2026-07-16：長按訊息的「其餘動作」改成底部操作列（跟 Messenger 截圖
+   對齊，見 chat-thread.js openContextMenu() 的說明），跟浮動反應選單
+   是兩個獨立元件。 */
+.jonaminz-chat-action-sheet[hidden] { display: none; }
+.jonaminz-chat-action-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 24;
+}
+.jonaminz-chat-action-sheet-menu {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  justify-content: space-around;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.jonaminz-chat-action-sheet-menu button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.jonaminz-chat-action-sheet-menu button span { font-size: 20px; }
+.jonaminz-chat-action-sheet-menu button:hover { background: var(--color-bg-lobby); }
+.jonaminz-chat-action-sheet-menu button[data-menu-delete] { color: var(--color-primary-2); }
+
+/* 2026-07-16：左滑快速回覆——單一共用元件（不是每則訊息各自一份），
+   滑動時動態定位到當下被滑的那則訊息旁邊，見 chat-thread.js 的
+   swipeReplyIcon 邏輯。 */
+.jonaminz-chat-swipe-reply-icon {
+  position: fixed;
+  z-index: 15;
+  font-size: 18px;
+  pointer-events: none;
+}
+.jonaminz-chat-swipe-reply-icon[hidden] { display: none; }
+
 .jonaminz-chat-avatar,
 .jonaminz-chat-message-avatar {
   border-radius: 50%;
