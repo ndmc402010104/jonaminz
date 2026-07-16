@@ -295,12 +295,18 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
     }
 
     var storedPosition = loadFreePosition();
-    var freeLeft = storedPosition ? storedPosition.left : null;
-    // 不同頁面的可視高度可能有些微差異（例如某頁內容比較短），換頁還原
-    // 時把 top 夾回目前這頁的合法範圍，避免大頭貼卡在螢幕外看不到。
-    var freeTop = storedPosition
-      ? Math.min(Math.max(0, storedPosition.top), window.innerHeight - 64)
-      : null;
+    // 2026-07-16：left 也要夾——儲存的座標是舊視窗尺寸下的絕對值，
+    // 視窗變窄後（縮小視窗重整／手機轉直向）可能整顆落在畫面外。
+    // top 夾合法範圍，left 直接照「吸最近的邊」規則重算（56 是大頭貼
+    // 尺寸的保守估計，這時 iframe 還沒 layout 量不到實寬）。
+    var freeLeft = null;
+    var freeTop = null;
+    if (storedPosition) {
+      freeTop = Math.min(Math.max(0, storedPosition.top), Math.max(0, window.innerHeight - 64));
+      freeLeft = (storedPosition.left + 28) < window.innerWidth / 2
+        ? ANCHOR_RIGHT
+        : Math.max(0, window.innerWidth - 56 - ANCHOR_RIGHT);
+    }
 
     function setTransitionEnabled(on) {
       var value = on ? "left .22s ease, top .22s ease, right .22s ease, bottom .22s ease" : "";
@@ -404,6 +410,36 @@ mountChatLauncher() 是刻意重複的兩份（跟 TOKEN_KEY/readToken() 那組
       animateTo(function () { applyPosition(snappedLeft, clampedTop); });
       scheduleGestureExclusionSync();
     }
+
+    // 2026-07-16（使用者回報：縮小視窗＋重整泡泡消失、手機轉螢幕泡泡
+    // 卡在畫面正中間）：儲存的自由位置是舊視窗尺寸下的絕對座標——
+    // 視窗變窄後 left 可能落在畫面外（消失）、轉螢幕後橫向座標對不上
+    // 新的寬度（卡在奇怪的位置）。視窗尺寸一變就把目前位置重新夾回
+    // 合法範圍＋重新吸最近的邊（跟拖曳放開同一套規則），沒有拖過
+    // （還在預設錨點）就不用管——錨點本來就是相對右上角，自己會跟。
+    function reclampToViewport() {
+      if (freeLeft === null || freeTop === null) return;
+      var width = launcherFrame.offsetWidth || 56;
+      var height = launcherFrame.offsetHeight || 56;
+      var clampedTop = Math.min(Math.max(0, freeTop), Math.max(0, window.innerHeight - height));
+      var snappedLeft = (freeLeft + width / 2) < window.innerWidth / 2
+        ? ANCHOR_RIGHT
+        : Math.max(0, window.innerWidth - width - ANCHOR_RIGHT);
+      freeLeft = snappedLeft;
+      freeTop = clampedTop;
+      saveFreePosition(snappedLeft, clampedTop);
+      applyPosition(snappedLeft, clampedTop);
+      scheduleGestureExclusionSync();
+    }
+    var reclampTimer = null;
+    window.addEventListener("resize", function () {
+      if (reclampTimer) clearTimeout(reclampTimer);
+      reclampTimer = setTimeout(reclampToViewport, 150);
+    });
+    window.addEventListener("orientationchange", function () {
+      // 轉螢幕後 innerWidth/innerHeight 要等一拍才更新成新方向的值。
+      setTimeout(reclampToViewport, 300);
+    });
 
     // 2026-07-15（真機回饋）：面板開著時在裡面打字，手機鍵盤跳出會把
     // 「後面的宿主頁面」整個擠上來/捲動——面板是浮在頁面上的獨立元素，

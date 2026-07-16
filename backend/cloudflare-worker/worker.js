@@ -3410,6 +3410,21 @@ async function getImageUrls(env, payload) {
   }
 
   var urls = {};
+  // 2026-07-16（使用者回饋「沒快取時圖片載入很慢」）：泡泡顯示改用
+  // Graph 幫每個圖片檔自動生成的縮圖（large ≈ 800px、幾十 KB），不再
+  // 直接載全尺寸——尤其「選檔案」路徑上傳的原檔照片動輒好幾 MB，冷
+  // 載入慢就是慢在下載位元組。$expand=thumbnails 跟 downloadUrl 可以
+  // 並存（$select 那個怪癖是精簡查詢才會觸發，$expand 不影響預設
+  // 欄位）；縮圖拿不到（非圖片檔、Graph 還沒生成）就退回 null，前端
+  // fallback 全尺寸 URL，功能不退化。全尺寸 URL 仍照常回傳（點開
+  // 放大／下載用）。
+  var thumbs = {};
+  function extractThumbUrl(data) {
+    try {
+      var t = data.thumbnails && data.thumbnails[0];
+      return (t && ((t.large && t.large.url) || (t.medium && t.medium.url))) || null;
+    } catch (ignored) { return null; }
+  }
   var ownItems = items.filter(function (item) { return item.ownerIdentity === identity; });
   var peerItems = items.filter(function (item) { return item.ownerIdentity !== identity; });
 
@@ -3422,12 +3437,13 @@ async function getImageUrls(env, payload) {
       // 錯，只是這個欄位就是不在），連檔案擁有者查自己剛傳的檔案都會
       // 因此永遠拿到 null。改成不加 $select 直接查完整項目就正常。
       const response = await fetch(
-        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId),
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId) + "?$expand=thumbnails",
         { headers: { Authorization: "Bearer " + accessToken } }
       );
       if (response.ok) {
         const data = await response.json();
         urls[item.itemId] = data["@microsoft.graph.downloadUrl"] || null;
+        thumbs[item.itemId] = extractThumbUrl(data);
       } else {
         urls[item.itemId] = null;
       }
@@ -3474,12 +3490,13 @@ async function getImageUrls(env, payload) {
           try {
             const detailResponse = await fetch(
               "https://graph.microsoft.com/v1.0/drives/" + encodeURIComponent(driveId) +
-                "/items/" + encodeURIComponent(pair.item.itemId),
+                "/items/" + encodeURIComponent(pair.item.itemId) + "?$expand=thumbnails",
               { headers: { Authorization: "Bearer " + accessToken } }
             );
             if (detailResponse.ok) {
               const detailData = await detailResponse.json();
               urls[pair.item.itemId] = detailData["@microsoft.graph.downloadUrl"] || null;
+              thumbs[pair.item.itemId] = extractThumbUrl(detailData);
             } else {
               urls[pair.item.itemId] = null;
             }
@@ -3522,7 +3539,7 @@ async function getImageUrls(env, payload) {
     }
   }
 
-  return { ok: true, urls: urls };
+  return { ok: true, urls: urls, thumbs: thumbs };
 }
 
 // ---------- Chat 檔案下載代理（2026-07-16）。原本前端直接 fetch()

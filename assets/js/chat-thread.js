@@ -264,6 +264,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
     // 記憶體快取，itemId → downloadUrl（null 代表查過但沒有，例如分享
     // 還沒生效）；inFlight 避免同一個 itemId 短時間內重複發請求。
     var imageUrlCache = {};
+    // 2026-07-16：泡泡顯示用 Graph 縮圖（≈800px、幾十 KB），不載全尺寸
+    // ——「選檔案」路徑上傳的原檔照片動輒幾 MB，冷載入慢在位元組本身。
+    // 全尺寸 URL 仍在 imageUrlCache（點開放大／下載用）。
+    var imageThumbCache = {};
     var imageUrlFetchInFlight = {};
     var imageUrlErrorRetried = {};
     // 2026-07-16（使用者回饋「一進聊天室不要看到細細的一條沒載入」）：
@@ -291,11 +295,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var entry = store[itemId];
         if (entry && entry.u && now - entry.t < IMAGE_URL_STORE_TTL_MS) {
           imageUrlCache[itemId] = entry.u;
+          if (entry.tu) imageThumbCache[itemId] = entry.tu;
         }
       });
     }
 
-    function persistImageUrls(urls) {
+    function persistImageUrls(urls, thumbs) {
       try {
         var store = readImageUrlStore();
         var now = Date.now();
@@ -303,7 +308,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (!store[itemId] || now - store[itemId].t >= IMAGE_URL_STORE_TTL_MS) delete store[itemId];
         });
         Object.keys(urls).forEach(function (itemId) {
-          if (urls[itemId]) store[itemId] = { u: urls[itemId], t: now };
+          if (urls[itemId]) {
+            store[itemId] = { u: urls[itemId], t: now };
+            if (thumbs && thumbs[itemId]) store[itemId].tu = thumbs[itemId];
+          }
         });
         window.localStorage.setItem(IMAGE_URL_STORE_KEY, JSON.stringify(store));
       } catch (error) {}
@@ -583,13 +591,17 @@ title/url（見 `requestHostContext()`，宿主端實作在
           // 下一次 render 會重新去要一次，最多重試一輪不無限循環。
           var imgMeta = m.metadata;
           var realUrl = imageUrlCache[imgMeta.itemId];
-          var imgSrc = realUrl || imgMeta.thumbDataUri || "";
+          // 泡泡優先用 Graph 縮圖（小很多、載得快），沒有縮圖才退回
+          // 全尺寸；點開放大用 data-full-url 的全尺寸（lightbox 讀它）。
+          var thumbUrl = imageThumbCache[imgMeta.itemId];
+          var imgSrc = thumbUrl || realUrl || imgMeta.thumbDataUri || "";
           var aspect = imgMeta.w && imgMeta.h ? (imgMeta.w + "/" + imgMeta.h) : "1/1";
           var showUnsharedHint = mine && imgMeta.sharedOk === false;
           bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
-            '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(imgMeta.itemId) + '">' +
+            '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(imgMeta.itemId) +
+            '" data-full-url="' + escapeHtml(realUrl || "") + '">' +
             '<img src="' + escapeHtml(imgSrc) + '" alt="圖片" style="aspect-ratio:' + aspect + '"' +
-            (realUrl ? "" : ' class="is-loading"') + '>' +
+            (thumbUrl || realUrl ? "" : ' class="is-loading"') + '>' +
             "</div>" +
             (showUnsharedHint ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這張圖</p>' : "") +
             reactionsHtml + "</div>";
@@ -606,10 +618,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
           // 重傳一次。
           var fileAsImageMeta = m.metadata;
           var fileAsImageUrl = imageUrlCache[fileAsImageMeta.itemId];
+          var fileAsImageThumb = imageThumbCache[fileAsImageMeta.itemId];
           bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
-            '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(fileAsImageMeta.itemId) + '">' +
-            '<img src="' + escapeHtml(fileAsImageUrl || "") + '" alt="' + escapeHtml(fileAsImageMeta.fileName || "圖片") + '"' +
-            (fileAsImageUrl ? "" : ' class="is-loading"') + '>' +
+            '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(fileAsImageMeta.itemId) +
+            '" data-full-url="' + escapeHtml(fileAsImageUrl || "") + '">' +
+            '<img src="' + escapeHtml(fileAsImageThumb || fileAsImageUrl || "") + '" alt="' + escapeHtml(fileAsImageMeta.fileName || "圖片") + '"' +
+            (fileAsImageThumb || fileAsImageUrl ? "" : ' class="is-loading"') + '>' +
             "</div>" + reactionsHtml + "</div>";
         } else if (m.kind === "file" && m.metadata && m.metadata.itemId) {
           // 跟圖片訊息共用同一套 OneDrive 上傳/分享/換 downloadUrl 管道
@@ -1132,7 +1146,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
             Object.keys(result.urls).forEach(function (itemId) {
               imageUrlCache[itemId] = result.urls[itemId];
             });
-            persistImageUrls(result.urls);
+            if (result.thumbs) {
+              Object.keys(result.thumbs).forEach(function (itemId) {
+                if (result.thumbs[itemId]) imageThumbCache[itemId] = result.thumbs[itemId];
+              });
+            }
+            persistImageUrls(result.urls, result.thumbs);
           } else {
             // 2026-07-15：使用者回報「下載連結一直顯示還在準備中」——
             // 真正根因：這支 action 是整批查詢，`getOnedriveAccessToken`
@@ -1716,6 +1735,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (!itemId || imageUrlErrorRetried[itemId]) return;
         imageUrlErrorRetried[itemId] = true;
         delete imageUrlCache[itemId];
+        delete imageThumbCache[itemId];
         dropPersistedImageUrl(itemId);
         // render() 內部本來就會呼叫 ensureImageUrls()（涵蓋 olderMessages
         // 合併後的完整訊息清單，不是只有最近一次 poll 的那一批）。
@@ -1777,8 +1797,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var imageBubble = event.target.closest("[data-image-bubble]");
         if (imageBubble) {
           var bubbleImg = imageBubble.querySelector("img");
-          if (bubbleImg && bubbleImg.src && els.imageLightbox && els.imageLightboxImg) {
-            els.imageLightboxImg.src = bubbleImg.src;
+          // 泡泡顯示的是縮圖，點開放大要用全尺寸（data-full-url）；
+          // 全尺寸還沒拿到就先放縮圖頂著，總比開不起來好。
+          var lightboxSrc = imageBubble.dataset.fullUrl || (bubbleImg && bubbleImg.src) || "";
+          if (lightboxSrc && els.imageLightbox && els.imageLightboxImg) {
+            els.imageLightboxImg.src = lightboxSrc;
             els.imageLightbox.hidden = false;
           }
           return;
