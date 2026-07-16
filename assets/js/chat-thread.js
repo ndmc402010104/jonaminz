@@ -457,6 +457,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // 這一版也先不開放刪除，跟既有行為一致，不節外生枝。
         var canEditOrDelete = mine && !deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file";
         var canReplyOrReact = !deleted;
+        // 2026-07-16：泡泡右下角常駐的回應表情小按鈕（取代原本長按才
+        // 浮出、常跟底部操作列位置卡在一起的反應列）——見
+        // openReactionPicker()。放進每個 bodyHtml 分支的泡泡容器內，
+        // 靠 CSS position:absolute 貼右下角。
+        var quickReactBtnHtml = canReplyOrReact
+          ? '<button type="button" class="jonaminz-chat-quick-react-btn" data-quick-react ' +
+            'data-message-id="' + escapeHtml(m.id) + '" aria-label="回應表情">🙂</button>'
+          : "";
 
         // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
         // 那則訊息如果還在目前已載入的範圍內（olderMessages/data.messages
@@ -525,6 +533,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(imgMeta.itemId) + '">' +
             '<img src="' + escapeHtml(imgSrc) + '" alt="圖片" style="aspect-ratio:' + aspect + '"' +
             (realUrl ? "" : ' class="is-loading"') + '>' +
+            quickReactBtnHtml +
             "</div>" +
             (showUnsharedHint ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這張圖</p>' : "") +
             reactionsHtml + "</div>";
@@ -545,6 +554,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(fileAsImageMeta.itemId) + '">' +
             '<img src="' + escapeHtml(fileAsImageUrl || "") + '" alt="' + escapeHtml(fileAsImageMeta.fileName || "圖片") + '"' +
             (fileAsImageUrl ? "" : ' class="is-loading"') + '>' +
+            quickReactBtnHtml +
             "</div>" + reactionsHtml + "</div>";
         } else if (m.kind === "file" && m.metadata && m.metadata.itemId) {
           // 跟圖片訊息共用同一套 OneDrive 上傳/分享/換 downloadUrl 管道
@@ -560,7 +570,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             '<div class="jonaminz-chat-file-info">' +
             '<div class="jonaminz-chat-file-name">' + escapeHtml(fileMeta.fileName || "檔案") + '</div>' +
             '<div class="jonaminz-chat-file-size">' + escapeHtml(formatFileSize(fileMeta.fileSize)) + '</div>' +
-            "</div></div>" +
+            "</div>" + quickReactBtnHtml + "</div>" +
             (fileUnshared ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這個檔案</p>' : "") +
             reactionsHtml + "</div>";
         } else if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
@@ -576,6 +586,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             (viewerSeen ? "" : '<div class="jonaminz-chat-shared-card-unseen">尚未查看</div>') +
             '<button type="button" class="jonaminz-chat-shared-card-discuss" data-discuss-btn ' +
             'data-item-id="' + escapeHtml(item.id) + '" data-item-title="' + escapeHtml(item.title) + '">討論</button>' +
+            quickReactBtnHtml +
             "</div>" + reactionsHtml + "</div>";
         } else {
           // 2026-07-14（第十五輪修正）：.jonaminz-chat-message 是 flex row
@@ -587,7 +598,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           var emojiOnly = isEmojiOnly(m.body);
           bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
             '<div class="jonaminz-chat-bubble' + (emojiOnly ? " is-emoji-only" : "") + '">' + escapeHtml(m.body) +
-            (m.edited_at ? '<span class="jonaminz-chat-edited-tag">已編輯</span>' : "") + "</div>" +
+            (m.edited_at ? '<span class="jonaminz-chat-edited-tag">已編輯</span>' : "") +
+            (emojiOnly ? "" : quickReactBtnHtml) + "</div>" +
             reactionsHtml + "</div>";
         }
 
@@ -595,7 +607,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
           '<div class="jonaminz-chat-message" data-mine="' + mine + '" data-message-id="' + escapeHtml(m.id) + '"' +
           (canEditOrDelete ? " data-editable=\"true\"" : "") +
           (deleted ? ' data-deleted="true"' : "") +
-          (canReplyOrReact ? " data-reactable=\"true\"" : "") +
           (!deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
           bodyHtml +
@@ -1129,35 +1140,42 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (els.actionSheet) els.actionSheet.hidden = true;
     }
 
-    function openContextMenu(messageEl, x, y) {
-      if (!els.contextMenu && !els.actionSheet) return;
+    // 2026-07-16（使用者回報長按跳出的表情反應列會跟底部操作列位置
+    // 衝突「卡到」，尤其訊息靠近畫面底部時）：表情反應改成每則訊息
+    // 泡泡右下角常駐一顆小按鈕（quickReactBtnHtml，見訊息渲染），
+    // 點了才開這個反應選單，位置貼著按鈕本身、不是貼著長按觸摸點
+    // ——跟固定貼在畫面底部的操作列（openContextMenu）完全分開觸發、
+    // 分開定位，兩者不會再同時出現在同一個地方。
+    function openReactionPicker(messageEl, x, y) {
+      if (!els.contextMenu) return;
+      var messageId = messageEl.dataset.messageId;
+      if (els.actionSheet) els.actionSheet.hidden = true;
+      els.contextMenu.innerHTML = '<div class="jonaminz-chat-context-reactions">' +
+        REACTION_SET.map(function (emoji) {
+          return '<button type="button" data-menu-react data-message-id="' + escapeHtml(messageId) +
+            '" data-emoji="' + emoji + '">' + emoji + "</button>";
+        }).join("") + "</div>";
+      els.contextMenu.hidden = false;
+      var menuWidth = els.contextMenu.offsetWidth || 120;
+      var menuHeight = els.contextMenu.offsetHeight || 40;
+      var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
+      var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
+      els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
+      els.contextMenu.style.top = Math.max(6, Math.min(y - menuHeight - 8, maxTop)) + "px";
+      contextMenuOpenedAt = Date.now();
+    }
+
+    function openContextMenu(messageEl) {
+      if (!els.actionSheet) return;
       var messageId = messageEl.dataset.messageId;
       var editable = messageEl.dataset.editable === "true";
-      var reactable = messageEl.dataset.reactable === "true";
       var copyText = messageEl.dataset.copyText;
 
       if (els.contextMenu) els.contextMenu.hidden = true;
       if (els.actionSheet) els.actionSheet.hidden = true;
 
-      // 表情反應：浮動貼在被長按的訊息附近，跟 Messenger 的反應列
-      // 同一個位置邏輯。
-      if (reactable && els.contextMenu) {
-        els.contextMenu.innerHTML = '<div class="jonaminz-chat-context-reactions">' +
-          REACTION_SET.map(function (emoji) {
-            return '<button type="button" data-menu-react data-message-id="' + escapeHtml(messageId) +
-              '" data-emoji="' + emoji + '">' + emoji + "</button>";
-          }).join("") + "</div>";
-        els.contextMenu.hidden = false;
-        var menuWidth = els.contextMenu.offsetWidth || 120;
-        var menuHeight = els.contextMenu.offsetHeight || 40;
-        var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
-        var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
-        els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
-        els.contextMenu.style.top = Math.max(6, Math.min(y, maxTop)) + "px";
-      }
-
-      // 其餘動作：固定貼在畫面底部的一整排，圖示＋文字，跟 Messenger
-      // 截圖裡「回覆／儲存圖像／刪除／更多」那排同一個版型。
+      // 固定貼在畫面底部的一整排，圖示＋文字，跟 Messenger 截圖裡
+      // 「回覆／儲存圖像／刪除／更多」那排同一個版型。
       var actionItems = [];
       if (copyText) {
         actionItems.push('<button type="button" data-menu-reply data-message-id="' + escapeHtml(messageId) +
@@ -1585,6 +1603,19 @@ title/url（見 `requestHostContext()`，宿主端實作在
           loadOlder();
           return;
         }
+        var quickReactBtn = event.target.closest("[data-quick-react]");
+        if (quickReactBtn) {
+          event.stopPropagation();
+          var messageEl = quickReactBtn.closest("[data-message-id]");
+          if (messageEl) {
+            // .jonaminz-chat-context-menu 是 position:fixed（跟原本長按
+            // 定位那套一致），座標要用視窗座標（getBoundingClientRect()
+            // 本身就是），不能再扣掉 root 的偏移量。
+            var btnRect = quickReactBtn.getBoundingClientRect();
+            openReactionPicker(messageEl, btnRect.left, btnRect.top);
+          }
+          return;
+        }
         var discussBtn = event.target.closest("[data-discuss-btn]");
         if (discussBtn) {
           setDiscussTarget(discussBtn.dataset.itemId, discussBtn.dataset.itemTitle);
@@ -1702,12 +1733,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
       }
 
       els.thread.addEventListener("pointerdown", function (event) {
-        if (event.target.closest("[data-discuss-btn], [data-shared-card], [data-load-more]")) return;
+        if (event.target.closest("[data-discuss-btn], [data-shared-card], [data-load-more], [data-quick-react]")) return;
         var messageEl = event.target.closest(".jonaminz-chat-message");
         if (!messageEl) return;
         longPressStart = { x: event.clientX, y: event.clientY };
         longPressTimer = setTimeout(function () {
-          openContextMenu(messageEl, longPressStart.x, longPressStart.y);
+          openContextMenu(messageEl);
           longPressTimer = null;
         }, LONG_PRESS_MS);
         if (messageEl.dataset.copyText) {

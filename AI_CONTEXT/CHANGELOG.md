@@ -20,6 +20,46 @@
 
 ---
 
+## 2026-07-16（傍晚，第八筆）— Chat 表情回應改成泡泡右下角常駐小按鈕，不再跟底部操作列位置衝突
+
+- **任務**：使用者附截圖回報「電腦版兩個功能打架了」——長按跳出的
+  表情反應列（浮動貼在觸摸點附近）跟固定貼在畫面底部的操作列
+  （回覆/複製/編輯/刪除），訊息靠近畫面底部時位置會卡在一起。使用者
+  提出解法：「回應貼圖應該向 Messenger 那樣右下角插一個小按鈕」，
+  確認要的是「每則訊息泡泡右下角常駐一顆小按鈕」（不用長按，直接點
+  按鈕就跳出表情選單）。
+- **變更**（`assets/js/chat-thread.js`／兩份 CSS 各自維護一份）：
+  - 長按跟表情反應徹底分家：`openContextMenu()` 現在只負責底部操作列
+    （回覆/複製/編輯/刪除），不再處理表情反應；新增
+    `openReactionPicker(messageEl, x, y)` 專門處理表情選單，由新的
+    `data-quick-react` 按鈕點擊觸發（`els.thread` 的 click 監聽新增
+    一支分支），位置貼著按鈕本身（`getBoundingClientRect()` 算出的
+    視窗座標，往上彈出），不再吃長按觸摸點座標——兩個 UI 元件從此
+    不可能在同一個手勢、同一個位置同時出現。
+  - 每則可回應的訊息（`canReplyOrReact`），不管是文字/圖片/檔案/
+    分享卡片哪種泡泡，都在渲染時插入
+    `quickReactBtnHtml`（🙂圖示的小圓按鈕），純 emoji 訊息（本來就沒
+    有泡泡外框）不插入，避免懸空看起來奇怪。
+  - CSS：`.jonaminz-chat-bubble`／`.jonaminz-chat-image-bubble`／
+    `.jonaminz-chat-file-bubble`／`.jonaminz-chat-shared-card` 四種
+    泡泡容器加 `position: relative` 當定位基準（file-bubble／
+    shared-card 額外留 30px 右邊距，避免蓋到檔名/討論按鈕）；新增
+    `.jonaminz-chat-quick-react-btn`（20px 小圓、預設 70% 透明度，
+    hover/focus 提高到 100%）。過程中修正一個自己犯的錯：一開始把
+    `position:relative`／`padding-right` 寫成獨立區塊插在檔案前段，
+    被後面各泡泡類型原本就有的 `padding` 簡寫規則覆蓋掉——CSS
+    cascade 同優先度時後面的宣告會贏，改成直接併進各泡泡類型原本的
+    規則區塊裡，不留在前面獨立宣告。
+  - 順手清掉一個因此變成死碼的 `data-reactable` 屬性（原本
+    `openContextMenu` 靠它判斷要不要建表情列，現在不需要了，且沒有
+    任何 CSS 選擇器依賴它）。
+- **狀態變化**：長按選單／底部操作列的視覺衝突（截圖回報）已修復。
+- **驗證**：`node --check`／CSS 花括號配對數雙檔皆通過；純前端變更，
+  沒有動 Worker，不用 wrangler deploy。真機/瀏覽器實測待使用者確認。
+- **版本**：v0.46.18-202607161729
+
+---
+
 ## 2026-07-16（傍晚，第七筆）— jonaminz-mobile-app：泡泡失焦收合追加三重訊號，真機反覆驗證後終於完全穩定
 
 - **任務**：接續上一筆（第六筆）——versionCode 6 的同步收合修好了「有觸發但視覺沒收合」，但真機反覆測試發現觸發本身就不穩定，這筆是後續一連串真機 adb 除錯＋修正，直到使用者確認「不錯很棒終於好了」。
