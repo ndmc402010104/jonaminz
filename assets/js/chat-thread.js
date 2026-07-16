@@ -528,6 +528,24 @@ title/url（見 `requestHostContext()`，宿主端實作在
             "</div>" +
             (showUnsharedHint ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這張圖</p>' : "") +
             reactionsHtml + "</div>";
+        } else if (m.kind === "file" && m.metadata && m.metadata.itemId &&
+                   m.metadata.mimeType && m.metadata.mimeType.indexOf("image/") === 0) {
+          // 2026-07-16：使用者回報用「選檔案」（不是「選圖片」）按鈕挑到
+          // 圖片時，被當成一般檔案畫成下載卡片，只能下載看不到內容——
+          // 手機上「選檔案」的系統選擇器常常直接秀相簿，很容易選錯按鈕。
+          // requestFileUpload 上傳當下就有存 `file.type`（見
+          // sendFile() 的 mimeType），只是原本沒有拿來畫面。這裡不用
+          // 改上傳流程本身把它硬塞回 kind:'image'（那樣會少了 w/h／
+          // 模糊縮圖等圖片專屬欄位），純粹改渲染邏輯：mimeType 是
+          // image/* 就沿用圖片泡泡的畫法（含點擊放大），不用引導使用者
+          // 重傳一次。
+          var fileAsImageMeta = m.metadata;
+          var fileAsImageUrl = imageUrlCache[fileAsImageMeta.itemId];
+          bodyHtml = '<div class="jonaminz-chat-bubble-col">' + replyQuoteHtml +
+            '<div class="jonaminz-chat-image-bubble" data-image-bubble data-item-id="' + escapeHtml(fileAsImageMeta.itemId) + '">' +
+            '<img src="' + escapeHtml(fileAsImageUrl || "") + '" alt="' + escapeHtml(fileAsImageMeta.fileName || "圖片") + '"' +
+            (fileAsImageUrl ? "" : ' class="is-loading"') + '>' +
+            "</div>" + reactionsHtml + "</div>";
         } else if (m.kind === "file" && m.metadata && m.metadata.itemId) {
           // 跟圖片訊息共用同一套 OneDrive 上傳/分享/換 downloadUrl 管道
           // （見 ensureImageUrls），差別只在這裡畫「檔名＋大小」卡片，
@@ -1555,17 +1573,36 @@ title/url（見 `requestHostContext()`，宿主端實作在
           if (downloadUrl) {
             // 2026-07-15：使用者問「一定要先跳出一個分頁在下載嗎」——
             // 原本用 window.open 開新分頁再讓瀏覽器接手下載，會多閃一個
-            // 空白分頁。downloadUrl 本身是 Graph 給的短效直接下載連結，
-            // 用隱藏的 <a download> 觸發同分頁下載即可，不需要真的開分頁
-            // （跨網域時 download 屬性可能被瀏覽器忽略、退回成直接開啟
-            // 該連結，但至少不會多一個分頁停在那裡）。
-            var downloadLink = document.createElement("a");
-            downloadLink.href = downloadUrl;
-            downloadLink.download = fileBubble.dataset.fileName || "檔案";
-            downloadLink.rel = "noopener";
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
+            // 空白分頁，改成 <a download> 同分頁觸發。
+            // 2026-07-16（使用者回報「電腦版可以下載，手機版不行」）：
+            // `download` 屬性對跨網域連結（Graph 的 downloadUrl 是
+            // graph.microsoft.com/SharePoint CDN，跟 jonaminz.com 不同源）
+            // 桌機瀏覽器大多還是會忽略屬性、直接當普通連結開啟＋觸發下載
+            // ，但手機瀏覽器（尤其 iOS Safari／App 內建 WebView）更嚴格，
+            // 常常整個不動作。改成先 fetch 成 blob 再用 blob: URL 觸發
+            // download——blob: 是同源，`download` 屬性在所有平台都可靠，
+            // 也維持不開新分頁的體驗；只有 fetch 失敗（例如 Graph 這個
+            // 短效連結不允許跨網域 fetch）才退回舊的開新分頁方式，那個
+            // 已知在桌機／手機都至少「看得到檔案」。
+            var downloadFileName = fileBubble.dataset.fileName || "檔案";
+            fetch(downloadUrl)
+              .then(function (response) {
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                return response.blob();
+              })
+              .then(function (blob) {
+                var blobUrl = URL.createObjectURL(blob);
+                var downloadLink = document.createElement("a");
+                downloadLink.href = blobUrl;
+                downloadLink.download = downloadFileName;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 60000);
+              })
+              .catch(function () {
+                window.open(downloadUrl, "_blank", "noopener");
+              });
           } else {
             // 2026-07-15：使用者問「一直顯示還在準備中，這樣對嗎」——
             // 原本的文案沒有區分「genuinely 還在跟 Worker 要 downloadUrl」
