@@ -20,6 +20,39 @@
 
 ---
 
+## 2026-07-16（晚上，第二十筆）— 手機長按改用「訊息自己那條 inline 工具列」（跟電腦版同位置）＋工具包 local dev IP 修正
+
+- **任務**：使用者截圖回報手機長按的工具列是**浮動 popup 蓋在訊息上**
+  （openTouchToolbar，前一輪做的），要求「為什麼不跟電腦顯示一樣位置
+  就好」。
+- **變更**（`assets/js/chat-thread.js`＋兩份 CSS）：
+  - 移除 `openTouchToolbar()` 浮動 popup。手機長按改成對那則訊息加
+    `.is-touch-active`——顯示「訊息自己那條 inline 工具列」
+    （`.jonaminz-chat-hover-toolbar`，跟電腦版 hover 顯示的是同一個
+    DOM），位置、按鈕（`data-hover-more/reply/react`，既有 click
+    處理器共用）完全一致。CSS：工具列外觀從 `@media(hover)` 搬出來，
+    桌機 hover 跟 `.is-touch-active` 共用；桌機一直保留位置只切
+    opacity，手機 display:none→flex 由長按觸發。
+  - 收合：`document` pointerdown 監聽，點工具列以外任何地方就
+    `clearTouchActive()`（點工具列本身不收，讓按鈕 click 正常）；
+    ⋮／↩ 按下後也主動收。移除 `handleContextMenuClick` 裡已無用的
+    `data-touch-*` 處理器。
+  - `pages/admin/toolkit/assets/js/app.js`：local dev IP 從錯的
+    `192.168.68.90` 改成使用者實測可連的 `192.168.1.101`（電腦有
+    Wi-Fi 192.168.68.91／乙太 192.168.1.101 兩個 IP，手機兩個都連得到）。
+- **驗證**：harness（in-page dispatch，chat-panel context）通過——長按
+  加 is-touch-active、inline 工具列 display:flex／opacity≈1／在訊息
+  元素內（非浮層）、⋮/↩/🙂 齊、🙂 開 6 顆表情選單、點外面收掉。
+- **遺留**：使用者發現「手機 local dev 登入後跳到 prod」（登入重導向
+  寫死 prod origin）——是 dev 工具問題不影響 prod，記著待查。「chat
+  頁面不能 scroll」使用者說還在（第十九筆移除 overflow 鎖已 push，
+  待確認是不是快取／還是別的根因）。灰色圖片在手機瀏覽器 prod 又
+  出現（worker 修正已 deploy，可能載入中或傳播延遲，待確認）。
+  待辦板兩筆（下載進 ⋮／貼圖面板）＋排程系統尚未動工。
+- **版本**：v0.46.37-202607162305
+
+---
+
 ## 2026-07-16（晚上，第十九筆）— 泡泡面板 cache-buster（跟 chat 頁面同步）＋移除會 leak 的捲動鎖＋圖片縮圖分開請求
 
 - **任務**：使用者截圖比對發現「chat 頁面跟泡泡面板行為不一樣」（標準

@@ -481,43 +481,49 @@ button, textarea { font: inherit; }
 }
 .jonaminz-chat-toast[hidden] { display: none; }
 
-.jonaminz-chat-hover-toolbar { display: none; }
+/* 2026-07-16：桌機 hover 跟手機長按（.is-touch-active）共用同一個
+   inline 工具列（說明見 page-chat.css 同規則）。 */
+.jonaminz-chat-hover-toolbar {
+  display: none;
+  align-items: center;
+  align-self: flex-end;
+  position: sticky;
+  bottom: 8px;
+  gap: 2px;
+  flex: 0 0 auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.jonaminz-chat-hover-toolbar button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jonaminz-chat-hover-toolbar button:active { background: var(--color-bg-lobby); }
 @media (hover: hover) and (pointer: fine) {
-  /* 垂直定位（使用者定案）：單行訊息就在那一行；多行貼在訊息最下緣，
-     訊息超出畫面時 position:sticky 把工具列扣在可視範圍下緣。 */
-  .jonaminz-chat-hover-toolbar {
-    display: flex;
-    align-items: center;
-    align-self: flex-end;
-    position: sticky;
-    bottom: 8px;
-    gap: 2px;
-    flex: 0 0 auto;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s ease;
-  }
+  .jonaminz-chat-hover-toolbar { display: flex; }
   .jonaminz-chat-message:hover .jonaminz-chat-hover-toolbar {
     opacity: 1;
     pointer-events: auto;
-  }
-  .jonaminz-chat-hover-toolbar button {
-    border: none;
-    background: transparent;
-    color: var(--color-text-muted);
-    font-size: 12px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   .jonaminz-chat-hover-toolbar button:hover {
     background: var(--color-bg-lobby);
     color: var(--color-text);
   }
+}
+.jonaminz-chat-message.is-touch-active .jonaminz-chat-hover-toolbar {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble {
   background: linear-gradient(145deg, var(--color-primary-2), var(--color-primary));

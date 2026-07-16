@@ -1339,8 +1339,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
     function closeContextMenu() {
       if (els.contextMenu) els.contextMenu.hidden = true;
       if (els.actionSheet) els.actionSheet.hidden = true;
-      // 2026-07-16（使用者回報：底部操作列開著時背景還能捲動）：關閉
-      // 時恢復訊息串捲動（開啟時在 openActionSheet 鎖住）。
+      clearTouchActive();
+      // closeContextMenu 保留這行當安全網：把任何殘留的 overflow 鎖解掉
+      // （openActionSheet 已經不再設鎖，見那邊說明）。
       if (els.thread) els.thread.style.overflow = "";
     }
 
@@ -1414,38 +1415,22 @@ title/url（見 `requestHostContext()`，宿主端實作在
       contextMenuOpenedAt = Date.now();
     }
 
-    // 手機長按：兩個一起跳出來（表情反應浮動＋底部操作列），跟 Messenger
-    // 截圖給的參考一致。先開 actionSheet 讓它量得到實際高度，
-    // openReactionPicker 才能正確算出不重疊的位置。
-    // 2026-07-16（使用者要求：手機長按改成跟電腦版 hover 一樣的畫面）：
-    // 長按不再同時彈「表情列＋底部操作列」兩坨，改成浮出一排跟電腦版
-    // hover 工具列一樣的 ⋮/↩/🙂——收斂到同一個地方，再點進各動作。
-    // 用 els.contextMenu（position:fixed 浮層）承載，定位貼近觸摸點
-    // 上方。⋮ 開底部操作列、↩ 直接回覆、🙂 換成表情選單（原地）。
-    function openTouchToolbar(messageEl, x, y) {
-      if (!els.contextMenu || messageEl.dataset.deleted === "true") return;
-      var messageId = messageEl.dataset.messageId;
-      var canReply = messageEl.dataset.copyText !== undefined;
-      var hasMore = messageEl.dataset.copyText !== undefined ||
-        messageEl.dataset.editable === "true" || messageEl.dataset.deletable === "true";
-      els.contextMenu.innerHTML = '<div class="jonaminz-chat-touch-toolbar">' +
-        (hasMore ? '<button type="button" data-touch-more data-message-id="' + escapeHtml(messageId) + '" aria-label="更多">⋮</button>' : "") +
-        (canReply ? '<button type="button" data-touch-reply data-message-id="' + escapeHtml(messageId) +
-          '" data-text="' + escapeHtml(messageEl.dataset.copyText || "") + '" aria-label="回覆">↩</button>' : "") +
-        '<button type="button" data-touch-react data-message-id="' + escapeHtml(messageId) + '" aria-label="回應表情">🙂</button>' +
-        "</div>";
-      els.contextMenu.hidden = false;
-      var menuWidth = els.contextMenu.offsetWidth || 120;
-      var menuHeight = els.contextMenu.offsetHeight || 40;
-      var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
-      var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
-      els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
-      els.contextMenu.style.top = Math.max(6, Math.min(y - menuHeight - 8, maxTop)) + "px";
-      contextMenuOpenedAt = Date.now();
+    // 2026-07-16（使用者：手機長按要跟電腦版同一個 inline 位置，不要
+    // 浮動蓋在訊息上）：長按不再開浮動 popup，改成對那則訊息加
+    // `.is-touch-active`——顯示「訊息自己那條 inline 工具列」，跟電腦版
+    // hover 顯示的是同一個 DOM（.jonaminz-chat-hover-toolbar），位置、
+    // 按鈕（data-hover-more/reply/react，既有的 click 處理器就吃得到）
+    // 全部共用。⋮ 開底部操作列、↩ 直接回覆、🙂 開表情選單。
+    function clearTouchActive() {
+      var actives = els.thread ? els.thread.querySelectorAll(".jonaminz-chat-message.is-touch-active") : [];
+      for (var i = 0; i < actives.length; i += 1) actives[i].classList.remove("is-touch-active");
     }
 
     function openContextMenu(messageEl, x, y) {
-      openTouchToolbar(messageEl, x, y);
+      if (messageEl.dataset.deleted === "true") return;
+      clearTouchActive();
+      messageEl.classList.add("is-touch-active");
+      contextMenuOpenedAt = Date.now();
     }
 
     // ---- 搜尋 ----
@@ -1845,6 +1830,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (hoverMoreBtn) {
           event.stopPropagation();
           var moreMessageEl = hoverMoreBtn.closest(".jonaminz-chat-message");
+          clearTouchActive(); // 手機：⋮ 開底部操作列後收掉 inline 工具列
           if (moreMessageEl) openActionSheet(moreMessageEl);
           return;
         }
@@ -1856,6 +1842,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             setReplyTarget(replyMessageEl.dataset.messageId, replyMessageEl.dataset.copyText);
             els.input.focus();
           }
+          clearTouchActive();
           return;
         }
         var hoverReactBtn = event.target.closest("[data-hover-react]");
@@ -2065,35 +2052,19 @@ title/url（見 `requestHostContext()`，宿主端實作在
         resetSwipe(true);
       });
 
+      // 手機長按顯示的 inline 工具列（.is-touch-active）：點工具列以外的
+      // 任何地方就收掉。點在工具列自己身上不收（讓按鈕的 click 正常
+      // 觸發）；長按剛開始的那個 pointerdown 此時還沒有 active，清了也
+      // 沒差，480ms 後 openContextMenu 才加上。
+      document.addEventListener("pointerdown", function (event) {
+        if (event.target.closest(".jonaminz-chat-hover-toolbar")) return;
+        clearTouchActive();
+      });
+
       // 表情反應（浮動選單）跟其他動作（底部操作列）是兩個獨立容器，
       // 但按鈕種類（data-menu-*）跟點擊行為完全共用，同一支函式掛在
       // 兩個容器上，不要維護兩份一樣的邏輯。
       function handleContextMenuClick(event) {
-        // 2026-07-16：手機長按浮出的 ⋮/↩/🙂 工具列的三顆按鈕
-        // （openTouchToolbar）。⋮ 開底部操作列、↩ 直接回覆、🙂 原地換成
-        // 表情選單——這三顆的 messageId 帶在 dataset 上（浮層不在訊息
-        // 元素內，不能用 .closest 找訊息）。
-        var touchMore = event.target.closest("[data-touch-more]");
-        if (touchMore) {
-          var moreEl = els.thread.querySelector('[data-message-id="' + touchMore.dataset.messageId + '"]');
-          if (els.contextMenu) els.contextMenu.hidden = true;
-          if (moreEl) openActionSheet(moreEl);
-          return;
-        }
-        var touchReply = event.target.closest("[data-touch-reply]");
-        if (touchReply) {
-          setReplyTarget(touchReply.dataset.messageId, touchReply.dataset.text);
-          closeContextMenu();
-          els.input.focus();
-          return;
-        }
-        var touchReact = event.target.closest("[data-touch-react]");
-        if (touchReact) {
-          var reactEl = els.thread.querySelector('[data-message-id="' + touchReact.dataset.messageId + '"]');
-          var btnRect = touchReact.getBoundingClientRect();
-          if (reactEl) openReactionPicker(reactEl, btnRect.left, btnRect.bottom + 8);
-          return;
-        }
         var reactBtn = event.target.closest("[data-menu-react]");
         if (reactBtn) {
           closeContextMenu();

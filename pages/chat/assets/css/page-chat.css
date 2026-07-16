@@ -483,45 +483,55 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
 }
 .jonaminz-chat-toast[hidden] { display: none; }
 
-.jonaminz-chat-hover-toolbar { display: none; }
+/* 2026-07-16（使用者：手機長按也要跟電腦版同一個 inline 位置，不要
+   浮動蓋在訊息上）：工具列的外觀＋版型從 @media(hover) 裡搬出來，讓
+   桌機 hover 跟手機長按（.is-touch-active，由 chat-thread.js 加）共用
+   同一個 inline 工具列——不再是手機用浮動 popup。垂直定位：單行訊息
+   就在那一行、多行貼訊息最下緣（align-self:flex-end），訊息超出畫面
+   時 position:sticky 扣在可視最下緣。 */
+.jonaminz-chat-hover-toolbar {
+  display: none;
+  align-items: center;
+  align-self: flex-end;
+  position: sticky;
+  bottom: 8px;
+  gap: 2px;
+  flex: 0 0 auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.jonaminz-chat-hover-toolbar button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jonaminz-chat-hover-toolbar button:active { background: var(--color-bg-lobby); }
+/* 桌機 hover：一直保留位置（display:flex），滑鼠移上去才淡入。 */
 @media (hover: hover) and (pointer: fine) {
-  /* 垂直定位（使用者定案）：單行訊息就在那一行；多行訊息貼在這則
-     訊息的最下緣（align-self:flex-end，跟訊息列的 align-items 一致）
-     ——訊息長到超出畫面時，position:sticky 會把工具列扣在捲動範圍
-     還看得到的最下緣，不會跟著訊息下半段捲出畫面外點不到。 */
-  .jonaminz-chat-hover-toolbar {
-    display: flex;
-    align-items: center;
-    align-self: flex-end;
-    position: sticky;
-    bottom: 8px;
-    gap: 2px;
-    flex: 0 0 auto;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s ease;
-  }
+  .jonaminz-chat-hover-toolbar { display: flex; }
   .jonaminz-chat-message:hover .jonaminz-chat-hover-toolbar {
     opacity: 1;
     pointer-events: auto;
-  }
-  .jonaminz-chat-hover-toolbar button {
-    border: none;
-    background: transparent;
-    color: var(--color-text-muted);
-    font-size: 14px;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   .jonaminz-chat-hover-toolbar button:hover {
     background: var(--color-bg-lobby);
     color: var(--color-text);
   }
+}
+/* 手機長按：對那則訊息加 is-touch-active，顯示同一個 inline 工具列。 */
+.jonaminz-chat-message.is-touch-active .jonaminz-chat-hover-toolbar {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble {
