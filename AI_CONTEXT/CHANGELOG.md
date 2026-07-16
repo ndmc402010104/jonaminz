@@ -20,6 +20,32 @@
 
 ---
 
+## 2026-07-16（晚上，第二十筆再追加）— 泡泡面板 CSS 也補 cache-buster（「手機長按甚麼都沒有」的真根因）
+
+- **任務**：使用者回報改成 inline 工具列後，手機長按**完全沒反應**。
+  harness 跑完整長按手勢（按下→放開）證實**程式碼完全正確**（
+  is-touch-active 有加、工具列 display:flex／opacity:1／有可見範圍）
+  ——所以不是邏輯壞掉，是快取。
+- **真根因**：上一輪只幫泡泡面板的 **JS**（chat-thread.js）加了
+  Date.now() buster，但 **CSS**（page-chat-panel.css）的 `<link>` 還是
+  plain、被手機 WebView 快取住舊版。結果面板 JS 是新的（長按會加
+  `.is-touch-active` class），CSS 是舊的（沒有那條 class 的樣式）→
+  class 加了卻沒任何視覺 → 長按什麼都沒有。標準 `/pages/chat/` 頁面
+  CSS 走 entry-core 有 buster 所以沒事，只有面板中鏢。
+- **變更**（`pages/chat-panel/index.html`）：`page-chat-panel.css` 從
+  plain `<link>` 改成 `<head>` 尾端用 JS 動態插入帶 `?v=Date.now()`
+  buster 的 `<link>`（跟同頁 chat-thread.js 的 buster 同一個道理）。
+  02-tokens.css 維持 plain（共用、極少改，快取無妨）。
+- **驗證**：兩個 inline script `new Function()` 驗語法通過。harness 天生
+  重現不了「快取住舊 CSS」（它每次載全新的），所以這條靠邏輯推理＋
+  跟 chat-thread.js buster 同構修法確認，真機待使用者清快取後驗。
+- **教訓**：修 iframe 面板的快取問題時，JS 跟 CSS 兩個 sub-resource 都
+  要一起補 buster，不能只補一個——這次就是漏了 CSS 半條，害使用者又
+  多回報一輪「長按沒反應」。
+- **版本**：v0.46.39-202607162316
+
+---
+
 ## 2026-07-16（晚上，第二十筆追加）— version.js 改帶時間戳 buster，deploy 立刻可見（不再卡 10 分鐘）
 
 - **任務**：使用者回報「手機一直在 2251」——版本號卡在舊的、新 deploy

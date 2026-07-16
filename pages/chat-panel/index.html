@@ -34,7 +34,20 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>jonaminz chat panel</title>
 <link rel="stylesheet" href="/assets/css/reservoir/02-tokens.css">
-<link rel="stylesheet" href="/pages/chat-panel/assets/css/page-chat-panel.css">
+<!-- 2026-07-16（使用者回報「手機長按甚麼都沒有」的真根因）：這頁的
+     page-chat-panel.css 原本 plain <link> 沒有 cache-buster，跟稍早修好的
+     chat-thread.js 一樣被手機 WebView 快取住舊版——結果 JS 是新的（會加
+     .is-touch-active class）、CSS 是舊的（沒有那條 class 的樣式），長按
+     加了 class 卻沒任何視覺。改成下面 <head> 尾端用 JS 動態插入帶時間戳
+     buster 的 <link>（一樣的道理，跟 chat-thread.js 的 buster 同步）。 -->
+<script>
+(function () {
+  var link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "/pages/chat-panel/assets/css/page-chat-panel.css?v=" + Date.now();
+  document.head.appendChild(link);
+})();
+</script>
 </head>
 <body>
 <div class="jcp-panel">
