@@ -132,6 +132,33 @@
   分享管道，差別是保留原始檔名（不像圖片固定轉 `.jpg`）、不壓縮/不做
   縮圖、`kind:'file'`。下載換 URL 直接沿用 `getImageUrls`（那支邏輯
   跟檔案類型完全無關，只是查 itemId 換 downloadUrl，不另外重複做一支）。
+- `getChatFileRetentionSettings` / `updateChatFileRetentionDays`：
+  2026-07-16，使用者回報 Chat 傳的圖片/檔案會永久留在 OneDrive App
+  Folder，要求預設 6 個月自動過期，且天數要能調、不要寫死。設定值存在
+  通用的 `app_settings` key/value 表（見 `backend/supabase/
+  app_settings_schema.sql`），key 是 `chat_file_retention_days`，兩支
+  action 都要求 `requireSession`（沒登入不能讀也不能改，跟 Theme 存檔
+  同一套權限模型）。`updateChatFileRetentionDays` 限制天數在 7~3650
+  之間，避免打錯字誤設成 0 天（整批立刻清空）或負數。
+- **Chat 檔案自動過期清理（`maybeRunChatFilePurge`）**：故意不用
+  Cloudflare Cron Trigger（這個 Worker 目前完全沒有排程基礎設施，
+  `KNOWN_ISSUES.md` 對 `sessions`/`oauth_states` 過期列也是同樣理由：
+  「不值得為了清理另外排 cron」）；改成搭便車：每次呼叫
+  `listChatMessages`（Chat 面板背景 poll，兩人只要開著站就一定會頻繁
+  觸發）時，用 `ctx.waitUntil()` 背景嘗試跑一次清理，不擋這次請求的
+  回應。內部用 `app_settings` 的 `chat_file_purge_last_run_at` 節流，
+  24 小時內只真的執行一次，其餘呼叫直接讀到「還沒到時間」就返回，
+  避免每 1.5 秒 poll 都對 Supabase 發一次查詢。真的執行時，找
+  `chat_messages` 裡 `kind` 是 `image`／`file`、`created_at` 超過保留
+  天數、`metadata.itemId` 存在且還沒標記過期的訊息（單次上限 20 筆，
+  多的留到下一個 24 小時週期，避免第一次啟用時如果已經累積很多舊檔案
+  一次打爆 Graph API），用 `metadata.ownerIdentity` 對應的 access token
+  呼叫 Graph `DELETE /me/drive/items/{itemId}` 刪除實體檔案（404 視同
+  已經不在，一樣算成功），成功後把該筆 `chat_messages.metadata.expired`
+  設成 `true`（保留 `itemId` 本身供除錯，不清空）。前端
+  `assets/js/chat-thread.js` 看到 `metadata.expired` 就不會再呼叫
+  `getImageUrls` 去要下載連結，直接顯示「已超過保留天數，已自動從
+  OneDrive 清除」，不是含糊的「拿不到」錯誤訊息。
 - `createApkUploadSession` ／ `GET /appDownload`：OneDrive 線 Phase C
   （2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）APK 自架。
   本機建完 `jonaminz-mobile-app` 的 APK 後，`tools/upload-apk.mjs`
@@ -214,7 +241,7 @@ const MAX_CONTRACT_SIZE_CHARS = 200000;
 // new Function/eval，runtime 編譯 schema 會直接讓部署失敗。改 schema 後要重跑那支腳本。
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // Google OAuth 的 redirect flow 是瀏覽器導航，不是 fetch()——這兩條
@@ -351,7 +378,22 @@ export default {
       }
 
       if (action === "listChatMessages") {
-        return json(await listChatMessages(env, payload), 200);
+        const result = await listChatMessages(env, payload);
+        // 搭這支高頻 poll 的便車背景跑過期清理，見上方檔頭文件註解
+        // 「Chat 檔案自動過期清理」；ctx.waitUntil 讓它在回應送出後
+        // 繼續執行完，不拖慢這次請求，內部有 24 小時節流不會每次都真的查。
+        ctx.waitUntil(maybeRunChatFilePurge(env).catch(function (error) {
+          console.error("[jonaminz] maybeRunChatFilePurge failed", error);
+        }));
+        return json(result, 200);
+      }
+
+      if (action === "getChatFileRetentionSettings") {
+        return json(await getChatFileRetentionSettings(env, payload), 200);
+      }
+
+      if (action === "updateChatFileRetentionDays") {
+        return json(await updateChatFileRetentionDays(env, payload), 200);
       }
 
       if (action === "sendChatMessage") {
@@ -3213,6 +3255,119 @@ async function getImageUrls(env, payload) {
   }
 
   return { ok: true, urls: urls };
+}
+
+// ---------- 通用設定表（app_settings，2026-07-16）與 Chat 檔案自動過期
+// ---------- 清理。見檔頭文件註解「getChatFileRetentionSettings /
+// updateChatFileRetentionDays」與「Chat 檔案自動過期清理」兩段。
+
+async function getAppSetting(env, key, defaultValue) {
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const response = await fetch(
+    base + "/rest/v1/app_settings?key=eq." + encodeURIComponent(key) + "&select=value",
+    { headers: supabaseHeaders(env) }
+  );
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return rows.length ? rows[0].value : defaultValue;
+}
+
+async function setAppSetting(env, key, value, updatedBy) {
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const response = await fetch(base + "/rest/v1/app_settings", {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({
+      key: key,
+      value: value,
+      updated_at: new Date().toISOString(),
+      updated_by: updatedBy || null
+    })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+}
+
+async function getChatFileRetentionSettings(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const retentionDays = await getAppSetting(env, "chat_file_retention_days", 180);
+  return { ok: true, retentionDays: retentionDays };
+}
+
+async function updateChatFileRetentionDays(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const days = Number(payload && payload.days);
+  if (!Number.isInteger(days) || days < 7 || days > 3650) {
+    return { ok: false, code: "INVALID_DAYS", error: "days 必須是 7~3650 之間的整數" };
+  }
+  await setAppSetting(env, "chat_file_retention_days", days, identity);
+  return { ok: true, retentionDays: days };
+}
+
+// 節流：24 小時內只真的跑一次，其餘呼叫（每 1.5 秒一次 listChatMessages
+// poll）直接讀到「還沒到時間」就返回，不對 Supabase 發查詢。
+async function maybeRunChatFilePurge(env) {
+  const lastRunAt = await getAppSetting(env, "chat_file_purge_last_run_at", null);
+  if (lastRunAt && Date.now() - new Date(lastRunAt).getTime() < 24 * 60 * 60 * 1000) {
+    return;
+  }
+  // 先寫時間戳再做事：兩個並發的 listChatMessages 請求幾乎同時觸發時，
+  // 讓第二個看到「剛剛才跑過」提前放棄，不用真的做到原子鎖那麼嚴謹
+  // ——兩人自用、低流量，最壞情況只是短時間內重複跑一次，不會壞資料
+  // （Graph 刪除本來就是 idempotent，item 已刪除會 404，一樣算成功）。
+  await setAppSetting(env, "chat_file_purge_last_run_at", new Date().toISOString(), "system");
+
+  const retentionDays = await getAppSetting(env, "chat_file_retention_days", 180);
+  const cutoff = new Date(Date.now() - Number(retentionDays) * 24 * 60 * 60 * 1000).toISOString();
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const candidatesUrl =
+    base + "/rest/v1/chat_messages?kind=in.(image,file)" +
+    "&created_at=lt." + encodeURIComponent(cutoff) +
+    "&metadata->>itemId=not.is.null" +
+    "&metadata->>expired=is.null" +
+    "&select=id,metadata&order=created_at.asc&limit=20";
+  const response = await fetch(candidatesUrl, { headers: supabaseHeaders(env) });
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const candidates = await response.json();
+
+  for (const row of candidates) {
+    const itemId = row.metadata && row.metadata.itemId;
+    const ownerIdentity = row.metadata && row.metadata.ownerIdentity;
+    if (!itemId || !ownerIdentity) continue;
+    try {
+      const accessToken = await getOnedriveAccessToken(env, ownerIdentity);
+      const deleteResponse = await fetch(
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(itemId),
+        { method: "DELETE", headers: { Authorization: "Bearer " + accessToken } }
+      );
+      if (!deleteResponse.ok && deleteResponse.status !== 404) {
+        // 這筆這次先略過（例如 owner 的 OneDrive 剛好斷線），留到下一個
+        // 24 小時週期再試，不標記 expired（標了前端就不會再顯示/也不會
+        // 再重試刪除，錯誤狀態下不能提前標記成功）。
+        continue;
+      }
+      const patchUrl = base + "/rest/v1/chat_messages?id=eq." + encodeURIComponent(row.id);
+      await fetch(patchUrl, {
+        method: "PATCH",
+        headers: supabaseHeaders(env),
+        body: JSON.stringify({ metadata: Object.assign({}, row.metadata, { expired: true, expiredAt: new Date().toISOString() }) })
+      });
+    } catch (error) {
+      // 單筆失敗不影響其他筆，留到下一個週期重試。
+      console.error("[jonaminz] chat file purge failed for item", itemId, error);
+    }
+  }
 }
 
 // ---------- Chat 檔案附件（2026-07-15，決策圖候選項目「畢業」出來的

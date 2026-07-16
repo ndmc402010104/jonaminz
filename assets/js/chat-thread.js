@@ -504,6 +504,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var bodyHtml;
         if (deleted) {
           bodyHtml = '<div class="jonaminz-chat-bubble is-deleted">此訊息已刪除</div>';
+        } else if ((m.kind === "image" || m.kind === "file") && m.metadata && m.metadata.expired) {
+          // 超過聊天檔案保留天數，Worker 端已經把 OneDrive 上的檔案本體
+          // 刪掉並標記 metadata.expired（見 worker.js maybeRunChatFilePurge）
+          // ——不再嘗試 ensureImageUrls，直接顯示明確的過期說明，跟
+          // 「此訊息已刪除」同一種視覺語言，避免使用者誤以為是下載失敗。
+          bodyHtml = '<div class="jonaminz-chat-bubble is-deleted">' +
+            (m.kind === "image" ? "圖片" : "檔案") + '已超過保留天數，已自動從 OneDrive 清除</div>';
         } else if (m.kind === "image" && m.metadata && m.metadata.itemId) {
           // OneDrive 線 Phase B：先畫 metadata 裡的模糊縮圖（不用等
           // Graph），imageUrlCache 有真正的 downloadUrl 才換成真圖。
@@ -1002,6 +1009,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       var need = [];
       messages.forEach(function (m) {
         if ((m.kind !== "image" && m.kind !== "file") || !m.metadata || !m.metadata.itemId) return;
+        if (m.metadata.expired) return;
         var itemId = m.metadata.itemId;
         if (imageUrlCache[itemId] !== undefined || imageUrlFetchInFlight[itemId]) return;
         need.push({ itemId: itemId, ownerIdentity: m.metadata.ownerIdentity });

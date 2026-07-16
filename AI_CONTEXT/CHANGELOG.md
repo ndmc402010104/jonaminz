@@ -20,6 +20,68 @@
 
 ---
 
+## 2026-07-16（早上，第二筆）— Chat OneDrive 檔案自動過期（預設 180 天）＋保留天數設定面板
+
+- **任務**：接續 `for_claude` 待辦板：使用者回報 Chat 傳的圖片/檔案會
+  永久留在 OneDrive App Folder，要求預設 6 個月自動過期，且天數要能調、
+  不要寫死在程式碼裡。
+- **變更**：
+  - `backend/supabase/app_settings_schema.sql`（新檔）——通用 key/value
+    設定表（不是專用的 chat_settings，之後同類「可調但不常變」的設定
+    值可以直接多一個 key）。先塞一筆 `chat_file_retention_days=180`。
+  - `backend/cloudflare-worker/worker.js`——`fetch(request, env, ctx)`
+    加上 `ctx` 參數；新增 `getChatFileRetentionSettings`／
+    `updateChatFileRetentionDays` 兩個 action（限制天數 7~3650）；新增
+    `maybeRunChatFilePurge()`，搭 `listChatMessages`（Chat 面板背景高頻
+    poll）的便車用 `ctx.waitUntil()` 背景執行，內部用 `app_settings` 的
+    `chat_file_purge_last_run_at` 節流成 24 小時最多真的跑一次——**故意
+    不加 Cloudflare Cron Trigger**，這個 Worker 目前完全沒有排程基礎
+    設施，跟 `KNOWN_ISSUES.md` 對 session/oauth_states 過期列「不值得
+    為了清理另外排 cron」同一個判斷。真正執行時找超過保留天數、還沒
+    標記過期的 `image`/`file` 訊息（單次上限 20 筆），用擁有者的 access
+    token 呼叫 Graph `DELETE /me/drive/items/{itemId}` 刪除檔案本體，
+    成功後把 `chat_messages.metadata.expired` 設成 `true`（訊息本身/
+    `itemId` 都保留，只是不再嘗試讀取）。
+  - `assets/js/chat-thread.js`——`ensureImageUrls()` 跳過
+    `metadata.expired` 的訊息，不再白費力氣呼叫 `getImageUrls`（連帶
+    避免對已刪除項目的 peer 分享重試迴圈）；圖片/檔案訊息渲染新增
+    `expired` 分支，顯示「已超過保留天數，已自動從 OneDrive 清除」，
+    跟含糊的「拿不到」錯誤訊息分開，使用者才看得出這是設計行為不是
+    bug。
+  - `assets/js/backend-client.js`——新增兩支對應的前端呼叫包裝。
+  - `pages/admin/connections/`（app.js／index.html／CSS）——新增
+    「Chat 檔案保留天數」小節，跟既有 `renderOnedriveSection` 同一種
+    寫法（各自一個 `render__Section` 函式），數字輸入框＋儲存按鈕，
+    存檔後即時更新顯示文字，不用整頁重新整理。放在這頁而不是新開一個
+    「設定」頁，因為目前只有這一個可調值，且直接跟 OneDrive 容量有關；
+    之後如果累積更多設定值，再考慮要不要獨立成一頁。
+- **狀態變化**：`for_claude` 待辦板「Chat OneDrive 檔案自動過期」該筆
+  已實作完成並上線——`app_settings` schema 已套用到 `jonaminz-db`（已用
+  `select * from app_settings` 確認 `chat_file_retention_days=180` 那筆
+  存在），worker.js 已 `wrangler deploy`（Worker Version
+  `d337bebd-8c74-46fd-b5ca-b7f12d8c4696`）。
+- **驗證**：`node --check` 全數通過（worker.js／backend-client.js／
+  chat-thread.js／connections app.js）；`wrangler deploy --dry-run`
+  通過，沒有實際部署。**沒有 Playwright／瀏覽器驗證**（chat-thread.js
+  是使用者跟前一輪都提醒過的「複雜精細檔案」，這次是白天、使用者在線，
+  但這次修改範圍很小——只多一個 if 分支跳過 ensureImageUrls，風險比
+  上一輪的 iframe 角標搬遷小很多）。
+- **遺留**：
+  1. 使用者還沒有實際打開 `/pages/admin/connections/` 看過「Chat 檔案
+     保留天數」這個新小節的畫面／試存過一次天數——這次沒有 Playwright
+     可用，只有讀碼＋`node --check`，麻煩找時間看一眼。
+  2. 這次的清理只對**之後**新過期的檔案生效；如果使用者過去幾個月
+     已經傳過大量圖片/檔案，第一個 24 小時週期只會處理最舊的 20 筆，
+     要好幾天才會追上（單次上限是刻意的，避免第一次啟用時一次打爆
+     Graph API）。目前系統時間是 2026-07-16，保留天數 180 天，實際上
+     現有的聊天圖片/檔案應該都還沒超過門檻，這條清理短期內不會有
+     可觀察的效果，等真的有檔案超過 180 天才會看到它動作。
+  3. 沒有「還原」機制——檔案從 OneDrive 刪掉之後無法復原，這是使用者
+     要的效果（不是需要另外確認的風險），只是明確記錄一下。
+- **版本**：`v0.46.4-202607160816`。
+
+---
+
 ## 2026-07-16（早上）— 後台首頁摘要列收斂進角落徽章（回應使用者對版型的回饋）
 
 - **任務**：VS Code／Claude Code 前一輪工作階段被中斷（Codex 協助排查

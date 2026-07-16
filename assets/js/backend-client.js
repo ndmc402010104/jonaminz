@@ -236,6 +236,14 @@
     return call("sendFileMessage", payload, options);
   }
 
+  function getChatFileRetentionSettings(payload, options) {
+    return call("getChatFileRetentionSettings", payload, options);
+  }
+
+  function updateChatFileRetentionDays(payload, options) {
+    return call("updateChatFileRetentionDays", payload, options);
+  }
+
   // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
   // call() 這種 fetch POST——這裡只負責把 baseUrl 接出來給呼叫端組網址。
   function getWorkerBaseUrlForRedirect() {
@@ -284,6 +292,8 @@
     sendImageMessage: sendImageMessage,
     getImageUrls: getImageUrls,
     requestFileUpload: requestFileUpload,
-    sendFileMessage: sendFileMessage
+    sendFileMessage: sendFileMessage,
+    getChatFileRetentionSettings: getChatFileRetentionSettings,
+    updateChatFileRetentionDays: updateChatFileRetentionDays
   };
 })();
