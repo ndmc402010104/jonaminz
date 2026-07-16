@@ -20,6 +20,35 @@
 
 ---
 
+## 2026-07-16（晚上，第十七筆追加）— v16 上傳發佈＋APK 上傳金鑰改本機檔＋下載鍵 optimistic 回饋
+
+- **v16 已發佈**：`node tools/upload-apk.mjs` 上傳成功
+  （jonaminz-202607162219.apk），`reportLatestApkVersion` 記錄
+  versionCode=16／versionName=202607162210。`/appDownload` 現在服務
+  v16，`getLatestApkVersion` 回 16——手機下載到的版本對得上，不會再
+  被 Android 當降級擋掉（使用者稍早回報「下載的 APK 被手機擋下來不能
+  安裝」，根因就是 /appDownload 還停在 v4、比手機的 v16 舊，降級被擋）。
+- **APK 上傳金鑰改本機 gitignore 檔**（`tools/.apk-upload-token`＋
+  `.gitignore`＋`tools/upload-apk.mjs`）：使用者正當質疑「密鑰存進保管
+  箱是為了不用再問我，結果還要給你，那保管箱意義何在」。真實情況：
+  `agent_secrets` 那份是給 **Worker 內部驗證**用的（Worker 有
+  service_role 能讀），但本機上傳腳本需要**原始值**去認證，而安全
+  classifier（正確地）擋下把存起來的密鑰印進 transcript，本機又無
+  service_role 可繞。當初設計假設「agent 用 Supabase MCP 直讀」被
+  classifier 否決了。折衷：token 存本機 gitignore 檔（跟 .env 同慣例，
+  屬於「本機開發工具憑證」而非「伺服器密鑰」），`upload-apk.mjs`
+  省略 CLI token 參數時自動讀這個檔——以後 build 完 agent 自己上傳、
+  零打擾。保管箱那筆留著（Worker 端還在用）。
+- **下載鍵 optimistic 回饋**（`app-update-check.js`＋toolkit `app.js`）：
+  使用者回報「按下載按下開啟後大概5秒才出現開始下載」——`/appDownload`
+  要 Worker 先拿 OneDrive 權杖、列 releases 資料夾、挑最新檔、解析
+  downloadUrl 才回傳，原生 DownloadListener 的 Toast 要等這幾秒才跳，
+  體感像沒反應。點下去這一刻先把連結文字換成「準備下載中…」給即時
+  回饋（同分頁導覽到下載不會離開頁面，字會留著）。
+- **版本**：v0.46.34-202607162220（jonaminz）。
+
+---
+
 ## 2026-07-16（晚上，第十七筆）— APK 下載/更新三個機制洞一次補：原生 DownloadListener＋網頁連結＋update-check 缺 backend-client
 
 - **任務**：使用者回報「進 App 沒跳更新提示、下午做的『下載最新 APK』

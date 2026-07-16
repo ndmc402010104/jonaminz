@@ -59,7 +59,7 @@ agent 用」的東西，性質不一樣，搬去獨立的 `pages/admin/secrets/`
         (tool.note ? '<p class="jonaminz-toolkit-card-note">' + escapeHtml(tool.note) + '</p>' : "") +
         '<div class="jonaminz-toolkit-card-actions">' +
           '<a class="jonaminz-toolkit-open-btn" href="' + escapeHtml(tool.href) + '"' +
-            (tool.sameTab ? "" : ' target="_blank" rel="noopener"') + '>開啟</a>' +
+            (tool.sameTab ? ' data-download-btn' : ' target="_blank" rel="noopener"') + '>開啟</a>' +
           '<button type="button" class="jonaminz-toolkit-copy-btn" data-copy-url="' + escapeHtml(tool.href) + '">複製網址</button>' +
         '</div>' +
       '</div>'
@@ -68,6 +68,15 @@ agent 用」的東西，性質不一樣，搬去獨立的 `pages/admin/secrets/`
 
   function bindCopyButtons(root) {
     root.addEventListener("click", function (event) {
+      // 2026-07-16（使用者回報下載按鈕按下去約5秒才有反應）：下載鍵
+      // 導覽到 /appDownload，Worker 解析最新檔要幾秒，原生下載 Toast
+      // 才會跳。點下去這一刻先把文字換成「準備下載中…」給即時回饋。
+      var dl = event.target.closest("[data-download-btn]");
+      if (dl) {
+        dl.textContent = "準備下載中…";
+        setTimeout(function () { dl.textContent = "開啟"; }, 8000);
+        return;
+      }
       var btn = event.target.closest("[data-copy-url]");
       if (!btn) return;
       var url = btn.dataset.copyUrl;

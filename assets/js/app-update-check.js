@@ -66,6 +66,14 @@ versionCode（jonaminz-mobile-app/android/app/build.gradle）跟這個 repo
       '<button type="button" aria-label="關閉">✕</button>';
     banner.querySelector("a").addEventListener("click", function () {
       writeDismissedVersionCode(latestVersionCode);
+      // 2026-07-16（使用者回報「按了大概5秒才出現開始下載」）：/appDownload
+      // 要 Worker 先解析最新檔才回傳，原生 DownloadListener 的 Toast 要
+      // 等那幾秒才跳，體感像沒反應。點下去這一刻就把文字換成「準備
+      // 下載中…」給即時回饋（同分頁導覽到下載不會離開頁面，這個字會
+      // 留著直到系統下載通知出現）。
+      var link = this;
+      link.textContent = "準備下載中…";
+      link.style.pointerEvents = "none";
     });
     banner.querySelector("button").addEventListener("click", function () {
       writeDismissedVersionCode(latestVersionCode);

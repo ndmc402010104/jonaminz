@@ -53,13 +53,28 @@ function loadWorkerBaseUrl() {
   return String(baseUrl).replace(/\/+$/, "");
 }
 
+// 2026-07-16：APK 上傳金鑰改成本機檔案 tools/.apk-upload-token（gitignore，
+// 不進版控）。這是為了讓「發佈 APK」完全不用每次跟使用者要 token——
+// 存進 Supabase agent_secrets 那份是給 Worker 內部驗證用的，agent 本機
+// 讀不到（安全機制擋下把存起來的密鑰值印出來），所以本機工具改用這個
+// 慣例的 gitignore 憑證檔（跟 .env 同一個模式）。CLI 第二個參數還是可以
+// 手動帶 token 覆蓋（備援），沒帶就讀這個檔。
+function loadTokenFromFile() {
+  try {
+    return readFileSync(path.join(__dirname, ".apk-upload-token"), "utf8").trim();
+  } catch (error) {
+    return "";
+  }
+}
+
 async function main() {
   const apkPath = process.argv[2];
-  const sessionToken = process.argv[3];
+  const sessionToken = process.argv[3] || loadTokenFromFile();
   const versionCode = process.argv[4] ? Number(process.argv[4]) : null;
   const versionName = process.argv[5] || "";
   if (!apkPath || !sessionToken) {
-    console.error("用法：node tools/upload-apk.mjs <APK路徑> <token> [versionCode] [versionName]");
+    console.error("用法：node tools/upload-apk.mjs <APK路徑> [token] [versionCode] [versionName]");
+    console.error("（token 省略時讀 tools/.apk-upload-token）");
     process.exitCode = 1;
     return;
   }

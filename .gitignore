@@ -11,6 +11,8 @@ node_modules/
 *secret*.txt
 .env
 .env.*
+# APK 上傳金鑰（本機工具用，見 tools/upload-apk.mjs；2026-07-16）
+tools/.apk-upload-token
 
 # project-memory (tools/project-memory)
 .project-memory/current-session.json
