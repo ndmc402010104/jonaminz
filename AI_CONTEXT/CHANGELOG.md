@@ -20,6 +20,40 @@
 
 ---
 
+## 2026-07-16（早上）— 後台首頁摘要列收斂進角落徽章（回應使用者對版型的回饋）
+
+- **任務**：VS Code／Claude Code 前一輪工作階段被中斷（Codex 協助排查
+  VS Code 問題後救回），接續 `for_claude` 待辦板第一項：使用者對稍早
+  新增的「有什麼新的」摘要列回饋「為什麼是粗糙的做在最上面不是在每
+  一個標籤上」，要求收斂設計。用 `AskUserQuestion` 問過使用者，選擇
+  「改成標籤角落徽章」方案（跟 Contract 核准既有的「角落徽章＋放大
+  強調」同一套視覺語言，而不是獨立摘要列＋卡片兩套並存）。
+- **變更**：`pages/admin/assets/js/app.js`——拿掉獨立的
+  `<section class="jonaminz-admin-summary">` 摘要列；Chat／決策與待辦／
+  連線狀態三張入口卡加上 `entryKey`，新增共用輔助函式
+  `setEntryAttention()`（角落徽章＋放大強調），`renderPendingStatus()`
+  改呼叫這支共用函式（原本 Contract 核准是自己內嵌一份同樣的程式碼）；
+  `renderUnreadSummary`／`renderPendingTaskSummary`／`renderOnedriveSummary`
+  改名為 `renderChatAttention`／`renderVerifyAttention`／
+  `renderConnectionsAttention`，只在真的需要注意時（有未讀／有待驗證／
+  沒連滿兩人）才加角標，其餘時候維持卡片原本的描述文字，不覆蓋掉。
+  `pages/admin/assets/css/page-admin.css`——刪除不再使用的
+  `.jonaminz-admin-summary`／`-grid`／`-item` 規則。不動 `worker.js`，
+  三個資料來源仍是既有 action 前端聚合。
+- **狀態變化**：「有什麼新的」摘要列（2026-07-16 凌晨新增的功能）
+  已移除，改為角落徽章機制；`for_claude` 待辦板該筆的「請驗證」問題
+  已經有明確回覆與後續動作，可請使用者確認畫面後結案。
+- **遺留**：這次沒有 Playwright／瀏覽器截圖驗證（只有 `node --check`
+  語法檢查＋人工讀碼比對邏輯），麻煩使用者實際看一次後台首頁：平常
+  三張卡（Chat／決策與待辦／連線狀態）跟其他入口同一層級，故意製造
+  未讀訊息／待驗證任務／只連一人這三種情境時該卡才放大＋出現角標。
+  另外，上一輪（第七十九次紀錄）修完角標搬出 iframe 的嚴重 bug 後
+  請使用者「務必實測一次拖動＋換頁＋再拖動」確認正常，這條驗證請求
+  目前還沒有紀錄顯示使用者做過，一併提醒。
+- **版本**：`v0.46.3-202607160805`。
+
+---
+
 ## 2026-07-16（凌晨，第七十九次）— 角標真正搬出iframe＋修一個我自己剛造成的嚴重bug
 
 - **任務**：使用者對「泡泡角標還是被切到」那筆回「做吧做吧」——授權
