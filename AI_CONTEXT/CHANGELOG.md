@@ -33,17 +33,18 @@
     `els.emojiPanel`／`closeEmojiPanel()`；plus 鍵改呼叫 `closeQuickPanel()`。
     CSS 刪掉死掉的 `.jonaminz-chat-quick-toggle`，加 `.jonaminz-chat-quick-emojis`
     （grid repeat(8)），textarea 右邊距改回單顆的 42px/36px。
-  - **focus 輸入框關面板**：`els.input` 的 focus handler 多呼叫
-    `closeQuickPanel()`；但「插入表情」自己會 programmatic `focus()`
-    拉回游標（要留著面板連續插），用 `skipQuickCloseOnFocus` 旗標把
-    那次程式化 focus 排除、`setTimeout(0)` 自清避免旗標卡住。
+  - **按下輸入框關面板**：一開始用 focus 事件關，使用者回報手機上焦點
+    本來就在輸入框（鍵盤沒收），再點一次不觸發 focus——改聽輸入框的
+    `pointerdown`（每次實體點擊都觸發）。而「插入表情」的 programmatic
+    `focus()` 不會觸發 pointerdown，天然把連續插入排除，不需要旗標，
+    比 focus 版更乾淨。（v0.46.41→v0.46.42 修正）
 - **驗證**：harness 通過——只剩一顆 🙂、面板三段（10 常用/16 貼圖/16
-  插入表情）；點貼圖送「❤️」、點插入表情進輸入框「😀」不送；focus
-  輸入框面板關閉；連續插入兩個表情「😀😂」面板保留。
+  插入表情）；點貼圖送「❤️」、點插入表情進輸入框「😀」不送；連續
+  插入兩個表情「😀😂」面板保留；實體 pointerdown 按輸入框面板關閉。
 - **遺留**：待辦板 for_claude 兩筆（下載進選單、貼圖面板）功能都已上線，
   但使用者仍在即時微調面板（去重、focus 關閉），暫不搬回 for_user，
   等穩定再移交驗證。排程系統（第三件）尚未動工。
-- **版本**：v0.46.41-202607162336
+- **版本**：v0.46.42-202607162345（去重 v0.46.41，pointerdown 修正 v0.46.42）
 
 ---
 

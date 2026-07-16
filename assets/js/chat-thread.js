@@ -2628,12 +2628,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (els.thread) els.thread.scrollTop = els.thread.scrollHeight;
       }
       // 使用者去點輸入框＝準備打字，貼圖/常用回覆面板應該讓位關掉。
-      // 但「插入表情」那支自己會 programmatic focus() 拉回游標（要留著面板
-      // 連續插），所以用旗標把那次程式化 focus 排除掉；setTimeout(0) 保證
-      // 就算輸入框本來就有焦點（focus() 不觸發事件）旗標也會自清。
-      var skipQuickCloseOnFocus = false;
+      // 關鍵：手機上焦點本來就在輸入框（鍵盤沒收），再點一次不會觸發
+      // focus 事件，所以要聽「實際按下」的 pointerdown——它每次實體點擊
+      // 都會觸發，且「插入表情」那支的 programmatic focus() 不會觸發
+      // pointerdown，天然把連續插入的情境排除，不需要旗標。
+      els.input.addEventListener("pointerdown", function () {
+        closeQuickPanel();
+      });
       els.input.addEventListener("focus", function () {
-        if (!skipQuickCloseOnFocus) closeQuickPanel();
         setTimeout(scrollThreadToBottom, 60);
         setTimeout(scrollThreadToBottom, 320);
       });
@@ -2671,10 +2673,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
             var value = els.input.value;
             els.input.value = value.slice(0, start) + emojiBtn.dataset.emoji + value.slice(end);
             var caret = start + emojiBtn.dataset.emoji.length;
-            skipQuickCloseOnFocus = true;
             els.input.focus();
             els.input.setSelectionRange(caret, caret);
-            setTimeout(function () { skipQuickCloseOnFocus = false; }, 0);
             updateComposerAction();
             autoGrowInput();
             return;
