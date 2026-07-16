@@ -20,6 +20,29 @@
 
 ---
 
+## 2026-07-16（中午）— 修 agent_secrets 值沒有 trim 導致比對失敗的 bug
+
+- **任務**：使用者存好 `apk_upload_token` 後請我上傳 APK，第一次嘗試
+  `createApkUploadSession` 回 `login required` 失敗。
+- **變更**：`backend/cloudflare-worker/worker.js`——`setAgentSecret`
+  存值前 `.trim()`，`requireSessionOrAgentToken` 比對時對 stored 值
+  也 `.trim()`（雙重保險，防舊資料已經帶了空白）。根因推測：手機
+  複製貼上長字串常常會多帶換行/空白，存進去的值因此跟 agent 手上
+  乾淨的值對不上，而使用者在畫面上看不到 value 本身（保管箱設計上
+  不顯示值），完全沒辦法自己發現這個落差。
+- **狀態變化**：`login required` 這類失敗以後不會再是「複製貼上帶了
+  空白」造成的假性失敗。
+- **驗證**：`node --check` 通過，`wrangler deploy --dry-run` 通過後
+  經 AskUserQuestion 詢問使用者、確認後正式部署（Worker Version
+  `c07a5643-f5d8-40d0-9d95-efa20851198d`）。**還沒實測**——需要使用者
+  重新存一次 `apk_upload_token`（用「覆蓋」按鈕）確認能修好，再重試
+  一次 `tools/upload-apk.mjs`。
+- **遺留**：等使用者重新存值後才知道這是不是真正的根因（也可能一開始
+  就存錯值），下一步是重試上傳並回報結果。
+- **版本**：`v0.46.11-202607161255`。
+
+---
+
 ## 2026-07-16（早上，第十筆）— Agent 密鑰保管箱獨立成頁＋畫面重做＋搬進既有 Supabase/Google 憑證
 
 - **任務**：使用者用過保管箱後，接連提出四件事：(1) 加一顆「覆蓋」

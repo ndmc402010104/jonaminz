@@ -1322,7 +1322,7 @@ async function requireSessionOrAgentToken(env, payload) {
   const token = String((payload && payload.token) || "").trim();
   if (!token) return null;
   const stored = await getAgentSecretValue(env, "apk_upload_token");
-  if (stored && token === stored) return "agent";
+  if (stored && token === String(stored).trim()) return "agent";
   return null;
 }
 
@@ -1362,7 +1362,12 @@ async function setAgentSecret(env, payload) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const name = String((payload && payload.name) || "").trim();
-  const value = String((payload && payload.value) || "");
+  // 2026-07-16：值要 trim——這是憑證保管箱，不是給人打字留言的地方，
+  // 手機複製貼上常常會多帶一個換行/空白，存進去比對時死活對不上，
+  // 使用者自己也看不出差異在哪（顯示出來的名稱清單看不到值本身）。
+  // 前面 trim 一次（存進去的值本身乾淨），requireSessionOrAgentToken
+  // 比對時再 trim 一次（防舊資料已經帶了空白），雙重保險。
+  const value = String((payload && payload.value) || "").trim();
   if (!name) {
     return { ok: false, code: "NAME_REQUIRED", error: "name is required" };
   }
