@@ -8,10 +8,17 @@ loading task，不可以自己決定 css/shell ready。
 - 每筆密鑰是一張卡片，名稱用等寬字體＋鑰匙符號區隔，右側兩個動作各自
   有清楚的視覺角色：「覆蓋」中性色、「刪除」危險色（跟其他頁面刪除按鈕
   一致）。
-- 「覆蓋」按鈕點了直接把名稱帶進新增表單、展開表單、游標跳到值欄位——
-  使用者原話「就不用重打名稱」，不用手動複製貼上舊名稱。
 - 新增表單改成有 label 的直式表單（不是只有 placeholder 佔位字），
   加「取消」按鈕收合表單，不用重新整理頁面才能關掉。
+
+2026-07-16（同日再改一次）：「覆蓋」原本也是開同一個新增表單、只是
+把名稱帶進去，但那個表單釘死在整份清單最下面——使用者截圖回饋
+「怎麼不是同一列編輯？？」，點第一筆的覆蓋，表單卻出現在第四筆
+下面，體感上完全不像在編輯同一列。改成「覆蓋」直接在**被點的那張
+卡片正下方**插入一個只問「新的值」的小表單（名稱已經知道不用再問），
+存檔/取消都在原地發生；「+ 新增密鑰」維持原本在清單最下面的完整
+表單（問名稱＋值），這支才是真的要開新項目時用的。兩種表單同時只能
+開一個，開新的之前先關掉舊的。
 */
 (function () {
   "use strict";
@@ -63,16 +70,20 @@ loading task，不可以自己決定 css/shell ready。
     var token = (window.JonaminzIdentity && window.JonaminzIdentity.readToken)
       ? window.JonaminzIdentity.readToken() : null;
 
-    function openForm(prefillName) {
+    function closeInlineOverwriteForm() {
+      var existing = el.querySelector("[data-overwrite-form]");
+      if (existing) existing.remove();
+    }
+
+    function openForm() {
+      closeInlineOverwriteForm();
       var form = el.querySelector("[data-add-secret-form]");
       var toggleBtn = el.querySelector("[data-add-secret-toggle]");
       form.hidden = false;
       if (toggleBtn) toggleBtn.hidden = true;
-      var nameInput = el.querySelector("[data-secret-name-input]");
-      var valueInput = el.querySelector("[data-secret-value-input]");
-      nameInput.value = prefillName || "";
-      valueInput.value = "";
-      (prefillName ? valueInput : nameInput).focus();
+      el.querySelector("[data-secret-name-input]").value = "";
+      el.querySelector("[data-secret-value-input]").value = "";
+      el.querySelector("[data-secret-name-input]").focus();
     }
 
     function closeForm() {
@@ -81,6 +92,48 @@ loading task，不可以自己決定 css/shell ready。
       form.hidden = true;
       form.reset();
       if (toggleBtn) toggleBtn.hidden = false;
+    }
+
+    // 「覆蓋」在被點的那張卡片正下方插入一個只問「新的值」的小表單——
+    // 名稱是已知的（就是這張卡片的名稱），不用像「+ 新增密鑰」表單那樣
+    // 還要重打一次名稱，體感上就是「編輯這一列」而不是跳去別的地方。
+    function openInlineOverwriteForm(name, row) {
+      closeInlineOverwriteForm();
+      closeForm();
+      var formHtml =
+        '<form class="jonaminz-secret-inline-form" data-overwrite-form>' +
+          '<input type="text" placeholder="「' + escapeHtml(name) + '」的新值" data-overwrite-value-input>' +
+          '<button type="submit" class="jonaminz-secret-btn jonaminz-secret-btn--primary">儲存</button>' +
+          '<button type="button" class="jonaminz-secret-btn" data-cancel-overwrite>取消</button>' +
+        '</form>';
+      row.insertAdjacentHTML("afterend", formHtml);
+      var form = row.nextElementSibling;
+      var valueInput = form.querySelector("[data-overwrite-value-input]");
+      valueInput.focus();
+      form.querySelector("[data-cancel-overwrite]").addEventListener("click", function () {
+        form.remove();
+      });
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var value = valueInput.value;
+        if (!value) {
+          el.querySelector("[data-secret-result]").textContent = "值不能空白";
+          return;
+        }
+        window.JonaminzBackend.setAgentSecret({ token: token, name: name, value: value })
+          .then(function (saveResponse) {
+            if (!saveResponse || !saveResponse.ok) {
+              el.querySelector("[data-secret-result]").textContent =
+                "失敗：" + ((saveResponse && saveResponse.error) || "未知錯誤");
+              return;
+            }
+            refresh();
+          })
+          .catch(function (error) {
+            el.querySelector("[data-secret-result]").textContent =
+              "失敗：" + (error && error.message ? error.message : String(error));
+          });
+      });
     }
 
     function refresh() {
@@ -116,7 +169,7 @@ loading task，不可以自己決定 css/shell ready。
             '<div data-secret-result></div>';
 
           el.querySelector("[data-add-secret-toggle]").addEventListener("click", function () {
-            openForm(null);
+            openForm();
           });
 
           el.querySelector("[data-cancel-secret-form]").addEventListener("click", function () {
@@ -149,7 +202,7 @@ loading task，不可以自己決定 css/shell ready。
           el.querySelector("[data-secret-list]").addEventListener("click", function (event) {
             var overwriteBtn = event.target.closest("[data-overwrite-secret]");
             if (overwriteBtn) {
-              openForm(overwriteBtn.dataset.overwriteSecret);
+              openInlineOverwriteForm(overwriteBtn.dataset.overwriteSecret, overwriteBtn.closest("[data-secret-row]"));
               return;
             }
             var deleteBtn = event.target.closest("[data-delete-secret]");
