@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED. DO NOT EDIT DIRECTLY. -->
-<!-- generatedAt: 2026-07-15T23:59:54.924Z -->
+<!-- generatedAt: 2026-07-16T00:22:23.189Z -->
 
 # PROJECT CONTEXT
 
@@ -9,10 +9,7 @@ jonaminz
 
 ## Active Task
 
-- Session ID: session_20260715235954_1255b298
-- Agent: claude-code
-- Task: 接續 for_claude 待辦：驗證後台摘要列/回答設計問題、OneDrive檔案自動過期設定、評估貼圖面板時機
-- Started: 2026-07-15T23:59:54.919Z
+_（目前沒有 active session，先執行 `memory.mjs start` 再開始工作）_
 
 ## Critical Rules
 
@@ -539,6 +536,15 @@ PROJECT_STATE 開頭狀態描述」）。本次盤點開始前沒有任何未提
 
 ## Recent Sessions
 
+## session_20260715235954_1255b298 — 2026-07-16T00:22:23.182Z — claude-code
+
+- **Task**：接續 for_claude 待辦：驗證後台摘要列/回答設計問題、OneDrive檔案自動過期設定、評估貼圖面板時機
+- **Done**：無
+- **Changed files**：無
+- **Validation**：無
+- **Next**：無
+- **New issues**：無
+
 ## session_20260715142203_50cfb2a4 — 2026-07-15T14:25:41.738Z — claude-code
 
 - **Task**：修 ensureImageUrls 在 getImageUrls 整批失敗時永遠卡在準備中的 bug
@@ -577,18 +583,6 @@ PROJECT_STATE 開頭狀態描述」）。本次盤點開始前沒有任何未提
 - **Changed files**：無
 - **Validation**：無
 - **Next**：無
-- **New issues**：無
-
-## session_20260713051704_e0823ba0 — 2026-07-13T05:17:28.200Z — claude
-
-- **Task**：Project Memory smoke test
-- **Done**：
-  - 完成 smoke test
-- **Changed files**：無
-- **Validation**：
-  - Project Memory commands executed successfully
-- **Next**：
-  - 等待使用者確認 pending decision
 - **New issues**：無
 
 ## Pending Candidates
