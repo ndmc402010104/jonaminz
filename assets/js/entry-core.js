@@ -338,7 +338,16 @@ ready/shell ready/all-ready/逾時保底/init 失敗）發成 log、更新模組
 
     setProgressTarget(5);
 
-    loadScript("/version.js")
+    // 2026-07-16（使用者回報「手機一直卡在舊版本號」）：version.js 原本
+    // 不帶 buster、吃 GitHub Pages 原生 10 分鐘快取（2026-07-12 為了省
+    // 流量的取捨）——但兩人自用＋今晚這種快速改版，那 10 分鐘反而害
+    // 手機一直拿到舊 version.js，resourceVersion 停在舊版、整個標準頁
+    // 面所有資源都跟著載舊的。version.js 只有幾百 bytes，改成每次帶
+    // Date.now() 一定拿最新——deploy 完立刻可見，不用等 10 分鐘，代價
+    // 只是一個極小的不快取請求，划算太多。（entry-core.js 本身還是
+    // 不帶 buster，所以這個改動要等 entry-core 的 10 分鐘快取過一次才
+    // 對手機生效；之後每次 deploy 就都即時了。）
+    loadScript("/version.js?t=" + Date.now())
       .then(function () {
         resourceVersion = (window.JONAMINZ_APP_VERSION && window.JONAMINZ_APP_VERSION.version) || null;
         // 保留給 registry-loader.js 讀（它自己的 cache buster 邏輯沒有改），

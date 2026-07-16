@@ -20,6 +20,25 @@
 
 ---
 
+## 2026-07-16（晚上，第二十筆追加）— version.js 改帶時間戳 buster，deploy 立刻可見（不再卡 10 分鐘）
+
+- **任務**：使用者回報「手機一直在 2251」——版本號卡在舊的、新 deploy
+  要等很久才看到。根因是 version.js 原本不帶 buster、吃 GitHub Pages
+  原生 10 分鐘快取（2026-07-12 為省流量的取捨），快速改版時害手機一直
+  拿舊 version.js → resourceVersion 停在舊版 → 整個標準頁面資源都載舊的。
+- **變更**（`assets/js/entry-core.js`）：`loadScript("/version.js")` 改成
+  `loadScript("/version.js?t=" + Date.now())`——每次都拿最新 version.js，
+  deploy 完立刻可見。代價只是一個幾百 bytes 的不快取請求，對兩人自用
+  ＋要即時看到更新的情境划算太多。
+- **注意**：entry-core.js 本身還是不帶 buster（bootstrap 檔），所以這個
+  改動要等 entry-core 的 10 分鐘快取過一次才對手機生效；之後每次 deploy
+  就都即時了。**使用者現在卡在舊版的狀態，這次改動救不了**（修法本身
+  在還沒生效的 entry-core 裡）——要先清一次快取／等 10 分鐘讓新
+  entry-core 上手機，之後才免受這個苦。
+- **版本**：v0.46.38-202607162309
+
+---
+
 ## 2026-07-16（晚上，第二十筆）— 手機長按改用「訊息自己那條 inline 工具列」（跟電腦版同位置）＋工具包 local dev IP 修正
 
 - **任務**：使用者截圖回報手機長按的工具列是**浮動 popup 蓋在訊息上**
