@@ -41,12 +41,40 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
   <button type="button" class="jcp-handle" id="handle" aria-label="切換半版／全版"><span></span></button>
   <div class="jcp-thread-root" id="threadRoot"></div>
 </div>
-<script src="/assets/js/backend-client.js"></script>
-<script src="/assets/js/chat-thread.js"></script>
 <script>
+// 2026-07-16（使用者回報「泡泡面板跟 chat 頁面行為不一樣」的根因）：
+// 這頁原本用 plain <script src="/assets/js/chat-thread.js"> 載入，完全
+// 沒有 cache-buster——手機 WebView 一直用快取的舊 chat-thread.js，即使
+// 網站已經改版部署、甚至重裝 APK 也不一定清得掉這個快取。標準
+// /pages/chat/ 頁面走 entry-core 的 withVersion() 有 buster 所以沒事，
+// 但這個面板（浮動 iframe＋原生泡泡）自己載 script 繞過了那套機制。
+// 改成動態載入、帶時間戳 buster——面板每次建立都是全新 iframe，這樣
+// 一定拿到最新的 chat-thread.js，行為跟標準頁面同步。載完再跑下面的
+// mount 邏輯（原本靠 <script> 順序保證 window.JonaminzChatThread 已存在，
+// 現在改成 loadScript 的 promise chain 保證）。
 (function () {
   "use strict";
 
+  var cb = "?v=" + Date.now();
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  loadScript("/assets/js/backend-client.js" + cb)
+    .then(function () { return loadScript("/assets/js/chat-thread.js" + cb); })
+    .then(startPanel)
+    .catch(function (error) {
+      // 載入失敗（離線等）：面板起不來，但不燒房子，宿主頁面照常。
+      try { console.error("[jonaminz] chat-panel script load failed", error); } catch (e) {}
+    });
+
+function startPanel() {
   var TOKEN_KEY = "jonaminz.sessionToken";
   var STATE_KEY = "jonaminz.chatPanelSize";
 
@@ -117,6 +145,7 @@ window.JonaminzChatThread（assets/js/chat-thread.js）進 #threadRoot，
     };
   }
   window.JonaminzChatThread.mount(threadRoot, mountOptions);
+}
 })();
 </script>
 </body>

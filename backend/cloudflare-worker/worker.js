@@ -3430,22 +3430,33 @@ async function getImageUrls(env, payload) {
 
   await Promise.all(ownItems.map(async function (item) {
     try {
-      // 2026-07-15（晚上）：這裡原本帶 `$select=id,@microsoft.graph.
-      // downloadUrl`——查證過這是 Graph 一個真實的怪異限制：用 $select
-      // 精簡查詢時，回應會靜靜地漏掉 `@microsoft.graph.downloadUrl`
-      // 這個 instance annotation（其他欄位正常回傳，HTTP 200，不會報
-      // 錯，只是這個欄位就是不在），連檔案擁有者查自己剛傳的檔案都會
-      // 因此永遠拿到 null。改成不加 $select 直接查完整項目就正常。
-      const response = await fetch(
-        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId) + "?$expand=thumbnails",
-        { headers: { Authorization: "Bearer " + accessToken } }
-      );
-      if (response.ok) {
-        const data = await response.json();
+      // 2026-07-15（晚上）：downloadUrl 這個 instance annotation 只在
+      // 「不帶查詢選項」時才會回傳——$select 會靜靜漏掉它（查證過），
+      // 2026-07-16 又證實 $expand=thumbnails 也一樣會漏掉。所以
+      // downloadUrl（一定要拿到，不然圖片顯示不出來）跟縮圖（拿得到
+      // 就加速冷載入、拿不到 fallback 全尺寸）拆成兩個平行請求：
+      // 主請求不帶任何查詢選項保證 downloadUrl 在，縮圖走專用的
+      // /thumbnails/0/large 端點（沒縮圖時回 404，靜靜跳過）。
+      const results = await Promise.all([
+        fetch(
+          "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId),
+          { headers: { Authorization: "Bearer " + accessToken } }
+        ),
+        fetch(
+          "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(item.itemId) + "/thumbnails/0/large",
+          { headers: { Authorization: "Bearer " + accessToken } }
+        ).catch(function () { return null; })
+      ]);
+      const itemRes = results[0];
+      const thumbRes = results[1];
+      if (itemRes.ok) {
+        const data = await itemRes.json();
         urls[item.itemId] = data["@microsoft.graph.downloadUrl"] || null;
-        thumbs[item.itemId] = extractThumbUrl(data);
       } else {
         urls[item.itemId] = null;
+      }
+      if (thumbRes && thumbRes.ok) {
+        try { const t = await thumbRes.json(); if (t && t.url) thumbs[item.itemId] = t.url; } catch (ignored2) {}
       }
     } catch (ignored) {
       urls[item.itemId] = null;

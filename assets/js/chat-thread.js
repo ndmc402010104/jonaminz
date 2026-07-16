@@ -1403,9 +1403,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (actionItems.length && els.actionSheet && els.actionSheetMenu) {
         els.actionSheetMenu.innerHTML = actionItems.join("");
         els.actionSheet.hidden = false;
-        // 操作列開著時鎖住訊息串捲動（closeContextMenu 恢復），不然
-        // 背景還在動、視覺上像操作列沒真的接管畫面。
-        if (els.thread) els.thread.style.overflow = "hidden";
+        // 2026-07-16（使用者回報「chat 頁面不能 scroll」）：原本這裡設
+        // els.thread.style.overflow="hidden" 鎖捲動，但某些關閉路徑沒
+        // 還原就卡死整個訊息串不能捲。底部操作列本來就有全螢幕
+        // backdrop（els.actionSheetBackdrop）用 preventDefault 擋捲動，
+        // 這個 overflow 鎖是多餘的，移除避免 leak。closeContextMenu
+        // 還是保留一行 overflow="" 當安全網，把任何殘留的鎖解掉。
       }
 
       contextMenuOpenedAt = Date.now();

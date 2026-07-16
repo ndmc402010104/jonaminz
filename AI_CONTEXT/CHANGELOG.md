@@ -20,6 +20,42 @@
 
 ---
 
+## 2026-07-16（晚上，第十九筆）— 泡泡面板 cache-buster（跟 chat 頁面同步）＋移除會 leak 的捲動鎖＋圖片縮圖分開請求
+
+- **任務**：使用者截圖比對發現「chat 頁面跟泡泡面板行為不一樣」（標準
+  頁面長按出新的 ⋮/🙂 工具列，泡泡面板還是舊的表情列＋操作列）＋
+  「chat 頁面不能 scroll」＋「圖片還是灰色載入條」。三個根因：
+  1. **泡泡面板缺 cache-buster**：`pages/chat-panel/index.html` 用
+     plain `<script src="/assets/js/chat-thread.js">` 載入，沒有
+     buster——手機 WebView 一直用快取的舊 chat-thread.js，重裝 APK
+     也清不掉。標準 `/pages/chat/` 走 entry-core `withVersion()` 有
+     buster 所以拿到新版，兩邊因此不同步。
+  2. **捲動鎖 leak**：稍早為了修「操作列開著背景還能捲」加的
+     `els.thread.style.overflow="hidden"`，某些關閉路徑沒還原就把整個
+     訊息串鎖死不能捲。
+  3. **圖片灰條**：`$expand=thumbnails` 跟 `$select` 一樣會讓 Graph
+     靜靜漏掉 `@microsoft.graph.downloadUrl`，舊圖又還沒生成縮圖，
+     downloadUrl＋縮圖兩個都空→灰條。
+- **變更**：
+  - `pages/chat-panel/index.html`：改成動態 `loadScript()` 帶
+    `?v=Date.now()` buster 載入 backend-client.js／chat-thread.js，
+    載完才跑 mount（原本靠 script 順序，現在靠 promise chain）。面板
+    每次建立都是新 iframe→一定拿最新程式碼。
+  - `assets/js/chat-thread.js`：移除 openActionSheet 裡的
+    `overflow="hidden"` 鎖（底部操作列本來就有全螢幕 backdrop 用
+    preventDefault 擋捲動，overflow 鎖多餘且會 leak）；closeContextMenu
+    保留 `overflow=""` 當安全網解鎖。
+  - `backend/cloudflare-worker/worker.js` `getImageUrls`：own＋peer
+    兩個分支的 downloadUrl 查詢都改成「主請求不帶查詢選項（保證
+    downloadUrl 在）＋縮圖走專用 /thumbnails/0/large 端點」兩個平行
+    請求；縮圖 404 靜靜跳過、fallback 全尺寸。
+- **驗證**：chat-panel inline script 用 `new Function()` 驗語法通過；
+  chat-thread.js／worker.js `node --check` 通過。真機待使用者實測
+  （泡泡面板長按應該變新工具列、chat 頁面可捲、灰圖恢復顯示）。
+- **版本**：v0.46.36-202607162251（worker 需 deploy）。
+
+---
+
 ## 2026-07-16（晚上，第十八筆）— 手機長按改 hover 式 ⋮/↩/🙂 工具列；表情反應 optimistic（覆蓋層防彈回）
 
 - **任務**：使用者兩個需求——(1)「手機長按又跳表情又跳功能列」改成
