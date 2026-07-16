@@ -1611,37 +1611,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (lastPollData) render(lastPollData);
       }, true);
 
-      // 2026-07-16（真機/瀏覽器截圖來回三輪才抓到真根因，見下方測試
-      // 過程說明）：hover 工具列預設往上貼，第一版只判斷「離視窗頂端
-      // 夠不夠遠」，但實際用 Playwright 重現使用者的畫面（一則長文字
-      // 訊息後面接一則有時間分隔線的圖片訊息）才發現：真正常見的情況
-      // 是上一個「兄弟元素」離這則訊息很近——尤其是
-      // .jonaminz-chat-time-divider 這種時間分隔線，跟下一則訊息之間
-      // 只留 .jonaminz-chat-thread 的 gap（幾 px），工具列需要的高度
-      // 遠大於這個間距，結果整個蓋住/貼在分隔線那裡，看起來就像「飄在
-      // 半空中跟圖片完全脫節」——這才是使用者說「就是在上下阿」真正
-      // 在講的畫面。只看「離視窗頂端多遠」量不到這種情況（訊息可能離
-      // 視窗頂端很遠，但離上一個兄弟元素很近）。改成直接量「上一個
-      // 兄弟元素的下緣」到「這則訊息上緣」的實際距離，不夠放工具列
-      // 才改貼下方；沒有上一個兄弟元素、或它已經捲出視窗上方，退回
-      // 視窗頂端（0）當基準，涵蓋原本那個情境。
-      els.thread.addEventListener("mouseover", function (event) {
-        var messageEl = event.target.closest(".jonaminz-chat-message");
-        if (!messageEl) return;
-        var toolbar = messageEl.querySelector(".jonaminz-chat-hover-toolbar");
-        if (!toolbar) return;
-        var rect = messageEl.getBoundingClientRect();
-        var toolbarHeight = toolbar.offsetHeight || 34;
-        var prevSibling = messageEl.previousElementSibling;
-        var ceiling = prevSibling ? Math.max(prevSibling.getBoundingClientRect().bottom, 0) : 0;
-        var spaceAbove = rect.top - ceiling;
-        if (spaceAbove < toolbarHeight + 8) {
-          toolbar.classList.add("is-below");
-        } else {
-          toolbar.classList.remove("is-below");
-        }
-      });
-
+      // 2026-07-16（最終版，使用者拿 Messenger 截圖定案）：hover 工具列
+      // 不再浮在泡泡上方/下方（先前四輪的「智慧翻轉」定位全數作廢），
+      // 改成 Messenger 的做法——工具列是訊息列裡的一個普通 flex item，
+      // 跟泡泡並排在同一行（自己的訊息在泡泡左邊、對方的在右邊，靠
+      // data-mine 的 row-reverse 自然排出），垂直置中。訊息列本身已經
+      // 撐滿整行寬，滑鼠在同一行內移動 hover 永遠不會斷，也永遠不會
+      // 蓋到任何東西——不需要任何 JS 定位判斷，純 CSS 搞定。
       els.thread.addEventListener("click", function (event) {
         var loadMoreBtn = event.target.closest("[data-load-more]");
         if (loadMoreBtn) {

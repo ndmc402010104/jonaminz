@@ -458,49 +458,31 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   box-shadow: var(--shadow-sm);
 }
 
-/* 2026-07-16（第三輪收斂）：手機長按同時跳出表情反應列＋底部操作列
-   （openContextMenu() 兩個一起叫，位置衝突已在 JS 修好，見
-   openReactionPicker() 的 maxTop 計算）。電腦版另外加 hover 專用
-   工具列（⋮更多／↩回覆／🙂反應），只在滑鼠移到訊息上才浮現，
-   `@media (hover: hover)` 排除觸控裝置（觸控裝置沒有真正的 hover
-   狀態，會有「點一下才消失」的殘留問題，不出現在那類裝置上）。 */
+/* 2026-07-16（最終版，使用者拿 Messenger 截圖定案）：hover 工具列
+   （⋮更多／↩回覆／🙂反應）是訊息列裡的普通 flex item，跟泡泡並排在
+   同一行、垂直置中——自己的訊息因為 row-reverse 自然排在泡泡左邊，
+   對方的排在右邊，跟 Messenger 一模一樣。不用 position:absolute、
+   不用任何 JS 定位判斷；訊息列撐滿整行寬，滑鼠在行內移動 hover
+   永遠不斷。`@media (hover: hover)` 排除觸控裝置（沒有真正的 hover
+   狀態，不顯示，長按走 openContextMenu()）。 */
 .jonaminz-chat-hover-toolbar { display: none; }
 @media (hover: hover) and (pointer: fine) {
+  /* 垂直定位（使用者定案）：單行訊息就在那一行；多行訊息貼在這則
+     訊息的最下緣（align-self:flex-end，跟訊息列的 align-items 一致）
+     ——訊息長到超出畫面時，position:sticky 會把工具列扣在捲動範圍
+     還看得到的最下緣，不會跟著訊息下半段捲出畫面外點不到。 */
   .jonaminz-chat-hover-toolbar {
     display: flex;
     align-items: center;
+    align-self: flex-end;
+    position: sticky;
+    bottom: 8px;
     gap: 2px;
-    position: absolute;
-    /* 2026-07-16（使用者連續兩輪回饋）：先用 bottom:100% 貼齊整列頂端
-       解決蓋到文字，但留 margin-bottom 的間距造成「滑鼠從泡泡移到
-       工具列中間會經過一段真空地帶」，那段沒有任何元素接住滑鼠，
-       :hover 狀態會斷掉、工具列在移過去的路上就先消失，變得很難點到
-       ——使用者原話「那一行文字一整行都切成是它的」。改成
-       margin-bottom:0（直接貼齊、不留間距），滑鼠從泡泡往上移動全程
-       都在某個元素的可 hover 範圍內，不會斷。 */
-    bottom: 100%;
-    margin-bottom: 0;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-pill);
-    box-shadow: var(--shadow-md);
-    padding: 2px;
+    flex: 0 0 auto;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.12s ease;
-    z-index: 5;
   }
-  /* 2026-07-16（使用者截圖回報：畫面最上面那則訊息，工具列往上貼會
-     整個跑到可視範圍外面，點不到）：貼上方是預設，但訊息離畫面/聊天
-     串頂端太近時，chat-thread.js 的 mouseover 判斷會加這個 class 改貼
-     下方，跟貼上方用同一招（貼齊、0 間距，避免 hover 中途斷掉）。 */
-  .jonaminz-chat-hover-toolbar.is-below {
-    bottom: auto;
-    top: 100%;
-    margin-top: 0;
-  }
-  .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-hover-toolbar { right: 0; }
-  .jonaminz-chat-message[data-mine="false"] .jonaminz-chat-hover-toolbar { left: 32px; }
   .jonaminz-chat-message:hover .jonaminz-chat-hover-toolbar {
     opacity: 1;
     pointer-events: auto;
@@ -508,7 +490,7 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   .jonaminz-chat-hover-toolbar button {
     border: none;
     background: transparent;
-    color: var(--color-text);
+    color: var(--color-text-muted);
     font-size: 14px;
     width: 26px;
     height: 26px;
@@ -518,7 +500,10 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
     align-items: center;
     justify-content: center;
   }
-  .jonaminz-chat-hover-toolbar button:hover { background: var(--color-bg-lobby); }
+  .jonaminz-chat-hover-toolbar button:hover {
+    background: var(--color-bg-lobby);
+    color: var(--color-text);
+  }
 }
 
 .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble {
