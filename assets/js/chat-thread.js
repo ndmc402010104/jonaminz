@@ -517,7 +517,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // 傳錯的照片刪不掉是真實痛點。後端 deleteChatMessage 本來就只
         // 驗「是不是自己傳的」沒有限制種類，這裡開放自己的圖片/檔案
         // 可刪（編輯仍然不開放——沒有文字內容可編輯）。
-        var canDeleteMedia = mine && !deleted && (m.kind === "image" || m.kind === "file");
+        // （同晚追加：使用者截圖分享卡片也沒有刪除選項——擴大成
+        // 「自己傳的任何未刪除訊息都可刪」，不再列舉種類；後端本來
+        // 就只驗 sender_identity，沒有種類限制。）
+        var canDeleteMedia = mine && !deleted && !canEditOrDelete;
         var canReplyOrReact = !deleted;
 
         // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
@@ -1815,6 +1818,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (messageEl && messageEl.dataset.messageId) {
           if (els.contextMenu && !els.contextMenu.hidden) return;
           if (Date.now() - contextMenuOpenedAt < 400) return;
+          // 2026-07-16（使用者回報「不能反白選取」的真根因之一）：
+          // 反白拖曳放開滑鼠那一刻會產生一次 click，走到這裡切換時間
+          // 顯示 → render() 重建 DOM → 剛選好的反白瞬間被清掉，看
+          // 起來就是「完全不能反白」。有未收合的選取範圍就代表這次
+          // click 是選取動作的收尾，不當作「點訊息看時間」。
+          var selection = window.getSelection && window.getSelection();
+          if (selection && !selection.isCollapsed) return;
           timePeekMessageId = timePeekMessageId === messageEl.dataset.messageId ? null : messageEl.dataset.messageId;
           if (lastPollData) render(lastPollData);
         }
@@ -1967,23 +1977,42 @@ title/url（見 `requestHostContext()`，宿主端實作在
         }
         var deleteBtn = event.target.closest("[data-menu-delete]");
         if (deleteBtn) {
-          closeContextMenu();
-          if (!window.confirm("確定要刪除這則訊息嗎？")) return;
+          // 2026-07-16（「刪除是假的」真根因排查）：harness 驗證前端
+          // 流程完全正常，但資料庫裡從來沒有一筆刪除成功過——唯一的
+          // 嫌疑是 window.confirm() 在使用者的瀏覽器被「不要再顯示
+          // 對話方塊」壓掉，直接回傳 false、刪除無聲中止。改成完全
+          // 不用瀏覽器對話框：第一下按鈕變成「確定刪除？」（3 秒內
+          // 沒按第二下就復原），第二下才真的刪。錯誤顯示同理不用
+          // alert（一樣會被壓掉），寫進操作列按鈕本身＋console。
+          if (deleteBtn.dataset.confirming !== "true") {
+            deleteBtn.dataset.confirming = "true";
+            deleteBtn.innerHTML = "<span>⚠️</span>確定刪除？";
+            setTimeout(function () {
+              if (deleteBtn.isConnected && deleteBtn.dataset.confirming === "true") {
+                deleteBtn.dataset.confirming = "";
+                deleteBtn.innerHTML = "<span>🗑️</span>刪除";
+              }
+            }, 3000);
+            return;
+          }
+          deleteBtn.innerHTML = "<span>⏳</span>刪除中…";
           window.JonaminzBackend.deleteChatMessage({ token: token, messageId: deleteBtn.dataset.messageId })
             .then(function (result) {
-              // 2026-07-16（使用者回報「刪除是假的」）：後端回 ok:false
-              // （NOT_FOUND_OR_FORBIDDEN／LOGIN_REQUIRED 之類）原本被
-              // 完全忽略，畫面上什麼都不發生、也沒有任何錯誤訊息，看
-              // 起來就像刪除沒作用。失敗要說出來，才能分辨是「真的沒
-              // 刪成」還是別的問題。
               if (!result || result.ok === false) {
-                els.status.textContent = "刪除失敗：" + ((result && (result.error || result.code)) || "未知原因");
+                var reason = (result && (result.error || result.code)) || "未知原因";
+                console.error("[jonaminz] deleteChatMessage failed:", reason, result);
+                if (deleteBtn.isConnected) deleteBtn.innerHTML = "<span>❌</span>失敗：" + escapeHtml(reason);
+                els.status.textContent = "刪除失敗：" + reason;
                 return;
               }
+              closeContextMenu();
               return poll();
             })
             .catch(function (error) {
-              els.status.textContent = "刪除失敗：" + (error.message || String(error));
+              var message = error.message || String(error);
+              console.error("[jonaminz] deleteChatMessage threw:", error);
+              if (deleteBtn.isConnected) deleteBtn.innerHTML = "<span>❌</span>失敗：" + escapeHtml(message);
+              els.status.textContent = "刪除失敗：" + message;
             });
         }
       }
@@ -1991,6 +2020,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (els.contextMenu) els.contextMenu.addEventListener("click", handleContextMenuClick);
       if (els.actionSheetMenu) els.actionSheetMenu.addEventListener("click", handleContextMenuClick);
       if (els.actionSheetBackdrop) els.actionSheetBackdrop.addEventListener("click", closeContextMenu);
+      // 2026-07-16（使用者實測捲動鎖無效）：鎖住訊息串的 overflow 只
+      // 擋得住訊息串自己，滾輪/觸控捲動落在遮罩上時會「捲動鏈」穿透
+      // 到外層（尤其面板是 iframe 時會捲到宿主頁面），要在遮罩上直接
+      // 把事件擋下來（passive:false 才允許 preventDefault）。
+      if (els.actionSheetBackdrop) {
+        els.actionSheetBackdrop.addEventListener("wheel", function (event) { event.preventDefault(); }, { passive: false });
+        els.actionSheetBackdrop.addEventListener("touchmove", function (event) { event.preventDefault(); }, { passive: false });
+      }
 
       if (els.contextMenu || els.actionSheet) {
         document.addEventListener("click", function (event) {
