@@ -71,6 +71,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
     "👍", "👌", "🙏", "👏",
     "❤️", "🔥", "🎉", "😱"
   ];
+  // 2026-07-16：貼圖/常用回覆面板（決策圖候選畢業，task 9b2157f2）。
+  // 貼圖＝點了「直接送出」的大 emoji（emoji-only 訊息，會自動放大顯示）；
+  // 常用回覆＝點了直接送的預設短句。兩人自用，先寫死一組；之後要可
+  // 編輯再說（不寫進 metadata 那種設定面板，避免現在過度設計）。
+  var STICKER_SET = ["❤️", "😂", "👍", "🥰", "😘", "🤣", "😭", "😱", "🙏", "👏", "🎉", "😴", "🥺", "😎", "🔥", "💯"];
+  var CANNED_REPLIES = ["收到 👌", "好喔", "在忙，等等回你", "到家了", "在路上了", "吃飽沒？", "想你 🥰", "愛你 ❤️", "晚點聊", "哈哈哈"];
   // 一般文字訊息如果整則「就只是一個網址」，直接當成分享內容處理（跟
   // Discord/Slack/iMessage 一樣：貼一個純網址會變成預覽卡，不是純文字）
   // ——訊息裡「還有其他文字」的情況不觸發，避免正常聊天句子裡帶到連結
@@ -584,6 +590,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // 就只驗 sender_identity，沒有種類限制。）
         var canDeleteMedia = mine && !deleted && !canEditOrDelete;
         var canReplyOrReact = !deleted;
+        // 圖片/檔案訊息（未過期）帶下載參數在 message 元素上，給 ⋮ 選單
+        // 的「下載」讀（openActionSheet）——不管圖片還是一般檔案都能下載。
+        var downloadMeta = (!deleted && (m.kind === "image" || m.kind === "file") &&
+          m.metadata && m.metadata.itemId && !m.metadata.expired) ? m.metadata : null;
 
         // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
         // 那則訊息如果還在目前已載入的範圍內（olderMessages/data.messages
@@ -731,11 +741,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // copyText/editable/deletable——一個都沒有（例如對方傳的圖片）
         // 就不畫這顆按鈕，免得按了沒反應像壞掉。
         var hasCopyText = !deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file";
-        var hasMoreActions = hasCopyText || canEditOrDelete || canDeleteMedia;
+        var hasMoreActions = hasCopyText || canEditOrDelete || canDeleteMedia || Boolean(downloadMeta);
         html +=
           '<div class="jonaminz-chat-message" data-mine="' + mine + '" data-message-id="' + escapeHtml(m.id) + '"' +
           (canEditOrDelete ? " data-editable=\"true\"" : "") +
           (canDeleteMedia ? " data-deletable=\"true\"" : "") +
+          (downloadMeta ? ' data-download-item-id="' + escapeHtml(downloadMeta.itemId) +
+            '" data-download-owner="' + escapeHtml(downloadMeta.ownerIdentity || "") +
+            '" data-download-name="' + escapeHtml(downloadMeta.fileName || "檔案") + '"' : "") +
           (deleted ? ' data-deleted="true"' : "") +
           (hasCopyText ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
@@ -1265,6 +1278,10 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.emojiPanel.hidden = true;
     }
 
+    function closeQuickPanel() {
+      if (els.quickPanel) els.quickPanel.hidden = true;
+    }
+
     function closePlusPanel() {
       if (els.plusPanel) els.plusPanel.hidden = true;
     }
@@ -1375,12 +1392,37 @@ title/url（見 `requestHostContext()`，宿主端實作在
       contextMenuOpenedAt = Date.now();
     }
 
+    // 2026-07-16（使用者回報「下載一樣會跳轉」+「手機無法下載」的最終
+    // 修法）：導覽到 Worker 的 /downloadChatFile——Worker 用自己的 token
+    // 向 Graph 解析＋把位元組串流回來，帶 Content-Disposition:attachment
+    // 觸發下載，全程不經過 fetch()，沒有跨來源問題（跟 /appDownload 同一
+    // 套已驗證做法）。抽成 helper 給檔案泡泡點擊跟 ⋮ 選單的「下載」共用。
+    function triggerChatFileDownload(itemId, ownerIdentity, fileName) {
+      if (!itemId) return;
+      window.JonaminzBackend.getWorkerBaseUrlForRedirect().then(function (baseUrl) {
+        var href = baseUrl + "/downloadChatFile?token=" + encodeURIComponent(token || "") +
+          "&itemId=" + encodeURIComponent(itemId) +
+          "&ownerIdentity=" + encodeURIComponent(ownerIdentity || "") +
+          "&fileName=" + encodeURIComponent(fileName || "檔案");
+        var a = document.createElement("a");
+        a.href = href;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+    }
+
     function openActionSheet(messageEl) {
       if (!els.actionSheet) return;
       var messageId = messageEl.dataset.messageId;
       var editable = messageEl.dataset.editable === "true";
       var deletable = messageEl.dataset.deletable === "true";
       var copyText = messageEl.dataset.copyText;
+      // 圖片/檔案訊息帶下載參數（render 時寫在 message 元素上）——⋮ 選單
+      // 多一顆「下載」。使用者原話「下載是不是加載更多裡面的功能就好了，
+      // 現在好像沒有地方做下載的功能」（點泡泡下載不夠明顯）。
+      var downloadItemId = messageEl.dataset.downloadItemId;
 
       if (els.actionSheet) els.actionSheet.hidden = true;
 
@@ -1391,6 +1433,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
         actionItems.push('<button type="button" data-menu-reply data-message-id="' + escapeHtml(messageId) +
           '" data-text="' + escapeHtml(copyText) + '"><span>↩️</span>回覆</button>');
         actionItems.push('<button type="button" data-menu-copy data-text="' + escapeHtml(copyText) + '"><span>📋</span>複製</button>');
+      }
+      if (downloadItemId) {
+        actionItems.push('<button type="button" data-menu-download' +
+          ' data-item-id="' + escapeHtml(downloadItemId) + '"' +
+          ' data-owner-identity="' + escapeHtml(messageEl.dataset.downloadOwner || "") + '"' +
+          ' data-file-name="' + escapeHtml(messageEl.dataset.downloadName || "檔案") + '"><span>⬇️</span>下載</button>');
       }
       if (editable) {
         actionItems.push('<button type="button" data-menu-edit data-message-id="' + escapeHtml(messageId) +
@@ -1640,9 +1688,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<div class="jonaminz-chat-plus-wrap">' + plusButtonHtml + "</div>" +
         '<div class="jonaminz-chat-input-shell">' +
         '<textarea data-input placeholder="輸入訊息..." rows="1"></textarea>' +
+        // 常用回覆/貼圖面板切換鍵（💬）——跟 🙂（插入 emoji 到輸入框）
+        // 不同，這個面板裡的貼圖/短句點了「直接送出」。
+        '<button type="button" class="jonaminz-chat-quick-toggle" data-quick-toggle ' +
+        'aria-label="常用回覆與貼圖">💬</button>' +
         '<button type="button" class="jonaminz-chat-emoji-toggle" data-emoji-toggle ' +
         'aria-label="插入表情符號">🙂</button>' +
         '<div class="jonaminz-chat-emoji-panel" data-emoji-panel hidden></div>' +
+        '<div class="jonaminz-chat-quick-panel" data-quick-panel hidden></div>' +
         "</div>" +
         '<button type="button" class="jonaminz-chat-action-btn" data-action ' +
         'aria-label="快速送出 ' + QUICK_REACTION + '">' + QUICK_REACTION + "</button>" +
@@ -1659,6 +1712,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.status = root.querySelector("[data-page-status]");
       els.emojiToggle = root.querySelector("[data-emoji-toggle]");
       els.emojiPanel = root.querySelector("[data-emoji-panel]");
+      els.quickToggle = root.querySelector("[data-quick-toggle]");
+      els.quickPanel = root.querySelector("[data-quick-panel]");
       els.plus = root.querySelector("[data-plus]");
       els.plusPanel = root.querySelector("[data-plus-panel]");
       els.discussBanner = root.querySelector("[data-discuss-banner]");
@@ -1700,6 +1755,24 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.emojiPanel.innerHTML = EMOJI_SET.map(function (emoji) {
         return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
       }).join("");
+
+      // 貼圖/常用回覆面板內容：貼圖區（點了直接送 emoji-only 訊息）＋
+      // 常用回覆區（點了直接送預設短句）。
+      if (els.quickPanel) {
+        els.quickPanel.innerHTML =
+          '<div class="jonaminz-chat-quick-section-title">貼圖</div>' +
+          '<div class="jonaminz-chat-quick-stickers">' +
+          STICKER_SET.map(function (s) {
+            return '<button type="button" data-quick-sticker="' + escapeHtml(s) + '">' + s + "</button>";
+          }).join("") +
+          "</div>" +
+          '<div class="jonaminz-chat-quick-section-title">常用回覆</div>' +
+          '<div class="jonaminz-chat-quick-replies">' +
+          CANNED_REPLIES.map(function (t) {
+            return '<button type="button" data-quick-reply="' + escapeHtml(t) + '">' + escapeHtml(t) + "</button>";
+          }).join("") +
+          "</div>";
+      }
 
       if (els.plusPanel) {
         els.plus.addEventListener("click", function (event) {
@@ -1875,30 +1948,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         }
         var fileBubble = event.target.closest("[data-file-bubble]");
         if (fileBubble) {
-          // 2026-07-16（使用者回報「下載一樣會跳轉」+「手機測試無法
-          // 下載」）：先前 blob-fetch 的做法對 Graph 短效 downloadUrl
-          // 一律被 CORS 擋掉（跨網域 fetch 不允許跨來源讀取），靜默
-          // 退回 window.open 的舊分頁行為——兩個症狀是同一個根因。
-          // 改成直接導覽到 Worker 的 /downloadChatFile：由 Worker 用
-          // 自己的 token 向 Graph 解析＋把檔案位元組串流回來，瀏覽器
-          // 收到 Content-Disposition: attachment 直接觸發下載，全程
-          // 不經過 fetch()，不會有跨網域問題（跟 /appDownload 同一套
-          // 已驗證可行的做法）。
-          var downloadFileName = fileBubble.dataset.fileName || "檔案";
-          var downloadItemId = fileBubble.dataset.itemId;
-          var downloadOwnerIdentity = fileBubble.dataset.ownerIdentity;
-          window.JonaminzBackend.getWorkerBaseUrlForRedirect().then(function (baseUrl) {
-            var downloadHref = baseUrl + "/downloadChatFile?token=" + encodeURIComponent(token || "") +
-              "&itemId=" + encodeURIComponent(downloadItemId || "") +
-              "&ownerIdentity=" + encodeURIComponent(downloadOwnerIdentity || "") +
-              "&fileName=" + encodeURIComponent(downloadFileName);
-            var downloadLink = document.createElement("a");
-            downloadLink.href = downloadHref;
-            downloadLink.rel = "noopener";
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-          });
+          triggerChatFileDownload(fileBubble.dataset.itemId, fileBubble.dataset.ownerIdentity, fileBubble.dataset.fileName || "檔案");
           return;
         }
         var card = event.target.closest("[data-shared-card]");
@@ -2084,6 +2134,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
         var copyBtn = event.target.closest("[data-menu-copy]");
         if (copyBtn) {
           try { navigator.clipboard.writeText(copyBtn.dataset.text || ""); } catch (error) {}
+          closeContextMenu();
+          return;
+        }
+        var downloadBtn = event.target.closest("[data-menu-download]");
+        if (downloadBtn) {
+          triggerChatFileDownload(downloadBtn.dataset.itemId, downloadBtn.dataset.ownerIdentity, downloadBtn.dataset.fileName);
           closeContextMenu();
           return;
         }
@@ -2589,6 +2645,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
       els.emojiToggle.addEventListener("click", function (event) {
         event.stopPropagation();
+        closeQuickPanel();
         els.emojiPanel.hidden = !els.emojiPanel.hidden;
       });
       els.emojiPanel.addEventListener("click", function (event) {
@@ -2604,9 +2661,34 @@ title/url（見 `requestHostContext()`，宿主端實作在
         updateComposerAction();
         autoGrowInput();
       });
-      document.addEventListener("click", function (event) {
-        if (!els.emojiPanel.hidden && !event.target.closest(".jonaminz-chat-input-shell")) {
+
+      // 貼圖/常用回覆面板：切換鍵開關；點貼圖或短句都「直接送出」。
+      if (els.quickToggle && els.quickPanel) {
+        els.quickToggle.addEventListener("click", function (event) {
+          event.stopPropagation();
           closeEmojiPanel();
+          els.quickPanel.hidden = !els.quickPanel.hidden;
+        });
+        els.quickPanel.addEventListener("click", function (event) {
+          var sticker = event.target.closest("[data-quick-sticker]");
+          if (sticker) {
+            closeQuickPanel();
+            doSendText(sticker.dataset.quickSticker);
+            return;
+          }
+          var canned = event.target.closest("[data-quick-reply]");
+          if (canned) {
+            closeQuickPanel();
+            doSendText(canned.dataset.quickReply);
+            return;
+          }
+        });
+      }
+
+      document.addEventListener("click", function (event) {
+        if (!event.target.closest(".jonaminz-chat-input-shell")) {
+          closeEmojiPanel();
+          closeQuickPanel();
         }
       });
     }

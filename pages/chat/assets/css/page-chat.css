@@ -1070,7 +1070,8 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   resize: none;
   min-height: 42px;
   max-height: 120px;
-  padding: 10px 42px 10px var(--space-3);
+  /* 右邊要留兩顆按鈕（💬常用 + 🙂表情）的空間，不然文字會被蓋到。 */
+  padding: 10px 76px 10px var(--space-3);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-bg-lobby);
@@ -1136,6 +1137,77 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
 .jonaminz-chat-emoji-panel button:hover {
   background: var(--color-accent);
 }
+
+/* 2026-07-16：常用回覆/貼圖切換鍵（💬，在 🙂 左邊）＋面板。 */
+.jonaminz-chat-quick-toggle {
+  position: absolute;
+  right: 37px;
+  bottom: 3px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.jonaminz-chat-quick-panel {
+  position: absolute;
+  right: 0;
+  bottom: 48px;
+  width: 260px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  z-index: 5;
+}
+.jonaminz-chat-quick-panel[hidden] { display: none; }
+.jonaminz-chat-quick-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-text-muted);
+  margin: 2px 0 6px;
+}
+.jonaminz-chat-quick-stickers {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  margin-bottom: var(--space-3);
+}
+.jonaminz-chat-quick-stickers button {
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-lobby);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.jonaminz-chat-quick-stickers button:hover { background: var(--color-accent); }
+.jonaminz-chat-quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.jonaminz-chat-quick-replies button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+  color: var(--color-text);
+}
+.jonaminz-chat-quick-replies button:hover { background: var(--color-bg-lobby); }
 
 .jonaminz-chat-status-line {
   font-size: var(--text-xs);
