@@ -1611,6 +1611,25 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (lastPollData) render(lastPollData);
       }, true);
 
+      // 2026-07-16（使用者截圖回報：畫面最上面那則訊息，hover 工具列
+      // 預設往上貼會整個跑到可視範圍外面，點不到——「頂端請問我這個
+      // 怎麼點啊」）：純 CSS 沒辦法判斷「上方還有沒有空間」，改用
+      // mouseover 量測訊息離視窗頂端的距離，不夠放工具列高度就加
+      // is-below 改貼下方（CSS 見 .jonaminz-chat-hover-toolbar.is-below）。
+      els.thread.addEventListener("mouseover", function (event) {
+        var messageEl = event.target.closest(".jonaminz-chat-message");
+        if (!messageEl) return;
+        var toolbar = messageEl.querySelector(".jonaminz-chat-hover-toolbar");
+        if (!toolbar) return;
+        var rect = messageEl.getBoundingClientRect();
+        var toolbarHeight = toolbar.offsetHeight || 34;
+        if (rect.top < toolbarHeight + 12) {
+          toolbar.classList.add("is-below");
+        } else {
+          toolbar.classList.remove("is-below");
+        }
+      });
+
       els.thread.addEventListener("click", function (event) {
         var loadMoreBtn = event.target.closest("[data-load-more]");
         if (loadMoreBtn) {

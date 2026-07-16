@@ -483,6 +483,15 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
     transition: opacity 0.12s ease;
     z-index: 5;
   }
+  /* 2026-07-16（使用者截圖回報：畫面最上面那則訊息，工具列往上貼會
+     整個跑到可視範圍外面，點不到）：貼上方是預設，但訊息離畫面/聊天
+     串頂端太近時，chat-thread.js 的 mouseover 判斷會加這個 class 改貼
+     下方，跟貼上方用同一招（貼齊、0 間距，避免 hover 中途斷掉）。 */
+  .jonaminz-chat-hover-toolbar.is-below {
+    bottom: auto;
+    top: 100%;
+    margin-top: 0;
+  }
   .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-hover-toolbar { right: 0; }
   .jonaminz-chat-message[data-mine="false"] .jonaminz-chat-hover-toolbar { left: 32px; }
   .jonaminz-chat-message:hover .jonaminz-chat-hover-toolbar {

@@ -482,6 +482,14 @@ button, textarea { font: inherit; }
     transition: opacity 0.12s ease;
     z-index: 5;
   }
+  /* 2026-07-16（畫面最上面那則訊息貼上方會跑到可視範圍外）：貼上方是
+     預設，chat-thread.js 的 mouseover 判斷空間不夠時加這個 class 改
+     貼下方。 */
+  .jonaminz-chat-hover-toolbar.is-below {
+    bottom: auto;
+    top: 100%;
+    margin-top: 0;
+  }
   .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-hover-toolbar { right: 0; }
   .jonaminz-chat-message[data-mine="false"] .jonaminz-chat-hover-toolbar { left: 28px; }
   .jonaminz-chat-message:hover .jonaminz-chat-hover-toolbar {
