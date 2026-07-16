@@ -193,7 +193,26 @@
   302 轉址——**故意不要求登入**，這份檔案是編譯產物本來就要給 Minz
   手機瀏覽器直接點開安裝，不是敏感資料，多一層登入關卡只會讓「傳個
   安裝連結」變麻煩。真機驗證下載安裝 OK 後，原本的 GitHub Release
-  公開通道（`app-latest`）就可以收回。
+  公開通道（`app-latest`）就可以收回。**2026-07-16 改成直接串流檔案
+  位元組（不是 302 轉址）**：原本轉址到 Graph 的短效 downloadUrl，
+  手機瀏覽器點開常常先顯示一個 Microsoft 的網頁而不是直接觸發下載，
+  使用者原話「可以不要跳頁面嗎？直接下載不就好了」；改成 Worker
+  `fetch()` 那個 downloadUrl 拿到真正內容後把 `body` 原樣串流回去，
+  帶 `Content-Disposition: attachment`，不經過任何中繼頁面。
+- `reportLatestApkVersion` / `getLatestApkVersion`：2026-07-16，使用者
+  要求「進入頁面通知有 app 更新請更新」。原生 App 自己的
+  `versionCode`（`jonaminz-mobile-app/android/app/build.gradle`）跟
+  這個 repo 的 `version.js` 是兩個獨立版本序列，Worker 沒辦法自己
+  推算「現在最新一版 APK 是哪個 versionCode」，靠 `tools/upload-apk.mjs`
+  上傳成功後順便回報（存進 `app_settings` 的
+  `latest_apk_version_code`／`latest_apk_version_name`）。
+  `reportLatestApkVersion` 跟 `createApkUploadSession` 同一套認證
+  （`requireSessionOrAgentToken`）；`getLatestApkVersion` 公開唯讀
+  （跟 `GET /appDownload` 同信任層級，不要求登入——App 剛裝好、使用者
+  還沒登入 jonaminz 網站身分時也要能查）。網頁端消費見
+  `assets/js/app-update-check.js`：只在 Capacitor 原生 App 裡執行，
+  拿 `Capacitor.Plugins.App.getInfo().build` 跟這支回傳的
+  `versionCode` 比，比出來且使用者沒有 dismiss 過這一版才顯示提示。
 - `listProjectTasks` / `addProjectTask` / `toggleProjectTask` /
   `deleteProjectTask` / `clearDoneProjectTasks` / `moveProjectTaskLane`：
   `pages/admin/journal/`（決策與待辦頁）的待辦看板，2026-07-15 新增。
@@ -549,6 +568,14 @@ export default {
 
       if (action === "createApkUploadSession") {
         return json(await createApkUploadSession(env, payload), 200);
+      }
+
+      if (action === "reportLatestApkVersion") {
+        return json(await reportLatestApkVersion(env, payload), 200);
+      }
+
+      if (action === "getLatestApkVersion") {
+        return json(await getLatestApkVersion(env), 200);
       }
 
       return json({ ok: false, error: "Unknown action: " + action }, 400);
@@ -3091,6 +3118,39 @@ async function createApkUploadSession(env, payload) {
   return { ok: true, uploadUrl: session.uploadUrl, fileName: fileName };
 }
 
+// 2026-07-16：使用者要求「進入頁面通知有 app 更新請更新」——原生 App
+// 自己的 versionCode/versionName（`jonaminz-mobile-app/android/app/
+// build.gradle`）跟這個 repo 的 version.js 是兩個獨立的版本序列，
+// Worker 沒辦法自己知道「現在最新一版 APK 的 versionCode 是多少」，
+// 只能靠上傳流程順便回報。`tools/upload-apk.mjs` 上傳成功後，如果有
+// 帶 versionCode/versionName 就呼叫這支存起來；`getLatestApkVersion`
+// 給網頁端（跑在原生 App 裡時）拿去跟 Capacitor `App.getInfo()` 回報
+// 的目前安裝版本比較，比出來、且使用者沒有明確 dismiss 過這一版時
+// 才顯示更新提示——見 assets/js/app-update-check.js。
+async function reportLatestApkVersion(env, payload) {
+  const caller = await requireSessionOrAgentToken(env, payload);
+  if (!caller) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const versionCode = Number(payload && payload.versionCode);
+  if (!Number.isInteger(versionCode) || versionCode <= 0) {
+    return { ok: false, code: "INVALID_VERSION_CODE", error: "versionCode must be a positive integer" };
+  }
+  const versionName = String((payload && payload.versionName) || "").trim();
+  await setAppSetting(env, "latest_apk_version_code", versionCode, caller);
+  await setAppSetting(env, "latest_apk_version_name", versionName, caller);
+  return { ok: true };
+}
+
+// 公開唯讀（跟 GET /appDownload 同一個信任層級，不要求登入）——APP
+// 內建的更新提示在使用者還沒登入 jonaminz 網站身分時也該能運作
+// （例如剛裝好 App、第一次開）。
+async function getLatestApkVersion(env) {
+  const versionCode = await getAppSetting(env, "latest_apk_version_code", null);
+  const versionName = await getAppSetting(env, "latest_apk_version_name", null);
+  return { ok: true, versionCode: versionCode, versionName: versionName };
+}
+
 // GET /appDownload 的實作：列出 releases 資料夾、挑 createdDateTime
 // 最新的一個 .apk，換一次短效 downloadUrl 後 302 轉址。故意不要求
 // 登入（見上方 action 清單註解）。改成列資料夾而不是查固定檔名，
@@ -3123,7 +3183,25 @@ async function handleAppDownload(env) {
   if (!downloadUrl) {
     return new Response("Graph 沒有回傳下載連結。", { status: 502 });
   }
-  return Response.redirect(downloadUrl, 302);
+  // 2026-07-16：改成 Worker 直接把檔案位元組串流回來，不是 302 轉址
+  // ——原本轉址到 Microsoft 的下載網址，手機瀏覽器常常先開一個
+  // Microsoft 的網頁而不是直接觸發下載，使用者原話「可以不要跳頁面
+  // 嗎？直接下載不就好了」。fetch() 這個短效 downloadUrl 拿到真正的
+  // 檔案內容後，把回應的 body 原樣串流回瀏覽器（不用等整個檔案讀進
+  // 記憶體才回應），搭配 Content-Disposition: attachment 強制觸發
+  // 下載，不會經過任何中繼頁面。
+  const fileResponse = await fetch(downloadUrl);
+  if (!fileResponse.ok || !fileResponse.body) {
+    return new Response("下載檔案內容失敗（HTTP " + fileResponse.status + "）。", { status: 502 });
+  }
+  const headers = {
+    "Content-Type": "application/vnd.android.package-archive",
+    "Content-Disposition": 'attachment; filename="' + latest.name + '"',
+    "Cache-Control": "no-store"
+  };
+  const contentLength = fileResponse.headers.get("Content-Length");
+  if (contentLength) headers["Content-Length"] = contentLength;
+  return new Response(fileResponse.body, { status: 200, headers: headers });
 }
 
 // ---------- OneDrive 線 Phase B：圖片訊息（2026-07-15，單一副本＋

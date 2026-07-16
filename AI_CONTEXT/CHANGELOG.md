@@ -20,6 +20,53 @@
 
 ---
 
+## 2026-07-16（下午，第二筆）— APK 下載改直接串流不轉址；原生 App 內建更新提示
+
+- **任務**：使用者提出兩件事：(1)「apk下載可以不要跳頁面嗎？直接
+  下載不就好了」；(2)「你有辦法跳通知嗎？就是進入頁面通知有app更新
+  請更新」。
+- **變更**：
+  - `backend/cloudflare-worker/worker.js`——`handleAppDownload`
+    不再 `Response.redirect(downloadUrl, 302)`，改成 `fetch()` 那個
+    Graph 短效 downloadUrl 拿到真正內容後把 `body` 原樣串流回瀏覽器，
+    帶 `Content-Disposition: attachment`，不經過任何中繼頁面。新增
+    `reportLatestApkVersion`（`requireSessionOrAgentToken` 認證，跟
+    `createApkUploadSession` 同一套）／`getLatestApkVersion`（公開
+    唯讀）兩支 action，存/讀 `app_settings` 的
+    `latest_apk_version_code`／`latest_apk_version_name`。
+  - `tools/upload-apk.mjs`——新增選填的第 3/4 個 CLI 參數
+    `[versionCode] [versionName]`，有帶的話上傳成功後順便呼叫
+    `reportLatestApkVersion`。
+  - `assets/js/app-update-check.js`（新檔）——只在 Capacitor 原生 App
+    裡動作（`window.Capacitor.Plugins.App` 存在才繼續，瀏覽器開網頁
+    完全 no-op），用 `App.getInfo().build` 跟 `getLatestApkVersion`
+    比對，落後就在畫面底部顯示可關閉的更新提示條（含「下載更新」
+    連結指向 `/appDownload`），關閉會記住這個 versionCode（存
+    localStorage），下次不會為同一版再跳一次，等真的有更新的版本
+    才會再提示。跟 `chat-launcher.js` 同一批由 `entry-core.js` 平行
+    載入，樣式用注入 `<style>` 標籤自帶（跟 chat-launcher.js 同一個
+    模式，不額外掛 CSS 檔）。
+  - `assets/js/backend-client.js`——新增 `getLatestApkVersion` 前端
+    呼叫包裝（`reportLatestApkVersion` 只有 Node 腳本會呼叫，不需要
+    前端包裝）。
+- **狀態變化**：`/appDownload` 從轉址改成直接下載；新增了一條原生
+  App 專屬的版本序列追蹤機制，目前還沒有任何 APK 真的回報過版本號
+  （`latest_apk_version_code` 這個 key 還不存在），要等下面「驗證」
+  那步或下一次真的 build+upload 才會第一次寫入。
+- **驗證**：`node --check` 全數通過（worker.js／upload-apk.mjs／
+  app-update-check.js／backend-client.js／entry-core.js）。**還沒
+  wrangler deploy**，新 action 目前呼叫會是 `Unknown action`。
+- **遺留**：deploy 之後要手動幫已經上傳的那個 debug APK（versionCode
+  4、versionName `202607160839`）補報一次 `reportLatestApkVersion`，
+  不然更新提示機制雖然上線了但沒有基準值可以比。**沒有真機測試**
+  這條更新提示邏輯——`Capacitor.Plugins.App.getInfo()` 回傳格式是
+  依照官方文件推論的（`build` 欄位＝versionCode 字串），沒有在真機
+  上實際印出來確認過，需要使用者裝一個確定比目前新的版本後才能驗證
+  提示會不會正確跳出來。
+- **版本**：`v0.46.13-202607161341`。
+
+---
+
 ## 2026-07-16（下午）— APK 上傳成功；「覆蓋」改成同一列原地編輯
 
 - **任務**：trim bug 修完、使用者重存 token 後，`tools/upload-apk.mjs`

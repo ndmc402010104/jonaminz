@@ -157,9 +157,24 @@ Minz 讀圖 ──▶ Worker 用 Minz 自己的 access token 查
   反映「怕裝錯」分不出新舊下載；這件事跟雙帳號無關，固定用 Jonathan
   的帳號存放即可）。
 - Worker `GET /appDownload` → 列出 `releases/` 資料夾挑 `createdDateTime`
-  最新一筆 → 換 fresh downloadUrl → `302` 轉址。固定網址從此是
+  最新一筆 → 換 fresh downloadUrl。固定網址從此是
   `https://<worker網域>/appDownload`（也是工具包頁面「下載最新 APK」
-  連結指向的網址）。
+  連結指向的網址）。**2026-07-16 改成直接串流檔案位元組，不是
+  302 轉址**——原本轉址到 Graph 短效 downloadUrl，手機瀏覽器點開常常
+  先顯示一個 Microsoft 網頁而不是直接觸發下載，使用者原話「可以不要
+  跳頁面嗎？直接下載不就好了」；改成 Worker `fetch()` 那個 downloadUrl
+  拿到真正內容後把 `body` 串流回去，帶 `Content-Disposition:
+  attachment`，不經過任何中繼頁面。
+- **原生 App 內建更新提示（2026-07-16 新增）**：使用者要求「進入頁面
+  通知有app更新請更新」。新增 `reportLatestApkVersion`／
+  `getLatestApkVersion` 兩支 action，`tools/upload-apk.mjs` 上傳成功後
+  可以選填帶 `versionCode`／`versionName` 順便回報最新版本（存
+  `app_settings`）；網頁端 `assets/js/app-update-check.js`（entry-core.js
+  跟 chat-launcher.js 同批載入，只在 Capacitor 原生 App 裡動作）用
+  `Capacitor.Plugins.App.getInfo()` 拿目前安裝的 versionCode，跟
+  `getLatestApkVersion` 回傳的比，落後且使用者沒 dismiss 過這一版才
+  顯示可關閉的更新提示條。這是原生 App 自己的 versionCode 序列，跟
+  這個 repo 網頁本身的 `version.js` cache-buster 是兩件獨立的事。
 - **`createApkUploadSession` 的認證方式（2026-07-16 新增第二種）**：
   原本只接受一般登入 session；使用者反映每次 build 完都要重新跟他要
   session token 太麻煩，新增一把跟個人登入分開、不會過期的密鑰認證

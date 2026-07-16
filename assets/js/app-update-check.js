@@ -1,0 +1,108 @@
+/*
+檔案位置：jonaminz/assets/js/app-update-check.js
+用途：全站 shell script（跟 chat-launcher.js 同一批，entry-core.js 載入）
+——只在原生 Android App（Capacitor WebView）裡執行，比對目前安裝的
+versionCode 跟 Worker 回報的最新一版，落後就顯示一條可關閉的更新提示。
+
+2026-07-16：使用者原話「進入頁面通知有app更新請更新」。原生 App 的
+versionCode（jonaminz-mobile-app/android/app/build.gradle）跟這個 repo
+的 version.js 是兩個獨立版本序列，這支只管前者——網頁本身的版本新舊
+已經有既有的 resourceVersion cache-buster 機制處理，不是這支的責任。
+
+刻意獨立成一個檔案：「品牌列/身分」「Chat 入口」「更新提示」是三個不同
+職責，不該糾在同一個檔案裡（跟 chat-launcher.js 檔頭同一個理由）。
+
+在瀏覽器（不是原生 App）裡完全不做任何事，第一行就直接 return。
+*/
+(function () {
+  "use strict";
+
+  var plugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!plugin || typeof plugin.getInfo !== "function") return;
+
+  var DISMISSED_KEY = "jonaminz.dismissedUpdateVersionCode";
+
+  function readDismissedVersionCode() {
+    try {
+      var raw = window.localStorage.getItem(DISMISSED_KEY);
+      return raw ? parseInt(raw, 10) : 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function writeDismissedVersionCode(versionCode) {
+    try {
+      window.localStorage.setItem(DISMISSED_KEY, String(versionCode));
+    } catch (error) {
+      // localStorage 不可用（隱私模式等）：這次提示關掉就沒了，下次
+      // 開 App 還是會再跳一次，不是嚴重問題，不用特別處理。
+    }
+  }
+
+  // 跟 chat-launcher.js 同一個模式：這支是獨立的 shell script，樣式
+  // 用注入 <style> 標籤自帶，不額外掛一份 CSS 檔案進 reservoir 層。
+  function injectStyle() {
+    var style = document.createElement("style");
+    style.textContent =
+      ".jonaminz-app-update-banner{position:fixed;left:0;right:0;bottom:0;z-index:9998;" +
+      "display:flex;align-items:center;gap:10px;flex-wrap:wrap;" +
+      "padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom));" +
+      "background:#2f2a22;color:#f6f3ec;font-size:14px;box-shadow:0 -2px 10px rgba(0,0,0,.2);}" +
+      ".jonaminz-app-update-banner span{flex:1;min-width:0;}" +
+      ".jonaminz-app-update-banner a{color:#f6f3ec;font-weight:700;text-decoration:underline;white-space:nowrap;}" +
+      ".jonaminz-app-update-banner button{flex:none;border:0;background:transparent;color:#f6f3ec;" +
+      "font-size:16px;line-height:1;cursor:pointer;padding:4px 6px;}";
+    document.head.appendChild(style);
+  }
+
+  function showBanner(latestVersionCode, latestVersionName) {
+    injectStyle();
+    var banner = document.createElement("div");
+    banner.className = "jonaminz-app-update-banner";
+    banner.innerHTML =
+      '<span>有新版本可更新' + (latestVersionName ? "（" + escapeHtml(latestVersionName) + "）" : "") + '</span>' +
+      '<a href="https://jonaminz-backend.ndmc402010104.workers.dev/appDownload" target="_blank" rel="noopener">下載更新</a>' +
+      '<button type="button" aria-label="關閉">✕</button>';
+    banner.querySelector("a").addEventListener("click", function () {
+      writeDismissedVersionCode(latestVersionCode);
+    });
+    banner.querySelector("button").addEventListener("click", function () {
+      writeDismissedVersionCode(latestVersionCode);
+      banner.remove();
+    });
+    document.body.appendChild(banner);
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+    });
+  }
+
+  function check() {
+    if (!window.JonaminzBackend || typeof window.JonaminzBackend.getLatestApkVersion !== "function") return;
+    Promise.all([
+      plugin.getInfo(),
+      window.JonaminzBackend.getLatestApkVersion({})
+    ]).then(function (results) {
+      var appInfo = results[0];
+      var latest = results[1];
+      if (!latest || !latest.ok || !latest.versionCode) return;
+      var currentVersionCode = parseInt(appInfo && appInfo.build, 10) || 0;
+      var latestVersionCode = Number(latest.versionCode);
+      if (!currentVersionCode || latestVersionCode <= currentVersionCode) return;
+      if (readDismissedVersionCode() >= latestVersionCode) return;
+      showBanner(latestVersionCode, latest.versionName);
+    }).catch(function () {
+      // 查詢失敗（離線／Worker 暫時打不到）：安靜放棄，不影響其他功能，
+      // 下次開 App 再試一次就好，不用跳錯誤訊息打擾使用者。
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", check, { once: true });
+  } else {
+    check();
+  }
+})();

@@ -393,10 +393,15 @@ ready/shell ready/all-ready/逾時保底/init 失敗）發成 log、更新模組
             // 2026-07-14：全站浮動 Chat 入口（iframe 注入器），從 header.js
             // 拆出來的獨立 shell script——「品牌列/身分」跟「Chat 入口」是
             // 兩個職責，不該糾在同一個檔案。按鈕本體見 pages/chat-launcher/。
-            loadScript("/assets/js/chat-launcher.js")
+            loadScript("/assets/js/chat-launcher.js"),
+            // 2026-07-16：原生 App 更新提示，同樣獨立成一個檔案（「更新
+            // 提示」又是另一個職責）。只在 Capacitor 原生 App 裡才會做
+            // 任何事，瀏覽器開網頁完全是 no-op，跟其他 shell script 一起
+            // 平行載入不會拖慢一般網頁的載入速度。
+            loadScript("/assets/js/app-update-check.js")
           ]).then(function () {
             markShellReady();
-            runtimeLog("info", "loading-gate", "shell ready（header/footer/registry-loader/layout-metrics/chat-launcher）");
+            runtimeLog("info", "loading-gate", "shell ready（header/footer/registry-loader/layout-metrics/chat-launcher/app-update-check）");
             setProgressTarget(85);
           });
 

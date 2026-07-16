@@ -244,6 +244,10 @@
     return call("updateChatFileRetentionDays", payload, options);
   }
 
+  function getLatestApkVersion(payload, options) {
+    return call("getLatestApkVersion", payload, options);
+  }
+
   function listAgentSecrets(payload, options) {
     return call("listAgentSecrets", payload, options);
   }
@@ -307,6 +311,7 @@
     sendFileMessage: sendFileMessage,
     getChatFileRetentionSettings: getChatFileRetentionSettings,
     updateChatFileRetentionDays: updateChatFileRetentionDays,
+    getLatestApkVersion: getLatestApkVersion,
     listAgentSecrets: listAgentSecrets,
     setAgentSecret: setAgentSecret,
     deleteAgentSecret: deleteAgentSecret
