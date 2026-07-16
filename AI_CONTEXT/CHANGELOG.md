@@ -20,6 +20,74 @@
 
 ---
 
+## 2026-07-16（傍晚，第七筆）— jonaminz-mobile-app：泡泡失焦收合追加三重訊號，真機反覆驗證後終於完全穩定
+
+- **任務**：接續上一筆（第六筆）——versionCode 6 的同步收合修好了「有觸發但視覺沒收合」，但真機反覆測試發現觸發本身就不穩定，這筆是後續一連串真機 adb 除錯＋修正，直到使用者確認「不錯很棒終於好了」。
+- **除錯過程**（`jonaminz-mobile-app` 姐妹 repo，
+  `BubbleOverlayService.java`，versionCode 6 → 15，每輪都用 adb 無線
+  偵錯／USB 裝上使用者手機真機測試）：
+  1. **versionCode 7**：加「觸發來源」log 區分是 bubble tap／tap
+     outside／focus listener，發現使用者以為按了 Home，log 卻顯示
+     完全沒有任何事件——`OnWindowFocusChangeListener` 這次根本沒觸發。
+  2. **versionCode 8**：改用 `UsageStatsManager` 輪詢「目前最上層是
+     哪個 App」當第二訊號（跟原本的焦點監聽並行，任一觸發即收合），
+     新增 `PACKAGE_USAGE_STATS` 特殊權限（App 內自動導去系統設定頁）。
+  3. **versionCode 9**：真機測試「完全沒反應」，抓到 bug——
+     `UsageStatsManager` 是事件查詢 API 不是狀態查詢，原本只查最近
+     10 秒，使用者開泡泡前已經在同一畫面待超過 10 秒（沒有最近切換
+     事件）就查不到任何事件，基準值變成 null，之後永遠比不出「換
+     人了」。改成查一整天份事件、只取最新一筆。
+  4. **versionCode 10-11**：使用者連續回饋「有收但很慢」「還是慢，
+     要跟Messenger一樣絲滑」，輪詢間隔從 1000ms→350ms→120ms，
+     連續確認次數從 2 次降到 1 次（拿掉 debounce，沒有實際證據顯示
+     鍵盤 IME 顯示/收起會被 UsageStatsManager 記成
+     MOVE_TO_FOREGROUND，這個防呆原本只是預防性寫法）。
+  5. **versionCode 12**：使用者一針見血抓到邏輯漏洞——「最上層 App
+     換了沒，最上層就是我們，當然不會換」：從桌面本身打開面板時，
+     基準值本來就是桌面（launcher），我們的浮層不是 Activity，桌面
+     在系統眼裡從頭到尾沒被「換掉」過，按 Home 對這招來說是無意義
+     的比對，邏輯上不可能偵測到。改成加第三訊號：直接輪詢
+     `panelContainer.hasWindowFocus()`（不透過容易延遲/不觸發的
+     `OnWindowFocusChangeListener` 回呼，每次輪詢自己查當下的即時
+     狀態），並加保護避免面板剛打開、還沒真的拿到焦點就被誤判成
+     「已經失焦」。
+  6. **versionCode 13**：同時追加前景返回鍵收合（`dispatchKeyEvent`
+     攔截 `KEYCODE_BACK`，跟 Messenger 對齊——不是穿透到底下的
+     App）——這是使用者主動要求的功能，順手在同一輪加上。
+  7. **versionCode 14**：使用者測試「從桌面打開、按Home」這個死角
+     依然沒收合，且指出 Android 不允許 App 直接偵測 Home 鍵（安全
+     設計，防止惡意 App 困住使用者，這點使用者原本以為可以直接偵測
+     Home 被我解釋這個平台限制）。加第四訊號：`ACTION_
+     CLOSE_SYSTEM_DIALOGS` 系統廣播——Android 專門設計給「使用者按
+     Home／開最近工作列」時通知所有 App「收起浮動視窗」用的，**不
+     比對「誰是最上層」，不吃上面那個邏輯漏洞**，這才是這個死角
+     真正合適的解法。真機驗證成功。
+  8. **versionCode 15**：使用者確認收合已經穩定，但反應「咻一下就
+     不見了」要求恢復收合動畫。`collapsePanelImmediately()` 重構：
+     真正關鍵的「不可觸控/不可對焦」視窗旗標改成立即同步生效（這才
+     是「不擋住使用者」的關鍵，不等動畫），縮放/透明度動畫加回來
+     單純當視覺效果——即使系統凍結行程導致動畫播不完，最壞只是卡在
+     alpha=0／縮到很小的狀態，視覺上還是跟收起來一樣，不影響功能。
+- **狀態變化**：`6ae99897` 從「已裝但沒生效、待查」→ 完全修復並經
+  使用者真機反覆驗證確認，已標記 done。`pages/admin/journal/assets/
+  js/app.js` 的 `DECISION_TIMELINE` 新增 `bubble-leave-detection-
+  multi-signal` 一筆，記錄「單一訊號在真機上都各自有死角，改成多
+  訊號並行」這個決策的完整脈絡。
+- **驗證**：每一輪都透過 adb 無線偵錯（中途連線數次不穩定改用 USB
+  排除干擾）／`gradlew assembleDebug` 建置＋裝上使用者的 Samsung
+  SM-F9660（Fold）真機，搭配 logcat 逐輪比對使用者實際操作跟程式碼
+  觸發路徑，不是憑空猜測——這整個過程是這個 repo 目前為止最徹底的
+  一次真機除錯循環。
+- **遺留**：程式碼裡還留著這輪除錯用的診斷 `Log.d(TAG, ...)`（`TAG =
+  "JonaminzBubble"`），使用者長期使用穩定後應該找時間精簡或降級，
+  release build 目前沒有 minify/proguard 移除這些呼叫。
+- **版本**：`jonaminz-mobile-app`／`android/app/build.gradle`：
+  versionCode 15／versionName 202607161713。`jonaminz` 本體：
+  v0.46.17-202607161719（只有 `DECISION_TIMELINE` 文件性質變更，
+  不需要 wrangler deploy）。
+
+---
+
 ## 2026-07-16（下午，第六筆）— jonaminz-mobile-app：泡泡失焦自動收合真正修好（真機 logcat 抓根因）
 
 - **任務**：延續上一筆（`6ae99897`）——使用者回報「泡泡失焦自動收合」
