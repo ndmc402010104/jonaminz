@@ -607,12 +607,65 @@ button, textarea { font: inherit; }
 }
 .jonaminz-chat-context-reactions button:hover { background: var(--color-bg-lobby); }
 
-.jonaminz-chat-image-preview-banner img {
-  width: 32px;
-  height: 32px;
+/* 2026-07-16（Messenger 模板重做）：附件縮圖列（說明見 page-chat.css
+   同規則）。 */
+.jonaminz-chat-attach-tray {
+  display: flex;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2);
+}
+.jonaminz-chat-attach-tray[hidden] { display: none; }
+.jonaminz-chat-attach-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.jonaminz-chat-attach-chip.is-image img {
+  width: 48px;
+  height: 48px;
   object-fit: cover;
-  border-radius: var(--radius-sm);
-  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  display: block;
+}
+.jonaminz-chat-attach-chip.is-file {
+  padding: 5px 28px 5px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: 11px;
+  max-width: 200px;
+}
+.jonaminz-chat-attach-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jonaminz-chat-attach-chip [data-attach-remove] {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(30, 30, 30, 0.82);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 檔案泡泡下方的下載提示小字。 */
+.jonaminz-chat-file-hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+  padding: 0 2px;
 }
 
 .jonaminz-chat-settings-panel { min-width: 220px; max-width: 260px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -831,17 +884,6 @@ button, textarea { font: inherit; }
   font-size: 11px;
   color: var(--color-text-muted);
 }
-.jonaminz-chat-image-send-btn {
-  border: none;
-  background: var(--color-primary-2);
-  color: #fff;
-  font-weight: 700;
-  font-size: 12px;
-  padding: 5px 12px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  flex: 0 0 auto;
-}
 .jonaminz-chat-image-lightbox {
   position: fixed;
   inset: 0;
@@ -873,13 +915,18 @@ button, textarea { font: inherit; }
   cursor: pointer;
 }
 
+/* composer 改兩層：附件縮圖列＋輸入列（row 排版搬到 -row）。 */
 .jonaminz-chat-composer {
   display: flex;
-  gap: var(--space-2);
-  align-items: flex-end;
+  flex-direction: column;
   padding: var(--space-2);
   border-top: 1px solid var(--color-border);
   flex: 0 0 auto;
+}
+.jonaminz-chat-composer-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
 }
 .jonaminz-chat-plus-wrap { position: relative; flex: 0 0 auto; }
 .jonaminz-chat-plus-btn,

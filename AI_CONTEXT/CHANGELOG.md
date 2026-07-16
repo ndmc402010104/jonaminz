@@ -20,6 +20,42 @@
 
 ---
 
+## 2026-07-16（晚上，第十六筆）— composer 附件改 Messenger 式縮圖列；檔案泡泡加下載小字
+
+- **任務**：使用者處理待辦時指定「圖片插入那個動作不要像現在這樣是
+  那種很早期系統用的模式」「檔案盡量以 Messenger 當模板」。原本選好
+  的圖片/檔案會跳一條獨立的預覽橫幅（自帶一顆「傳送」按鈕），要按
+  那顆才送——這就是使用者說的早期模式。
+- **變更**（`assets/js/chat-thread.js`＋兩份 CSS）：
+  - composer 改成兩層：`.jonaminz-chat-attach-tray`（附件縮圖列，
+    有附件才出現）＋`.jonaminz-chat-composer-row`（原本的輸入列）。
+    選圖片/檔案後掛進附件列的 chip（圖片是縮圖、檔案是檔名，chip
+    右上角 ✕ 移除），送出走**主送出鍵 ➤**——有附件就送附件、若同時
+    打了字就接著把文字當第二則送（跟 Messenger 一樣兩則）。移除
+    `selectedImageFile`／`selectedFile`／預覽橫幅相關的 markup／
+    state／CSS（`.jonaminz-chat-image-preview-banner`／
+    `.jonaminz-chat-image-send-btn`）。`updateComposerAction()` 改成
+    看「有文字或有附件」決定送出鍵是 ➤ 還是快速反應。`sendImage`／
+    `sendFile` 改成回傳 promise（讓「先送附件再送文字」能串接）。
+  - 檔案泡泡下方加 `.jonaminz-chat-file-hint`「點擊下載」小字
+    （Messenger/LINE 慣例，使用者指定樣式），點卡片本身仍走既有的
+    下載流程。
+- **驗證**：`node --check` 通過、兩份 CSS 花括號配對數平衡、確認舊
+  banner 相關 class/變數已無殘留引用。**這批的 harness 端到端驗證
+  卡在 Playwright evaluate 逾時（測試工具本身問題，非程式問題），
+  只完成靜態驗證＋人工核對邏輯**——附件列渲染/移除/送出串接、
+  主送出鍵狀態切換的程式路徑都逐行追過，但沒有實跑截圖，跟既定
+  紀律不符，如實記錄。使用者實測待回報。
+- **遺留**：使用者同一輪回報 APK 更新提示不跳＋下載按鈕在手機失效
+  ——查出是三個獨立問題（原生 WebView 缺 DownloadListener、
+  `target="_blank"` 在 WebView 無效、app-update-check 依賴的
+  backend-client 一般頁面沒載入）＋線上發佈的 APK 還停在 v4（今天
+  泡泡修正的 v5-15 都只用 adb 裝到手機、沒走正式發佈）。這包當
+  獨立單元下一步處理，尚未動工。
+- **版本**：v0.46.32-202607162202
+
+---
+
 ## 2026-07-16（晚上，第十五筆）— 圖片冷載入改用 Graph 縮圖；浮動大頭貼視窗尺寸變化重新夾邊界
 
 - **任務**：使用者確認刪除終於成功後回報兩件事：(1)「剛進入畫面沒有

@@ -326,8 +326,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
 
     loadPersistedImageUrls();
-    var selectedImageFile = null;
-    var selectedFile = null;
+    // Messenger 式附件列：一次一個附件（{kind:'image'|'file', file,
+    // thumbDataUrl}），選了先掛在輸入列上方的縮圖列，按主送出鍵才送。
+    var pendingAttachment = null;
 
     function maybeMarkRead() {
       if (!isVisible) return;
@@ -640,6 +641,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
             '<div class="jonaminz-chat-file-name">' + escapeHtml(fileMeta.fileName || "檔案") + '</div>' +
             '<div class="jonaminz-chat-file-size">' + escapeHtml(formatFileSize(fileMeta.fileSize)) + '</div>' +
             "</div></div>" +
+            // Messenger/LINE 慣例：卡片下方一行小字當下載提示（使用者
+            // 指定的樣式），點卡片本身就會下載，小字純提示不攔截點擊。
+            '<span class="jonaminz-chat-file-hint">點擊下載</span>' +
             (fileUnshared ? '<p class="jonaminz-chat-image-unshared">對方尚未能看到這個檔案</p>' : "") +
             reactionsHtml + "</div>";
         } else if (m.kind === "shared_item" && m.shared_item_id && sharedItems[m.shared_item_id]) {
@@ -867,10 +871,38 @@ title/url（見 `requestHostContext()`，宿主端實作在
     }
 
     function updateComposerAction() {
-      var hasText = Boolean(els.input.value.trim());
-      els.action.textContent = hasText ? "➤" : QUICK_REACTION;
-      els.action.classList.toggle("is-send-mode", hasText);
-      els.action.setAttribute("aria-label", hasText ? "送出訊息" : "快速送出 " + QUICK_REACTION);
+      var hasPayload = Boolean(els.input.value.trim()) || Boolean(pendingAttachment);
+      els.action.textContent = hasPayload ? "➤" : QUICK_REACTION;
+      els.action.classList.toggle("is-send-mode", hasPayload);
+      els.action.setAttribute("aria-label", hasPayload ? "送出訊息" : "快速送出 " + QUICK_REACTION);
+    }
+
+    // Messenger 式附件列的畫面同步：有附件畫縮圖 chip（圖片）或檔名
+    // chip（一般檔案），右上角 ✕ 移除；沒附件就整列收起來。
+    function renderAttachTray() {
+      if (!els.attachTray) return;
+      if (!pendingAttachment) {
+        els.attachTray.hidden = true;
+        els.attachTray.innerHTML = "";
+        updateComposerAction();
+        return;
+      }
+      var inner;
+      if (pendingAttachment.kind === "image" && pendingAttachment.thumbDataUrl) {
+        inner = '<div class="jonaminz-chat-attach-chip is-image">' +
+          '<img src="' + pendingAttachment.thumbDataUrl + '" alt="附件預覽">' +
+          '<button type="button" data-attach-remove aria-label="移除附件">✕</button>' +
+          "</div>";
+      } else {
+        inner = '<div class="jonaminz-chat-attach-chip is-file">' +
+          '<span class="jonaminz-chat-attach-chip-icon">📄</span>' +
+          '<span class="jonaminz-chat-attach-chip-name">' + escapeHtml(pendingAttachment.file.name || "檔案") + "</span>" +
+          '<button type="button" data-attach-remove aria-label="移除附件">✕</button>' +
+          "</div>";
+      }
+      els.attachTray.innerHTML = inner;
+      els.attachTray.hidden = false;
+      updateComposerAction();
     }
 
     // 2026-07-14：輸入框原本是固定高度，多行文字只能在裡面自己捲動——
@@ -995,15 +1027,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
     // sendImageMessage（Worker 端會嘗試分享給對方帳號＋寫進聊天訊息）。
     // 失敗照文字訊息同一套回滾方式。
     function sendImage(file) {
-      if (sending) return;
+      if (sending) return Promise.resolve();
       sending = true;
       els.action.disabled = true;
-      if (els.imagePreviewBanner) els.imagePreviewBanner.hidden = true;
 
       var pendingCmid = identity + "-img-" + Date.now() + "-" + Math.random().toString(36).slice(2);
       var previewUrlToRevoke = null;
 
-      prepareImageForUpload(file)
+      return prepareImageForUpload(file)
         .then(function (prepared) {
           previewUrlToRevoke = prepared.previewUrl;
           pendingMessages.push({
@@ -1064,10 +1095,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
     // prepareImageForUpload 那層解碼/壓縮/縮圖——一般檔案沒有「畫面」
     // 可以先畫縮圖，直接把原始 File 物件當 Blob PUT 給 Graph。
     function sendFile(file) {
-      if (sending) return;
+      if (sending) return Promise.resolve();
       sending = true;
       els.action.disabled = true;
-      if (els.filePreviewBanner) els.filePreviewBanner.hidden = true;
 
       var pendingCmid = identity + "-file-" + Date.now() + "-" + Math.random().toString(36).slice(2);
       var fileName = file.name || "檔案";
@@ -1082,7 +1112,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       });
       if (lastPollData) render(lastPollData);
 
-      window.JonaminzBackend.requestFileUpload({ token: token, fileName: fileName })
+      return window.JonaminzBackend.requestFileUpload({ token: token, fileName: fileName })
         .then(function (uploadTarget) {
           if (!uploadTarget || !uploadTarget.ok) {
             throw new Error((uploadTarget && uploadTarget.error) || "無法取得上傳位址");
@@ -1524,16 +1554,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<span data-reply-title></span>' +
         '<button type="button" data-reply-cancel aria-label="取消回覆">✕</button>' +
         "</div>" +
-        '<div class="jonaminz-chat-discuss-banner jonaminz-chat-image-preview-banner" data-image-preview-banner hidden>' +
-        '<img data-image-preview-thumb alt="預覽圖片">' +
-        '<button type="button" class="jonaminz-chat-image-send-btn" data-image-send>傳送</button>' +
-        '<button type="button" data-image-preview-cancel aria-label="取消">✕</button>' +
-        "</div>" +
-        '<div class="jonaminz-chat-discuss-banner jonaminz-chat-file-preview-banner" data-file-preview-banner hidden>' +
-        '<span data-file-preview-name></span>' +
-        '<button type="button" class="jonaminz-chat-image-send-btn" data-file-send>傳送</button>' +
-        '<button type="button" data-file-preview-cancel aria-label="取消">✕</button>' +
-        "</div>" +
         '<div class="jonaminz-chat-context-menu" data-context-menu hidden></div>' +
         '<div class="jonaminz-chat-action-sheet" data-action-sheet hidden>' +
         '<div class="jonaminz-chat-action-sheet-backdrop" data-action-sheet-backdrop></div>' +
@@ -1544,7 +1564,14 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<img data-image-lightbox-img alt="圖片">' +
         '<button type="button" class="jonaminz-chat-image-lightbox-close" data-image-lightbox-close aria-label="關閉">✕</button>' +
         "</div>" +
+        // 2026-07-16（使用者要求照 Messenger 模板重做）：選好的圖片/檔案
+        // 不再用獨立的預覽橫幅＋自己的「傳送」按鈕（使用者原話「很早期
+        // 系統用的模式」），改成貼在輸入列正上方的附件縮圖列——縮圖
+        // 角落有 ✕ 可移除，按主送出鍵 ➤ 直接送出附件（有打字就接著送
+        // 文字），跟 Messenger 的附件互動一致。
         '<div class="jonaminz-chat-composer">' +
+        '<div class="jonaminz-chat-attach-tray" data-attach-tray hidden></div>' +
+        '<div class="jonaminz-chat-composer-row">' +
         '<div class="jonaminz-chat-plus-wrap">' + plusButtonHtml + "</div>" +
         '<div class="jonaminz-chat-input-shell">' +
         '<textarea data-input placeholder="輸入訊息..." rows="1"></textarea>' +
@@ -1554,6 +1581,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         "</div>" +
         '<button type="button" class="jonaminz-chat-action-btn" data-action ' +
         'aria-label="快速送出 ' + QUICK_REACTION + '">' + QUICK_REACTION + "</button>" +
+        "</div>" +
         "</div>" +
         '<p class="jonaminz-chat-status-line" data-page-status aria-live="polite"></p>';
 
@@ -1587,11 +1615,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.replyBanner = root.querySelector("[data-reply-banner]");
       els.replyTitle = root.querySelector("[data-reply-title]");
       els.imageInput = root.querySelector("[data-image-input]");
-      els.imagePreviewBanner = root.querySelector("[data-image-preview-banner]");
-      els.imagePreviewThumb = root.querySelector("[data-image-preview-thumb]");
+      els.attachTray = root.querySelector("[data-attach-tray]");
       els.fileInput = root.querySelector("[data-file-input]");
-      els.filePreviewBanner = root.querySelector("[data-file-preview-banner]");
-      els.filePreviewName = root.querySelector("[data-file-preview-name]");
       els.imageLightbox = root.querySelector("[data-image-lightbox]");
       els.imageLightboxImg = root.querySelector("[data-image-lightbox-img]");
       els.sharedListToggle = root.querySelector("[data-shared-list-toggle]");
@@ -1647,62 +1672,37 @@ title/url（見 `requestHostContext()`，宿主端實作在
               els.status.textContent = "分享失敗：" + (error.message || String(error));
             });
         });
-        // 2026-07-15（OneDrive 線 Phase B）：第十五輪只做了「調用手機
-        // 相機/相簿權限＋本機預覽」，這裡接上真正的送出（見 sendImage/
-        // prepareImageForUpload）。
+        // 2026-07-16（Messenger 模板重做）：選好的圖片/檔案掛進輸入列
+        // 上方的附件縮圖列（renderAttachTray），不再有獨立的預覽橫幅跟
+        // 自己的「傳送」按鈕——送出走主送出鍵 ➤（見 els.action 的
+        // click 處理），✕ 移除附件。
         if (els.imageInput) {
           els.imageInput.addEventListener("change", function () {
             var file = els.imageInput.files && els.imageInput.files[0];
             if (!file) return;
-            selectedImageFile = file;
             var reader = new FileReader();
             reader.onload = function () {
-              if (els.imagePreviewThumb) els.imagePreviewThumb.src = String(reader.result || "");
-              if (els.imagePreviewBanner) els.imagePreviewBanner.hidden = false;
+              pendingAttachment = { kind: "image", file: file, thumbDataUrl: String(reader.result || "") };
+              renderAttachTray();
             };
             reader.readAsDataURL(file);
             els.imageInput.value = "";
           });
         }
-        if (els.imagePreviewBanner) {
-          els.imagePreviewBanner.addEventListener("click", function (event) {
-            if (event.target.closest("[data-image-send]")) {
-              var fileToSend = selectedImageFile;
-              selectedImageFile = null;
-              if (els.imagePreviewThumb) els.imagePreviewThumb.src = "";
-              if (fileToSend) sendImage(fileToSend);
-              return;
-            }
-            if (!event.target.closest("[data-image-preview-cancel]")) return;
-            selectedImageFile = null;
-            els.imagePreviewBanner.hidden = true;
-            if (els.imagePreviewThumb) els.imagePreviewThumb.src = "";
-          });
-        }
-        // Chat 檔案附件：跟圖片選取器同一套「選檔→本機預覽→傳送/取消」
-        // 流程，差別是預覽只顯示檔名（沒有縮圖可看），選了就直接記著
-        // File 物件，等按「傳送」才真的呼叫 sendFile。
         if (els.fileInput) {
           els.fileInput.addEventListener("change", function () {
             var file = els.fileInput.files && els.fileInput.files[0];
             if (!file) return;
-            selectedFile = file;
-            if (els.filePreviewName) els.filePreviewName.textContent = file.name + "（" + formatFileSize(file.size) + "）";
-            if (els.filePreviewBanner) els.filePreviewBanner.hidden = false;
+            pendingAttachment = { kind: "file", file: file };
+            renderAttachTray();
             els.fileInput.value = "";
           });
         }
-        if (els.filePreviewBanner) {
-          els.filePreviewBanner.addEventListener("click", function (event) {
-            if (event.target.closest("[data-file-send]")) {
-              var fileToSend = selectedFile;
-              selectedFile = null;
-              if (fileToSend) sendFile(fileToSend);
-              return;
-            }
-            if (!event.target.closest("[data-file-preview-cancel]")) return;
-            selectedFile = null;
-            els.filePreviewBanner.hidden = true;
+        if (els.attachTray) {
+          els.attachTray.addEventListener("click", function (event) {
+            if (!event.target.closest("[data-attach-remove]")) return;
+            pendingAttachment = null;
+            renderAttachTray();
           });
         }
         document.addEventListener("click", function (event) {
@@ -2443,6 +2443,23 @@ title/url（見 `requestHostContext()`，宿主端實作在
       });
       els.action.addEventListener("click", function () {
         var body = els.input.value.trim();
+        // Messenger 式附件列：有附件就先送附件，打了字接著把文字當第二
+        // 則送出（跟 Messenger 一樣是兩則訊息）。
+        if (pendingAttachment) {
+          var attachment = pendingAttachment;
+          pendingAttachment = null;
+          renderAttachTray();
+          var sendPromise = attachment.kind === "image"
+            ? sendImage(attachment.file)
+            : sendFile(attachment.file);
+          if (body) {
+            els.input.value = "";
+            updateComposerAction();
+            autoGrowInput();
+            Promise.resolve(sendPromise).then(function () { doSendText(body); });
+          }
+          return;
+        }
         if (body) {
           els.input.value = "";
           updateComposerAction();
