@@ -1300,10 +1300,14 @@ System App：
   Azure Portal 的 `Files.ReadWrite` 權限使用者已加好，後台也補了
   「重新連接」按鈕，剩下雙方各自重新連接這一步，見 CHANGELOG
   第四十三/四十四次「遺留」。
-- **APK 自架程式碼已完成，尚未部署（2026-07-15，OneDrive 線
+- **APK 自架已完成並部署、真機驗證過（2026-07-15，OneDrive 線
   Phase C）**：`createApkUploadSession` action／`GET /appDownload`／
-  `tools/upload-apk.mjs`，細節與遺留事項見 CHANGELOG 第四十六次條目、
-  設計依據 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md` §2.3/§7。
+  `tools/upload-apk.mjs`，設計依據 `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md`
+  §2.3/§7。**2026-07-16 追加**：`createApkUploadSession` 新增第二種
+  認證方式——跟個人登入 session 分開、不會過期的 APK 上傳專用固定
+  密鑰（`app_settings.apk_agent_token`），在 `pages/admin/toolkit/`
+  「Agent 存取」小節自助產生/輪替，見 CHANGELOG 同日「APK 上傳專用
+  固定密鑰」條目。
 - **Shared 獨立瀏覽列表已補成完整版（2026-07-15）**：全部／未讀篩選
   tab、🗂 icon 未讀紅點、每筆「討論」按鈕直接綁 composer，細節與過程中
   抓到的 render() 作用域 bug 見 CHANGELOG 第四十八次條目。

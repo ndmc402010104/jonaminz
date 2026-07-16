@@ -127,16 +127,34 @@
     使用者手機上**沒有辦法**點擊 Claude Code 聊天介面裡「送檔案」
     （`SendUserFile` 類工具）跳出的下載按鈕完成安裝，這不是次要選項、
     是硬規定。正確流程永遠是 `node tools/upload-apk.mjs <APK路徑>
-    <session-token>`，讓 `/appDownload` 這個固定網址（工具包頁面
+    <token>`，讓 `/appDownload` 這個固定網址（工具包頁面
     `pages/admin/toolkit/` 上的連結）指向新版——使用者永遠從同一個
-    地方下載，不用每次跟 agent 要新連結/新檔案。**session-token 拿法**：
-    agent 不能直接查 Supabase `sessions` 表撈現成 token 來用（Auto Mode
-    的安全分類器會擋下、判定為未授權讓真實登入憑證出現在對話紀錄裡，
-    這個擋是對的，不要嘗試繞過），也不能自己 INSERT 一筆新 session
-    冒充登入（等同繞過同一個限制的精神）。要嘛等使用者在自己電腦上
-    親自執行這支腳本，要嘛請使用者提供 token——手機上沒有 devtools，
-    可以請使用者把這段存成瀏覽器書籤點開取值：
-    `javascript:prompt('token',localStorage.getItem('jonaminz.sessionToken'))`。
+    地方下載，不用每次跟 agent 要新連結/新檔案。
+    **`<token>` 拿法（2026-07-16 同日再改進，見下一條 §2-12）**：
+    優先用 `pages/admin/toolkit/`「Agent 存取」小節產生的專用鑰匙——
+    agent 不能直接查 Supabase `sessions` 表撈現成使用者登入 token 來用
+    （Auto Mode 的安全分類器會擋下、判定為未授權讓真實登入憑證出現在
+    對話紀錄裡，這個擋是對的，不要嘗試繞過），也不能自己 INSERT 一筆
+    新 session 冒充登入（等同繞過同一個限制的精神）。**只有在專用鑰匙
+    還沒設定或已經失效、使用者也不想現在去產生的情況下**，才退回舊
+    方式：等使用者在自己電腦上親自執行這支腳本，或請使用者提供個人
+    session token（手機上沒有 devtools，可以請使用者把這段存成瀏覽器
+    書籤點開取值：
+    `javascript:prompt('token',localStorage.getItem('jonaminz.sessionToken'))`）。
+12. **APK 上傳專用固定密鑰（`apk_agent_token`）存在 `app_settings` 表，
+    不是 Worker secret，這是刻意的取捨，不要「改成更安全」搬去
+    `wrangler secret put`。**〔使用者，2026-07-16 定案〕使用者明確
+    要求這把鑰匙要能在後台頁面（`pages/admin/toolkit/`「Agent 存取」
+    小節）自己查看狀態／輪替，Worker secret 做不到這件事（只能寫、
+    讀不回來，也沒有從 Worker 內部程式碼自助輪替的管道）。這把鑰匙
+    只被 `createApkUploadSession` 一個 action 接受（見
+    `requireSessionOrAgentToken()`），換不到其他任何權限，外流最壞
+    情況也只是有人能上傳 APK 到 OneDrive，不是帳號被接管——威脅模型
+    上可以接受存在一般資料表裡。`getApkAgentTokenStatus` 只回報有沒有
+    設定＋上次輪替時間，**沒有讀出目前值的 action**；`rotateApkAgentToken`
+    的回應是唯一能看到明文的時機，這個設計不能改成「加一個查詢現值
+    的 action」，否則就失去「舊值用完即忘、每次都是新的」這個安全
+    屬性。
 
 ## 三、允許事項
 

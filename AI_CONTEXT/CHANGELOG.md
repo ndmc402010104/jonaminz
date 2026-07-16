@@ -20,6 +20,56 @@
 
 ---
 
+## 2026-07-16（早上，第七筆）— 文檔一致性掃描：補齊 APK agent token 機制到所有相關文件，並抓到一個真實 bug
+
+- **任務**：使用者要求「把所有文檔讀一遍，需要加進這個新工具的東西都
+  加進來，不要東漏西漏的」——上一筆（第六筆）加了 APK 上傳專用固定
+  密鑰機制，但只改了程式碼跟一份 CHANGELOG 條目，沒有回頭檢查其他
+  講到 APK／認證流程的文件是否也要同步。
+- **變更**：
+  - `AI_CONTEXT/RULES.md`：§2-11（APK 交付規則）改成優先講專用鑰匙、
+    session token 降級成備援；新增 §2-12 明訂這把鑰匙的安全設計理由
+    （為什麼故意存 `app_settings` 不是 Worker secret、為什麼沒有讀出
+    現值的 action），避免以後有人「順手改成更安全」反而破壞使用者
+    要的自助管理特性。
+  - `AI_CONTEXT/ONEDRIVE_LINE_SPEC.md`：§2.3／檔頭摘要／§7 三處都還
+    寫著「Phase C 尚未部署」——這其實是更早就該修的舊資訊（Phase C
+    2026-07-15 就已經部署且真機驗證過，只是這份文件一直沒回頭改），
+    這次一併訂正並補上 agent token 機制。
+  - `AI_CONTEXT/PROJECT_STATE.md`：同樣「尚未部署」的過期描述訂正＋
+    補充 agent token。
+  - `pages/README.md`：工具包頁的介紹原本寫「純靜態頁面，不呼叫任何
+    Worker action，所以沒有載入 backend-client.js」——**這行導致我
+    真的抓到一個 bug**：`config.json` 的 `admin-toolkit` entry 從來沒
+    載入過 `backend-client.js`，但我新加的「Agent 存取」小節程式碼會
+    呼叫 `window.JonaminzBackend.getApkAgentTokenStatus(...)`，上線後
+    會直接噴錯（`JonaminzBackend is undefined`），只是還沒有人點開過
+    這頁才沒發現。
+  - `config.json`：`admin-toolkit` 的 `afterScripts` 補上
+    `/assets/js/backend-client.js`（照其他有呼叫 Worker action 的
+    admin 子頁同一個順序：先載 backend-client.js 再載頁面自己的
+    app.js）。
+  - `tools/upload-apk.mjs`：檔頭註解補充兩種 token 的用法與優先順序。
+  - `pages/admin/journal/assets/js/app.js`：`DECISION_TIMELINE` 新增
+    `apk-agent-token` 條目（含考慮過的選項：直接查/建 session 冒充
+    登入被否決，理由是違反 Auto Mode 安全機制的設計意圖），
+    `DECISION_TIMELINE_UPDATED_AT` 同步更新。
+- **狀態變化**：`pages/admin/toolkit/` 的「Agent 存取」小節現在才真的
+  能動——上一筆 commit 部署的功能實際上是壞的，這筆修好。
+- **驗證**：`node --check`（upload-apk.mjs／journal app.js）、
+  `node -e "JSON.parse(...)"` 驗證 `config.json` 語法正確。**沒有
+  Playwright／瀏覽器驗證**——建議使用者這次真的去點一次工具包頁面的
+  「產生新鑰匙」按鈕確認畫面正常，這是目前唯一真正驗證這條路徑的
+  方式。
+- **遺留**：無。這輪任務性質是文件審計，教訓記在
+  `feedback_verify_cross_file_wiring_after_new_page_feature`（新增
+  一份給後續 agent 的私人記憶：加新功能到既有頁面時，一定要連
+  `config.json` 的 script/style 清單一起檢查，不能只看程式碼本身
+  邏輯對不對）。
+- **版本**：`v0.46.7-202607160919`。
+
+---
+
 ## 2026-07-16（早上，第六筆）— APK 上傳專用固定密鑰（agent 自助管理，不用每次跟使用者要 session token）
 
 - **任務**：使用者對「每次 build 完 APK 都要問你要 token」很不耐煩，

@@ -78,7 +78,7 @@
       "showInNav": false,
       "entry": {
         "styles": ["/pages/admin/toolkit/assets/css/page-admin-toolkit.css"],
-        "afterScripts": ["/pages/admin/toolkit/assets/js/app.js"],
+        "afterScripts": ["/assets/js/backend-client.js", "/pages/admin/toolkit/assets/js/app.js"],
         "loadingTasks": ["app-ready"]
       }
     },

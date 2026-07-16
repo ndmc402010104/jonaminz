@@ -14,8 +14,9 @@
 > 2026-07-15 實作完成、schema 已套用、Worker 已部署**，待辦：Azure
 > Portal 補 `Files.ReadWrite` 權限（已由使用者完成）＋ Jonathan／Minz
 > 各自重新走一次 OneDrive 連接（後台已補「重新連接」按鈕），真人端到
-> 端傳圖測試還沒做。**Phase C（APK 自架）程式碼已完成（2026-07-15），
-> 尚未 wrangler deploy**，見 CHANGELOG 第四十六次條目。
+> 端傳圖測試還沒做。**Phase C（APK 自架）已實作完成並部署、真機驗證過**
+>（2026-07-15 上線，2026-07-16 追加 Agent 專用上傳密鑰），見
+> CHANGELOG 第四十六次條目與 2026-07-16「APK 上傳專用固定密鑰」條目。
 
 ## 0. 目標與邊界
 
@@ -147,16 +148,30 @@ Minz 讀圖 ──▶ Worker 用 Minz 自己的 access token 查
   一次。
 - 點圖 → 簡單全螢幕 lightbox（既有 modal 寫法，兩個外殼 CSS 各一份）。
 
-### 2.3 APK 自架（Phase C，2026-07-15 程式碼已完成，尚未部署）
+### 2.3 APK 自架（Phase C，2026-07-15 程式碼完成，已部署並真機驗證過）
 
 - 本機建完 APK 後用 Node 腳本（`tools/upload-apk.mjs`）經 Worker
-  admin action 用 **Jonathan** 的 access token 上傳到
-  `approot/releases/jonaminz.apk`（覆蓋；這件事跟雙帳號無關，固定
-  用 Jonathan 的帳號存放即可）。
-- Worker `GET /appDownload` → 換 fresh downloadUrl → `302` 轉址。
-  固定網址從此是 `https://<worker網域>/appDownload`。
-- 真機驗證下載安裝 OK 後：`gh release delete app-latest`，公開通道
-  收回（使用者 2026-07-15 之前明訂的回收計畫）。
+  `createApkUploadSession` action 用 **Jonathan** 的 access token 上傳到
+  `approot/releases/jonaminz-<時間戳>.apk`（**每次獨立檔名，不覆蓋**
+  ——2026-07-15 同日稍後從原本固定覆蓋 `jonaminz.apk` 改的，使用者
+  反映「怕裝錯」分不出新舊下載；這件事跟雙帳號無關，固定用 Jonathan
+  的帳號存放即可）。
+- Worker `GET /appDownload` → 列出 `releases/` 資料夾挑 `createdDateTime`
+  最新一筆 → 換 fresh downloadUrl → `302` 轉址。固定網址從此是
+  `https://<worker網域>/appDownload`（也是工具包頁面「下載最新 APK」
+  連結指向的網址）。
+- **`createApkUploadSession` 的認證方式（2026-07-16 新增第二種）**：
+  原本只接受一般登入 session；使用者反映每次 build 完都要重新跟他要
+  session token太麻煩，新增一把跟個人登入分開、不會過期的 APK 上傳
+  專用固定密鑰（`app_settings.apk_agent_token`，見
+  `requireSessionOrAgentToken()`），在 `pages/admin/toolkit/`「Agent
+  存取」小節自助產生/輪替，`payload.token` 放這把鑰匙一樣能用，
+  `tools/upload-apk.mjs` 完全不用改。細節見
+  `AI_CONTEXT/CHANGELOG.md` 2026-07-16「APK 上傳專用固定密鑰」條目。
+- 真機驗證下載安裝已完成（2026-07-15 起多次真機測試成功）：
+  `gh release delete app-latest`，公開通道收回（使用者 2026-07-15
+  之前明訂的回收計畫）——**這個收回動作本身是否已執行未在本文件
+  查證，需要時直接 `gh release list` 確認現況，不要假設**。
 
 ## 3. Token 生命週期（Phase A，已實作部署）
 
@@ -272,7 +287,10 @@ grant select, insert, update, delete on onedrive_account to service_role;
   權限已由使用者在 Azure Portal 加好，後台已補「重新連接」按鈕。
   剩下：Jonathan／Minz 各自重新走一次連接拿新 scope → 驗收＝兩台真機
   互傳圖，兩人各自都能看到對方傳的圖（**尚未做這步真人驗證**）。
-- **Phase C：APK 自架**——程式碼已完成（2026-07-15：`createApkUploadSession`
-  action／`GET /appDownload`／`tools/upload-apk.mjs`），**尚未
-  wrangler deploy**。上傳腳本（用 Jonathan 帳號）、
-  `/appDownload`、真機下載安裝驗證後刪 GitHub Release。
+- **Phase C：APK 自架**——✅ 已完成並部署（2026-07-15：
+  `createApkUploadSession` action／`GET /appDownload`／
+  `tools/upload-apk.mjs`，用 Jonathan 帳號存放；真機下載安裝已驗證
+  過多次）。2026-07-16 追加：`createApkUploadSession` 除了原本的登入
+  session，也接受一把跟個人登入分開、不會過期的 APK 上傳專用固定
+  密鑰（`pages/admin/toolkit/`「Agent 存取」小節自助產生/輪替），
+  解決「agent 每次 build 完都要跟使用者要 token」的協作痛點。
