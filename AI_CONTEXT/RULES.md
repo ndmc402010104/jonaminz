@@ -142,19 +142,30 @@
     session token（手機上沒有 devtools，可以請使用者把這段存成瀏覽器
     書籤點開取值：
     `javascript:prompt('token',localStorage.getItem('jonaminz.sessionToken'))`）。
-12. **Agent 密鑰保管箱（`agent_secrets` 表）存在一般資料表，不是
-    Worker secret，這是刻意的取捨，不要「改成更安全」搬去
-    `wrangler secret put`。**〔使用者，2026-07-16 定案，同日內改版
-    一次〕第一版是 Worker 自動產生單一把 APK 專用鑰匙、只能看一次不能
-    讀回，使用者當面回饋不是他要的——他要的是「像 Cloudflare secret
-    api 儲存那種模式」：自己在後台（`pages/admin/toolkit/`「Agent
-    存取」小節）輸入「名稱／值」新增，需要換的時候自己上去改，不是
-    Worker 自動產生。`listAgentSecrets`／`setAgentSecret`／
-    `deleteAgentSecret` 三支只給已登入的人管理清單本身（新增/刪除/
-    看名稱與更新時間），**都不把 value 吐回前端**——真正讀 value 只有
-    兩條路：Worker 內部程式碼直接查表（例如 `createApkUploadSession`
-    透過 `requireSessionOrAgentToken()` 比對 `name='apk_upload_token'`
-    那筆），或 agent 在對話中用 Supabase 工具直接查表。不要加一個
+12. **`agent_secrets` 表是給「所有」agent 用的通用密鑰保管箱，不是
+    只給 APK 上傳用，存在一般資料表、不是 Worker secret，這是刻意的
+    取捨，不要「改成更安全」搬去 `wrangler secret put`。**〔使用者，
+    2026-07-16 定案，同日內改版兩次〕第一版是 Worker 自動產生單一把
+    APK 專用鑰匙、只能看一次不能讀回，使用者當面回饋不是他要的——
+    他要的是「像 Cloudflare secret api 儲存那種模式」，而且**範圍
+    比 APK 上傳大很多**：使用者原話「我不是有很多 supabase cloudflare
+    需要的 api 嗎？是不是弄一個地方存進去讓你可以取用，但是又不會
+    卡到其他 agent 不能用、每次要設定」——這張表是給**任何**需要
+    重複用到的憑證（Supabase Management API token、Cloudflare API
+    token 等）存放的地方，`apk_upload_token` 只是第一個放進去的項目，
+    不是這張表唯一的用途。任何 agent（Claude／Codex／其他 CLI
+    工具）只要讀過這份文件、有 Supabase 存取權，就能用同一個地方，
+    不會綁死在單一 agent 或需要每個新 session 重新設定一次。使用者
+    自己在後台（`pages/admin/toolkit/`「Agent 存取」小節）輸入
+    「名稱／值」新增，需要換的時候自己上去改，不是 Worker 自動產生。
+    `listAgentSecrets`／`setAgentSecret`／`deleteAgentSecret` 三支只給
+    已登入的人管理清單本身（新增/刪除/看名稱與更新時間），**都不把
+    value 吐回前端**——真正讀 value 只有兩條路：Worker 內部程式碼
+    直接查表（例如 `createApkUploadSession` 透過
+    `requireSessionOrAgentToken()` 比對 `name='apk_upload_token'`
+    那筆——這是目前唯一真的接進 Worker 邏輯的名稱，其他憑證存進去
+    暫時只能供 agent 在對話中查表使用，還沒有對應的 Worker 端消費
+    邏輯），或 agent 在對話中用 Supabase 工具直接查表。不要加一個
     「回傳 value 給前端」的 action，那樣就失去「像 Cloudflare 一樣
     能覆蓋、不能讀回」這個使用者要的體感。外流最壞情況是這張表裡的
     憑證被讀到（哪些憑證存進去、外流影響多大，是使用者自己決定要放

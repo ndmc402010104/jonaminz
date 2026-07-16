@@ -20,6 +20,42 @@
 
 ---
 
+## 2026-07-16（早上，第九筆）— 明確定位 agent_secrets 是「通用」憑證保管箱，不只給 APK 用
+
+- **任務**：使用者澄清真正想要的功能範圍——原話「其實我要的功能是我
+  不是有很多 supabase cloudflare 需要的 api 嗎？是不是弄一個地方存
+  進去讓你可以取用，但是又不會卡到其他 agent 不能用、每次要設定」。
+  上一筆做的 `agent_secrets` 保管箱機制本身就是對的（表格結構、三支
+  管理 action、UI 都不用改），只是文件跟畫面文案把它框得太窄（寫成
+  「APK 上傳專用」），沒有講清楚這是給任何憑證、任何 agent 用的通用
+  保管箱。
+- **變更**（純文件/文案，沒有動任何 Worker 邏輯，不用 wrangler
+  deploy）：
+  - `AI_CONTEXT/RULES.md` §2-12、`backend/cloudflare-worker/worker.js`
+    的 `listAgentSecrets` 文件註解：都加上使用者原話跟「這張表給
+    任何 agent 用，不是 Claude 專屬」的明確定位，`apk_upload_token`
+    只是第一個放進去的項目，不是唯一用途。
+  - `pages/admin/toolkit/`：小節標題從「Agent 存取（給自動化
+    build/上傳用的密鑰保管箱）」改成「Agent 密鑰保管箱」，補一句
+    說明文字（任何 agent 需要重複用到的憑證都存這裡，Supabase／
+    Cloudflare API token、APK 上傳鑰匙等），不要再讓畫面看起來只跟
+    APK 有關。
+- **狀態變化**：`agent_secrets` 表跟三支 action 的定位從「APK 上傳
+  子功能」正式提升為「跨 agent 共用的通用憑證保管箱」，`RULES.md`
+  是所有 agent（Claude／Codex／其他 CLI 工具）共讀的文件，這條定位
+  現在寫在那裡，理論上任何讀過 `AI_CONTEXT/` 的 agent 都能發現並
+  使用這個機制。
+- **驗證**：`node --check` 通過（worker.js／toolkit app.js）。純文案
+  跟文件，沒有功能邏輯變更需要驗證。
+- **遺留**：使用者目前手上有哪些「supabase cloudflare 需要的 api」
+  具體要放進來，還沒有實際討論/存入——這次只是把保管箱本身的定位
+  講清楚，不是已經把使用者現有的憑證（例如 `suprabase db pw.txt`
+  裡的 Supabase Management API token）搬進去，那個檔案讀取本身仍受
+  `RULES.md` 規則 7 保護，要不要搬、怎麼搬需要使用者明確同意。
+- **版本**：`v0.46.9-202607161025`。
+
+---
+
 ## 2026-07-16（早上，第八筆）— Agent 密鑰保管箱改版成 Cloudflare-secret 式（取代單一自動產生鑰匙），順便修一個真實 403 bug
 
 - **任務**：使用者實際點開「Agent 存取」小節，先撞到一個 403 權限

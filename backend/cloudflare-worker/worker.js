@@ -173,7 +173,11 @@
   工具直接查 `agent_secrets` 表——都不是經由公開 HTTP 介面洩漏
   value。第一版（2026-07-16 早上）做的是「Worker 自動產生單一把
   APK 專用鑰匙、只讀一次不能讀回」，使用者當面回饋這不是他要的，
-  改成這個通用保管箱版本，取代第一版，不是並存。
+  改成這個通用保管箱版本，取代第一版，不是並存。**這張表給任何 agent
+  用，不是 Claude 專屬**——使用者原話「我不是有很多 supabase
+  cloudflare 需要的 api 嗎？是不是弄一個地方存進去讓你可以取用，
+  但是又不會卡到其他 agent 不能用、每次要設定」，`apk_upload_token`
+  只是第一個放進去的項目。
 - `createApkUploadSession` ／ `GET /appDownload`：OneDrive 線 Phase C
   （2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）APK 自架。
   本機建完 `jonaminz-mobile-app` 的 APK 後，`tools/upload-apk.mjs`

@@ -75,11 +75,16 @@ loading task，不可以自己決定 css/shell ready。
     });
   }
 
-  // 2026-07-16（同日改版）：第一版是 Worker 自動產生單一把 APK 專用
-  // 鑰匙，使用者回饋不是他要的——他要的是「像 Cloudflare secret 那種
-  // 保管箱」：自己選名稱/值存進來，agent 需要時直接讀，不限定只能給
-  // APK 上傳用。這裡只列名稱＋更新時間（不顯示 value，跟 Cloudflare
-  // 一樣「能覆蓋、不能讀回」），「+」展開新增表單（名稱／值兩個欄位）。
+  // 2026-07-16（同日改版兩次）：第一版是 Worker 自動產生單一把 APK
+  // 專用鑰匙，使用者回饋不是他要的——他要的是「像 Cloudflare secret
+  // 那種保管箱」，而且範圍比 APK 上傳大很多：使用者原話「我不是有
+  // 很多 supabase cloudflare 需要的 api 嗎？是不是弄一個地方存進去
+  // 讓你可以取用，但是又不會卡到其他 agent 不能用、每次要設定」——
+  // 這是給任何 agent（不只 Claude）用的通用憑證保管箱，自己選名稱/
+  // 值存進來，需要時直接讀，`apk_upload_token` 只是第一個放進去的
+  // 項目，不是唯一用途。這裡只列名稱＋更新時間（不顯示 value，跟
+  // Cloudflare 一樣「能覆蓋、不能讀回」），「+」展開新增表單（名稱／
+  // 值兩個欄位）。
   function formatLocalDateTime(value) {
     if (!value) return "";
     try {
@@ -196,7 +201,8 @@ loading task，不可以自己決定 css/shell ready。
       TOOLS.map(toolCardHtml).join("") +
       "</div>" +
       '<section class="jonaminz-connections-section">' +
-        '<p class="jonaminz-admin-section-title">Agent 存取（給自動化 build/上傳用的密鑰保管箱）</p>' +
+        '<p class="jonaminz-admin-section-title">Agent 密鑰保管箱</p>' +
+        '<p class="jonaminz-toolkit-card-note">任何 agent（Claude／Codex／其他 CLI 工具）需要重複用到的憑證都存這裡——Supabase／Cloudflare API token、APK 上傳鑰匙等，設一次大家都能用，不用每次重新給。</p>' +
         '<div data-agent-secrets>讀取中...</div>' +
       '</section>';
     bindCopyButtons(root);
