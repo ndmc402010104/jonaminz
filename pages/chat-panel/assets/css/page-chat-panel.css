@@ -466,11 +466,12 @@ button, textarea { font: inherit; }
     align-items: center;
     gap: 2px;
     position: absolute;
-    /* 2026-07-16（使用者截圖回報蓋到文字）：改用 bottom:100%（貼齊
-       整列頂端）＋ margin-bottom 留間距，不管泡泡多高都不會重疊，
-       比猜一個固定 top 像素值可靠。 */
+    /* 2026-07-16（使用者連續兩輪回饋）：margin-bottom 留的間距造成
+       滑鼠從泡泡移到工具列中間有一段真空地帶接不住、hover 會斷掉、
+       工具列在移過去的路上就先消失。改成 margin-bottom:0（直接貼齊），
+       滑鼠全程都在可 hover 範圍內。 */
     bottom: 100%;
-    margin-bottom: 4px;
+    margin-bottom: 0;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);

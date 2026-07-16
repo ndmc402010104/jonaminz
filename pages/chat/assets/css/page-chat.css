@@ -464,13 +464,15 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
     align-items: center;
     gap: 2px;
     position: absolute;
-    /* 2026-07-16（使用者截圖回報蓋到文字）：原本用固定 top:-14px 猜
-       間距，短訊息（泡泡本身很矮）時不夠高，工具列會蓋到文字。改用
-       bottom:100%（貼齊整列的頂端，不是猜一個像素值）＋
-       margin-bottom 留間距——不管泡泡多高，工具列一定完整浮在上面，
-       不會重疊。 */
+    /* 2026-07-16（使用者連續兩輪回饋）：先用 bottom:100% 貼齊整列頂端
+       解決蓋到文字，但留 margin-bottom 的間距造成「滑鼠從泡泡移到
+       工具列中間會經過一段真空地帶」，那段沒有任何元素接住滑鼠，
+       :hover 狀態會斷掉、工具列在移過去的路上就先消失，變得很難點到
+       ——使用者原話「那一行文字一整行都切成是它的」。改成
+       margin-bottom:0（直接貼齊、不留間距），滑鼠從泡泡往上移動全程
+       都在某個元素的可 hover 範圍內，不會斷。 */
     bottom: 100%;
-    margin-bottom: 4px;
+    margin-bottom: 0;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);
