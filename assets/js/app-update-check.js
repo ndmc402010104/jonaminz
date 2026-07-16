@@ -62,7 +62,7 @@ versionCode（jonaminz-mobile-app/android/app/build.gradle）跟這個 repo
     banner.className = "jonaminz-app-update-banner";
     banner.innerHTML =
       '<span>有新版本可更新' + (latestVersionName ? "（" + escapeHtml(latestVersionName) + "）" : "") + '</span>' +
-      '<a href="https://jonaminz-backend.ndmc402010104.workers.dev/appDownload" target="_blank" rel="noopener">下載更新</a>' +
+      '<a href="https://jonaminz-backend.ndmc402010104.workers.dev/appDownload">下載更新</a>' +
       '<button type="button" aria-label="關閉">✕</button>';
     banner.querySelector("a").addEventListener("click", function () {
       writeDismissedVersionCode(latestVersionCode);
@@ -78,6 +78,29 @@ versionCode（jonaminz-mobile-app/android/app/build.gradle）跟這個 repo
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
     });
+  }
+
+  // 2026-07-16（使用者回報更新提示不跳的根因之一）：backend-client.js
+  // 只在需要後端的頁面載入，一般頁面上 window.JonaminzBackend 是
+  // undefined，check() 原本第一行就 return、提示永遠不會跳。這支只在
+  // 原生 App 裡跑（上面第一行已擋掉瀏覽器），確定要用後端就自己把
+  // backend-client 載進來，載完再檢查。
+  function ensureBackendThen(callback) {
+    if (window.JonaminzBackend && typeof window.JonaminzBackend.getLatestApkVersion === "function") {
+      callback();
+      return;
+    }
+    var existing = document.querySelector('script[data-jonaminz-backend-client]');
+    if (existing) {
+      existing.addEventListener("load", callback, { once: true });
+      return;
+    }
+    var s = document.createElement("script");
+    s.src = "/assets/js/backend-client.js";
+    s.setAttribute("data-jonaminz-backend-client", "1");
+    s.addEventListener("load", callback, { once: true });
+    s.addEventListener("error", function () {}, { once: true });
+    document.head.appendChild(s);
   }
 
   function check() {
@@ -100,9 +123,13 @@ versionCode（jonaminz-mobile-app/android/app/build.gradle）跟這個 repo
     });
   }
 
+  function run() {
+    ensureBackendThen(check);
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", check, { once: true });
+    document.addEventListener("DOMContentLoaded", run, { once: true });
   } else {
-    check();
+    run();
   }
 })();

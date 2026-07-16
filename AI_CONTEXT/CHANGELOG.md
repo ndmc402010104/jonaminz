@@ -20,6 +20,51 @@
 
 ---
 
+## 2026-07-16（晚上，第十七筆）— APK 下載/更新三個機制洞一次補：原生 DownloadListener＋網頁連結＋update-check 缺 backend-client
+
+- **任務**：使用者回報「進 App 沒跳更新提示、下午做的『下載最新 APK』
+  按鈕在手機死掉、按了沒反應」。查出是三個各自獨立的機制問題＋一個
+  發佈狀態落後：
+  1. **原生 WebView 沒有下載處理**（真正的「按鈕死掉」）：Capacitor
+     WebView 預設不接下載，`/appDownload`（串流 APK）、
+     `/downloadChatFile`（串流聊天檔案）都帶 `Content-Disposition:
+     attachment`，WebView 收到就靜靜不做事。
+  2. **`target="_blank"` 在 WebView 無效**：下載連結用 `_blank`，
+     WebView 會先試著開新視窗（沒有 handler → 什麼都沒發生），根本
+     不觸發下載。
+  3. **`app-update-check.js` 依賴的 `JonaminzBackend` 一般頁面沒
+     載入**：backend-client.js 只在後台頁載入，`check()` 第一行
+     `if (!window.JonaminzBackend) return` 讓更新檢查在多數頁面直接
+     放棄，提示永遠不跳。
+  4. 線上發佈的 APK 還停在 versionCode 4——今天泡泡修正的 v5-15 全
+     是 adb 直接裝到手機的 debug 版，沒走 OneDrive 正式發佈，所以
+     `getLatestApkVersion` 回報的最新版比手機上的還舊。
+- **變更**：
+  - `jonaminz-mobile-app`／`MainActivity.java`：`setupDownloadListener()`
+    ——`WebView.setDownloadListener` 把下載交給 Android 的
+    `DownloadManager`（下到公用「下載」資料夾＋系統下載通知，APK
+    下完點通知就能安裝）。`AndroidManifest.xml` 加
+    `REQUEST_INSTALL_PACKAGES` 權限。versionCode 15→16。
+  - `assets/js/app-update-check.js`：更新提示連結拿掉 `target="_blank"`；
+    新增 `ensureBackendThen()`——`JonaminzBackend` 不在就自己動態載入
+    `backend-client.js`、載完再 `check()`（這支只在原生 App 跑，確定
+    要用後端）。
+  - `pages/admin/toolkit/assets/js/app.js`：「下載最新 APK」卡片加
+    `sameTab` 旗標，那顆「開啟」按鈕不加 `target="_blank"`（同分頁
+    導覽才會觸發 WebView 的 DownloadListener）。
+- **驗證**：`node --check` 三支 JS 通過。v16 APK 建置成功、已用 adb
+  裝上使用者手機（含 DownloadListener，這是「先有雞或蛋」——下載
+  按鈕能動的修法本身在 APK 裡，得先裝一次含修法的版本，之後按鈕
+  才對後續更新有用）。
+- **遺留**：v16 尚未上傳 OneDrive／`reportLatestApkVersion`（需要 APK
+  上傳密鑰，agent 不能自查 DB，要跟使用者拿）——補上後
+  `/appDownload` 才會服務 v16、更新提示的資料才一致。目前手機已有
+  v16（adb），下載按鈕本身可以測。
+- **版本**：jonaminz v0.46.33-202607162209；jonaminz-mobile-app
+  versionCode 16／202607162210。
+
+---
+
 ## 2026-07-16（晚上，第十六筆）— composer 附件改 Messenger 式縮圖列；檔案泡泡加下載小字
 
 - **任務**：使用者處理待辦時指定「圖片插入那個動作不要像現在這樣是

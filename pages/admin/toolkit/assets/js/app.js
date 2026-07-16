@@ -42,7 +42,11 @@ agent 用」的東西，性質不一樣，搬去獨立的 `pages/admin/secrets/`
       title: "下載最新 APK",
       desc: "手機瀏覽器開這個網址直接下載安裝，永遠指向目前最新版本（OneDrive 線 Phase C 自架發佈）。",
       href: "https://jonaminz-backend.ndmc402010104.workers.dev/appDownload",
-      note: ""
+      note: "",
+      // App 內（Capacitor WebView）要靠原生 DownloadListener 接手下載，
+      // target="_blank" 會讓 WebView 試著開新視窗而不是導覽，反而不會
+      // 觸發下載——這顆按鈕改成同分頁導覽（見 sameTab）。
+      sameTab: true
     }
   ];
 
@@ -54,7 +58,8 @@ agent 用」的東西，性質不一樣，搬去獨立的 `pages/admin/secrets/`
         '<div class="jonaminz-toolkit-card-url">' + escapeHtml(tool.href) + '</div>' +
         (tool.note ? '<p class="jonaminz-toolkit-card-note">' + escapeHtml(tool.note) + '</p>' : "") +
         '<div class="jonaminz-toolkit-card-actions">' +
-          '<a class="jonaminz-toolkit-open-btn" href="' + escapeHtml(tool.href) + '" target="_blank" rel="noopener">開啟</a>' +
+          '<a class="jonaminz-toolkit-open-btn" href="' + escapeHtml(tool.href) + '"' +
+            (tool.sameTab ? "" : ' target="_blank" rel="noopener"') + '>開啟</a>' +
           '<button type="button" class="jonaminz-toolkit-copy-btn" data-copy-url="' + escapeHtml(tool.href) + '">複製網址</button>' +
         '</div>' +
       '</div>'
