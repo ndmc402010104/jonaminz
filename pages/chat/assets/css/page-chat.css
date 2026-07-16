@@ -548,8 +548,22 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
    align-items:flex-end 讓它跟著自己那則泡泡靠右對齊。 */
 .jonaminz-chat-reply-quote.is-unknown { font-style: italic; }
 
-.jonaminz-chat-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
-.jonaminz-chat-message[data-mine="true"] .jonaminz-chat-reactions { justify-content: flex-end; }
+/* 2026-07-16（使用者回饋「心情按鈕不要算在訊息高度裡」）：表情反應
+   膠囊改成疊在泡泡右下角外緣（Messenger 的做法），不再自己佔一行
+   高度——這樣訊息列的高度永遠等於泡泡本身，hover 工具列的
+   align-self:flex-end 才會對齊泡泡下緣而不是膠囊那一層。有反應的
+   訊息用 :has() 補一點下邊距，讓突出泡泡的膠囊不會壓到下一則。 */
+.jonaminz-chat-bubble-col { position: relative; }
+.jonaminz-chat-reactions {
+  display: flex;
+  gap: 4px;
+  position: absolute;
+  bottom: -11px;
+  right: 4px;
+  z-index: 2;
+}
+.jonaminz-chat-message[data-mine="false"] .jonaminz-chat-reactions { right: auto; left: 4px; }
+.jonaminz-chat-message:has(.jonaminz-chat-reactions) { margin-bottom: 10px; }
 .jonaminz-chat-reaction-pill {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -775,6 +789,12 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
 .jonaminz-chat-image-bubble img.is-loading {
   filter: blur(6px);
   transform: scale(1.03);
+  /* 2026-07-16（使用者回饋「一進聊天室看到細細的一條沒載入」）：
+     還沒拿到真圖 URL 時 <img> 沒有內在尺寸，泡泡容器跟著縮成一條線。
+     載入中直接給滿版寬度（容器的 max-width 上限），配合 inline 的
+     aspect-ratio 撐出正確比例的佔位框＋底色，載完換真圖不跳版。 */
+  width: 260px;
+  background: var(--color-bg-lobby);
 }
 .jonaminz-chat-image-unshared {
   margin: 2px 0 0;

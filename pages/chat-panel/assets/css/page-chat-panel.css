@@ -536,8 +536,20 @@ button, textarea { font: inherit; }
    align-items:flex-end 讓它跟著自己那則泡泡靠右對齊。 */
 .jonaminz-chat-reply-quote.is-unknown { font-style: italic; }
 
-.jonaminz-chat-reactions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
-.jonaminz-chat-message[data-mine="true"] .jonaminz-chat-reactions { justify-content: flex-end; }
+/* 2026-07-16：表情反應膠囊改成疊在泡泡右下角外緣（Messenger 做法），
+   不佔一行高度——訊息列高度等於泡泡本身，hover 工具列才會對齊泡泡
+   下緣（完整說明見 page-chat.css 同規則）。 */
+.jonaminz-chat-bubble-col { position: relative; }
+.jonaminz-chat-reactions {
+  display: flex;
+  gap: 4px;
+  position: absolute;
+  bottom: -10px;
+  right: 4px;
+  z-index: 2;
+}
+.jonaminz-chat-message[data-mine="false"] .jonaminz-chat-reactions { right: auto; left: 4px; }
+.jonaminz-chat-message:has(.jonaminz-chat-reactions) { margin-bottom: 9px; }
 .jonaminz-chat-reaction-pill {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -759,6 +771,10 @@ button, textarea { font: inherit; }
 .jonaminz-chat-image-bubble img.is-loading {
   filter: blur(6px);
   transform: scale(1.03);
+  /* 還沒拿到真圖 URL 時 <img> 沒有內在尺寸會縮成一條線——載入中給
+     滿版寬度＋aspect-ratio 撐出佔位框（說明見 page-chat.css 同規則）。 */
+  width: 220px;
+  background: var(--color-bg-lobby);
 }
 .jonaminz-chat-image-unshared {
   margin: 2px 0 0;

@@ -2044,7 +2044,38 @@ async function deleteChatMessage(env, payload) {
   if (!rows[0]) {
     return { ok: false, code: "NOT_FOUND_OR_FORBIDDEN", error: "message not found or not deletable" };
   }
-  return { ok: true, message: rows[0] };
+  // 2026-07-16（使用者回饋：傳錯的照片刪不掉）：圖片/檔案訊息刪除時，
+  // OneDrive 上的檔案本體也一起刪——只軟刪除訊息的話，檔案會留在
+  // 傳送者的 App Folder（且已分享給對方）直到 180 天保留期滿才被
+  // maybeRunChatFilePurge 清掉，對「傳錯的私密照片」這種情境不能接受。
+  // 刪法跟 purge 同一套（Graph DELETE，404 視為已刪成功）；best-effort
+  // ——OneDrive 暫時斷線等失敗不影響訊息刪除本身（訊息已標記刪除、
+  // 前端已看不到），殘留的檔案本體最終會被 purge 撿走（它只看
+  // created_at 不看 deleted_at，過了保留期一樣會清）。
+  const deletedRow = rows[0];
+  if ((deletedRow.kind === "image" || deletedRow.kind === "file") &&
+      deletedRow.metadata && deletedRow.metadata.itemId && !deletedRow.metadata.expired) {
+    try {
+      const ownerIdentity = deletedRow.metadata.ownerIdentity || identity;
+      const accessToken = await getOnedriveAccessToken(env, ownerIdentity);
+      const deleteResponse = await fetch(
+        "https://graph.microsoft.com/v1.0/me/drive/items/" + encodeURIComponent(deletedRow.metadata.itemId),
+        { method: "DELETE", headers: { Authorization: "Bearer " + accessToken } }
+      );
+      if (deleteResponse.ok || deleteResponse.status === 404) {
+        await fetch(base + "/rest/v1/chat_messages?id=eq." + encodeURIComponent(messageId), {
+          method: "PATCH",
+          headers: supabaseHeaders(env),
+          body: JSON.stringify({
+            metadata: Object.assign({}, deletedRow.metadata, { expired: true, expiredAt: new Date().toISOString() })
+          })
+        });
+      }
+    } catch (error) {
+      console.error("[jonaminz] delete OneDrive item on message delete failed", error);
+    }
+  }
+  return { ok: true, message: deletedRow };
 }
 
 async function loadOlderChatMessages(env, payload) {

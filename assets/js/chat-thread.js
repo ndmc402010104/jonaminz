@@ -254,6 +254,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var readObserver = null;
     var contextMenuOpenedAt = 0;
     var timePeekMessageId = null;
+    // 上一次真的寫進 DOM 的訊息串 HTML——內容沒變就跳過 innerHTML，
+    // 避免 1.5 秒 poll 一次的重繪把 hover 工具列砍掉重建造成規律閃爍。
+    var lastRenderedThreadHtml = null;
     // 樂觀 UI：已送出但 poll 回應還沒收錄的訊息（{client_message_id, body}
     // 或圖片訊息 {client_message_id, kind:'image', previewUrl, w, h}）
     var pendingMessages = [];
@@ -263,6 +266,58 @@ title/url（見 `requestHostContext()`，宿主端實作在
     var imageUrlCache = {};
     var imageUrlFetchInFlight = {};
     var imageUrlErrorRetried = {};
+    // 2026-07-16（使用者回饋「一進聊天室不要看到細細的一條沒載入」）：
+    // downloadUrl 快取加一層 localStorage 持久化——URL 本身約 1 小時
+    // 有效，記憶體快取每次進頁面都是空的，等於每次都要重新跟 Worker
+    // ／Graph 換一輪 URL 才開始載圖。改成換到的 URL 存進 localStorage
+    // （帶時間戳，只信 50 分鐘內的），下次進頁面直接命中：<img> 立刻
+    // 有 src，而且同一個 URL 瀏覽器自己的 HTTP 快取多半也還留著圖片
+    // 位元組，幾乎是秒開。URL 過期載入失敗時走既有的 error-retry 路徑
+    // 清掉重換，不會卡死在舊 URL。
+    var IMAGE_URL_STORE_KEY = "jonaminz.chatImageUrlCache";
+    var IMAGE_URL_STORE_TTL_MS = 50 * 60 * 1000;
+
+    function readImageUrlStore() {
+      try {
+        var raw = window.localStorage.getItem(IMAGE_URL_STORE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (error) { return {}; }
+    }
+
+    function loadPersistedImageUrls() {
+      var store = readImageUrlStore();
+      var now = Date.now();
+      Object.keys(store).forEach(function (itemId) {
+        var entry = store[itemId];
+        if (entry && entry.u && now - entry.t < IMAGE_URL_STORE_TTL_MS) {
+          imageUrlCache[itemId] = entry.u;
+        }
+      });
+    }
+
+    function persistImageUrls(urls) {
+      try {
+        var store = readImageUrlStore();
+        var now = Date.now();
+        Object.keys(store).forEach(function (itemId) {
+          if (!store[itemId] || now - store[itemId].t >= IMAGE_URL_STORE_TTL_MS) delete store[itemId];
+        });
+        Object.keys(urls).forEach(function (itemId) {
+          if (urls[itemId]) store[itemId] = { u: urls[itemId], t: now };
+        });
+        window.localStorage.setItem(IMAGE_URL_STORE_KEY, JSON.stringify(store));
+      } catch (error) {}
+    }
+
+    function dropPersistedImageUrl(itemId) {
+      try {
+        var store = readImageUrlStore();
+        delete store[itemId];
+        window.localStorage.setItem(IMAGE_URL_STORE_KEY, JSON.stringify(store));
+      } catch (error) {}
+    }
+
+    loadPersistedImageUrls();
     var selectedImageFile = null;
     var selectedFile = null;
 
@@ -390,6 +445,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
 
       if (!messages.length && !pendingMessages.length) {
         els.thread.innerHTML = '<p class="jonaminz-chat-empty">還沒有訊息，說句話開始吧。</p>';
+        lastRenderedThreadHtml = null; // 這個分支直接動了 DOM，快取作廢
         return;
       }
 
@@ -456,6 +512,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // 圖片/檔案訊息比照 shared_item：不能編輯（沒有文字內容可編輯），
         // 這一版也先不開放刪除，跟既有行為一致，不節外生枝。
         var canEditOrDelete = mine && !deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file";
+        // 2026-07-16（使用者回饋「圖片也要可以刪除阿」）：圖片/檔案原本
+        // 比照 shared_item 完全不給刪（當時註解寫「不節外生枝」），但
+        // 傳錯的照片刪不掉是真實痛點。後端 deleteChatMessage 本來就只
+        // 驗「是不是自己傳的」沒有限制種類，這裡開放自己的圖片/檔案
+        // 可刪（編輯仍然不開放——沒有文字內容可編輯）。
+        var canDeleteMedia = mine && !deleted && (m.kind === "image" || m.kind === "file");
         var canReplyOrReact = !deleted;
 
         // 2026-07-14（第十五輪）：回覆／引用——reply_to_message_id 指到的
@@ -591,11 +653,17 @@ title/url（見 `requestHostContext()`，宿主端實作在
             reactionsHtml + "</div>";
         }
 
+        // ⋮（更多）按到會開底部操作列，操作列裡有沒有東西取決於
+        // copyText/editable/deletable——一個都沒有（例如對方傳的圖片）
+        // 就不畫這顆按鈕，免得按了沒反應像壞掉。
+        var hasCopyText = !deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file";
+        var hasMoreActions = hasCopyText || canEditOrDelete || canDeleteMedia;
         html +=
           '<div class="jonaminz-chat-message" data-mine="' + mine + '" data-message-id="' + escapeHtml(m.id) + '"' +
           (canEditOrDelete ? " data-editable=\"true\"" : "") +
+          (canDeleteMedia ? " data-deletable=\"true\"" : "") +
           (deleted ? ' data-deleted="true"' : "") +
-          (!deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file" ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
+          (hasCopyText ? ' data-copy-text="' + escapeHtml(m.body) + '"' : "") + ">" +
           avatarHtml +
           bodyHtml +
           // 2026-07-16：電腦版滑鼠 hover 專用工具列（⋮更多／↩回覆／
@@ -605,8 +673,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
           // 不給任何互動。
           (deleted ? "" :
             '<div class="jonaminz-chat-hover-toolbar">' +
-            '<button type="button" data-hover-more aria-label="更多">⋮</button>' +
-            (canReplyOrReact && !deleted && m.kind !== "shared_item" && m.kind !== "image" && m.kind !== "file"
+            (hasMoreActions ? '<button type="button" data-hover-more aria-label="更多">⋮</button>' : "") +
+            (hasCopyText
               ? '<button type="button" data-hover-reply aria-label="回覆">↩</button>' : "") +
             '<button type="button" data-hover-react aria-label="回應表情">🙂</button>' +
             "</div>") +
@@ -693,8 +761,17 @@ title/url（見 `requestHostContext()`，宿主端實作在
           "<span></span><span></span><span></span></div></div>";
       }
 
+      // 2026-07-16（使用者回報 hover 工具列每隔固定時間閃一下）：閃爍
+      // 週期＝1.5 秒的 poll——每次 poll 完不管內容有沒有變都整個重設
+      // innerHTML，滑鼠下的工具列被砍掉重建，opacity 又從 0 淡入一次。
+      // 內容跟上一次完全一樣就不要動 DOM（比對我們自己組出來的 html
+      // 字串，不比 innerHTML——瀏覽器會正規化屬性順序，直接比對
+      // innerHTML 永遠不相等）。
+      var fullHtml = loadMoreHtml + html;
+      if (fullHtml === lastRenderedThreadHtml) return;
+      lastRenderedThreadHtml = fullHtml;
       var wasNearBottom = els.thread.scrollHeight - els.thread.scrollTop - els.thread.clientHeight < 80;
-      els.thread.innerHTML = loadMoreHtml + html;
+      els.thread.innerHTML = fullHtml;
       if (wasNearBottom || !lastMessageId) els.thread.scrollTop = els.thread.scrollHeight;
 
       if (messages.length) {
@@ -1038,6 +1115,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       messages.forEach(function (m) {
         if ((m.kind !== "image" && m.kind !== "file") || !m.metadata || !m.metadata.itemId) return;
         if (m.metadata.expired) return;
+        if (m.deleted_at) return; // 已刪除的畫「此訊息已刪除」，不用要連結
         var itemId = m.metadata.itemId;
         if (imageUrlCache[itemId] !== undefined || imageUrlFetchInFlight[itemId]) return;
         need.push({ itemId: itemId, ownerIdentity: m.metadata.ownerIdentity });
@@ -1051,6 +1129,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
             Object.keys(result.urls).forEach(function (itemId) {
               imageUrlCache[itemId] = result.urls[itemId];
             });
+            persistImageUrls(result.urls);
           } else {
             // 2026-07-15：使用者回報「下載連結一直顯示還在準備中」——
             // 真正根因：這支 action 是整批查詢，`getOnedriveAccessToken`
@@ -1138,6 +1217,9 @@ title/url（見 `requestHostContext()`，宿主端實作在
     function closeContextMenu() {
       if (els.contextMenu) els.contextMenu.hidden = true;
       if (els.actionSheet) els.actionSheet.hidden = true;
+      // 2026-07-16（使用者回報：底部操作列開著時背景還能捲動）：關閉
+      // 時恢復訊息串捲動（開啟時在 openActionSheet 鎖住）。
+      if (els.thread) els.thread.style.overflow = "";
     }
 
     // 2026-07-16（三輪回饋收斂）：表情反應（浮動小選單）跟底部操作列
@@ -1174,6 +1256,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (!els.actionSheet) return;
       var messageId = messageEl.dataset.messageId;
       var editable = messageEl.dataset.editable === "true";
+      var deletable = messageEl.dataset.deletable === "true";
       var copyText = messageEl.dataset.copyText;
 
       if (els.actionSheet) els.actionSheet.hidden = true;
@@ -1189,11 +1272,18 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (editable) {
         actionItems.push('<button type="button" data-menu-edit data-message-id="' + escapeHtml(messageId) +
           '" data-text="' + escapeHtml(copyText || "") + '"><span>✏️</span>編輯</button>');
+      }
+      // 編輯得動的（自己的文字訊息）跟只可刪的（自己的圖片/檔案）
+      // 共用同一顆刪除按鈕，走同一個 data-menu-delete 處理器。
+      if (editable || deletable) {
         actionItems.push('<button type="button" data-menu-delete data-message-id="' + escapeHtml(messageId) + '"><span>🗑️</span>刪除</button>');
       }
       if (actionItems.length && els.actionSheet && els.actionSheetMenu) {
         els.actionSheetMenu.innerHTML = actionItems.join("");
         els.actionSheet.hidden = false;
+        // 操作列開著時鎖住訊息串捲動（closeContextMenu 恢復），不然
+        // 背景還在動、視覺上像操作列沒真的接管畫面。
+        if (els.thread) els.thread.style.overflow = "hidden";
       }
 
       contextMenuOpenedAt = Date.now();
@@ -1606,6 +1696,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         if (!itemId || imageUrlErrorRetried[itemId]) return;
         imageUrlErrorRetried[itemId] = true;
         delete imageUrlCache[itemId];
+        dropPersistedImageUrl(itemId);
         // render() 內部本來就會呼叫 ensureImageUrls()（涵蓋 olderMessages
         // 合併後的完整訊息清單，不是只有最近一次 poll 的那一批）。
         if (lastPollData) render(lastPollData);
@@ -1774,6 +1865,12 @@ title/url（見 `requestHostContext()`，宿主端實作在
       }
 
       els.thread.addEventListener("pointerdown", function (event) {
+        // 2026-07-16（使用者回報「對話框沒辦法反白選取」）：滑鼠按住
+        // 拖曳想反白文字時，被左滑回覆手勢劫持（往左拖 preventDefault
+        // ＋拖著泡泡跑）、按住不動 480ms 還會誤觸長按選單。長按＋滑動
+        // 是給觸控的手勢，桌機滑鼠有自己的 hover 工具列——滑鼠事件
+        // 完全不進這套手勢，原生反白/拖曳行為全部還給瀏覽器。
+        if (event.pointerType === "mouse") return;
         if (event.target.closest("[data-discuss-btn], [data-shared-card], [data-load-more]")) return;
         var messageEl = event.target.closest(".jonaminz-chat-message");
         if (!messageEl) return;
@@ -1873,7 +1970,18 @@ title/url（見 `requestHostContext()`，宿主端實作在
           closeContextMenu();
           if (!window.confirm("確定要刪除這則訊息嗎？")) return;
           window.JonaminzBackend.deleteChatMessage({ token: token, messageId: deleteBtn.dataset.messageId })
-            .then(function () { return poll(); })
+            .then(function (result) {
+              // 2026-07-16（使用者回報「刪除是假的」）：後端回 ok:false
+              // （NOT_FOUND_OR_FORBIDDEN／LOGIN_REQUIRED 之類）原本被
+              // 完全忽略，畫面上什麼都不發生、也沒有任何錯誤訊息，看
+              // 起來就像刪除沒作用。失敗要說出來，才能分辨是「真的沒
+              // 刪成」還是別的問題。
+              if (!result || result.ok === false) {
+                els.status.textContent = "刪除失敗：" + ((result && (result.error || result.code)) || "未知原因");
+                return;
+              }
+              return poll();
+            })
             .catch(function (error) {
               els.status.textContent = "刪除失敗：" + (error.message || String(error));
             });
