@@ -425,15 +425,19 @@ button, textarea { font: inherit; }
   flex: 1;
   background: color-mix(in srgb, var(--color-primary-2) 35%, transparent);
 }
+/* 2026-07-16：hover 判定範圍改成整列撐滿寬度（理由跟 page-chat.css
+   同一則說明——原本只跟著內容縮到多窄，泡泡窄的話 hover 範圍也跟著
+   窄，真正的 Messenger 是整條跟聊天欄同寬在判定）。82% 寬度上限
+   改留在 .jonaminz-chat-bubble-col 身上。 */
 .jonaminz-chat-message {
   position: relative;
   display: flex;
   gap: var(--space-1);
   align-items: flex-end;
-  max-width: 86%;
+  justify-content: flex-start;
+  width: 100%;
 }
-.jonaminz-chat-message[data-mine="true"] { align-self: flex-end; flex-direction: row-reverse; }
-.jonaminz-chat-message[data-mine="false"] { align-self: flex-start; }
+.jonaminz-chat-message[data-mine="true"] { flex-direction: row-reverse; }
 .jonaminz-chat-message-avatar {
   width: 22px;
   height: 22px;
@@ -524,7 +528,7 @@ button, textarea { font: inherit; }
 /* .jonaminz-chat-message 本身是 flex row（大頭貼＋內容並排），回覆引用／
    泡泡／表情反應要用這個 column 容器包成單一 flex item，才會直向堆疊
    而不是被當成三個並排的 row item。 */
-.jonaminz-chat-bubble-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.jonaminz-chat-bubble-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 86%; }
 .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble-col { align-items: flex-end; }
 
 .jonaminz-chat-reply-quote {

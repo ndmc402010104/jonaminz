@@ -404,21 +404,28 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
   background: color-mix(in srgb, var(--color-primary-2) 35%, transparent);
 }
 
+/* 2026-07-16（使用者拿真的 Messenger 截圖比對回報）：hover 判定範圍
+   原本就是 .jonaminz-chat-message 自己的框，這個框原本只跟著內容
+   （大頭貼＋泡泡）縮到多窄——泡泡本身很窄時，可以 hover 的範圍也
+   跟著很窄，滑鼠稍微往工具列移動、離開泡泡的窄範圍就斷了。真正的
+   Messenger 是整個橫向、跟聊天欄同寬的一大條範圍在判定 hover，不是
+   只有貼著文字的那個小框。改成這一列本身撐滿整個聊天串寬度
+   （width:100%，拿掉 max-width／align-self），靠 justify-content
+   （+ data-mine 的 row-reverse）把大頭貼／泡泡推到該在的那一側，
+   視覺結果不變，但整條 hover 判定範圍變成整列寬，好點很多。原本
+   82% 的寬度上限改留在 .jonaminz-chat-bubble-col 身上（見下方），
+   只限制泡泡本身視覺寬度，不影響 hover 範圍。 */
 .jonaminz-chat-message {
   position: relative;
   display: flex;
   gap: var(--space-2);
   align-items: flex-end;
-  max-width: 82%;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .jonaminz-chat-message[data-mine="true"] {
-  align-self: flex-end;
   flex-direction: row-reverse;
-}
-
-.jonaminz-chat-message[data-mine="false"] {
-  align-self: flex-start;
 }
 
 .jonaminz-chat-message-avatar {
@@ -534,7 +541,7 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
 /* .jonaminz-chat-message 本身是 flex row（大頭貼＋內容並排），回覆引用／
    泡泡／表情反應要用這個 column 容器包成單一 flex item，才會直向堆疊
    而不是被當成三個並排的 row item。 */
-.jonaminz-chat-bubble-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.jonaminz-chat-bubble-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 82%; }
 .jonaminz-chat-message[data-mine="true"] .jonaminz-chat-bubble-col { align-items: flex-end; }
 
 .jonaminz-chat-reply-quote {
