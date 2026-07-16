@@ -463,6 +463,24 @@ button, textarea { font: inherit; }
    訊息因為 row-reverse 自然排在泡泡左邊，對方的排在右邊，跟
    Messenger 一模一樣。不用 position:absolute、不用任何 JS 定位判斷。
    `@media (hover: hover)` 排除觸控裝置。 */
+/* 2026-07-16：頁內 toast（取代會被瀏覽器壓掉的 alert），錯誤/提示用。 */
+.jonaminz-chat-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  max-width: 88%;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  background: rgba(30, 30, 30, 0.88);
+  color: #fff;
+  font-size: var(--text-xs);
+  z-index: 30;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+.jonaminz-chat-toast[hidden] { display: none; }
+
 .jonaminz-chat-hover-toolbar { display: none; }
 @media (hover: hover) and (pointer: fine) {
   /* 垂直定位（使用者定案）：單行訊息就在那一行；多行貼在訊息最下緣，

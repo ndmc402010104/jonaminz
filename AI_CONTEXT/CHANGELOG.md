@@ -20,6 +20,33 @@
 
 ---
 
+## 2026-07-16（晚上，第十四筆）— 刪除功能的最終真兇：DB check constraint 不准 body 清空；錯誤顯示改頁內 toast
+
+- **任務**：第十三筆的兩段式刪除讓錯誤終於現形，使用者截圖回報完整
+  錯誤：`HTTP 400 code 23514 … violates check constraint
+  "chat_messages_body_check"`——查 schema 證實 `chat_messages_body_check`
+  要求 `char_length(body) 介於 1..4000`，而 `deleteChatMessage` 軟刪除
+  時把 body 清成**空字串**（長度 0），每一次刪除都被 constraint 打回
+  HTTP 400。**這才是刪除從 7/14 上線以來一次都沒成功過的真兇**；
+  第十三筆懷疑的 window.confirm 壓制假說錯了（但那輪把錯誤弄到看得
+  見，才有這次的診斷素材，兩段式確認本身也保留）。同時使用者痛罵
+  錯誤顯示塞在按鈕裡撐成一大塊超醜（原話「哪有人用這個鬼東西」）。
+- **變更**：
+  - `worker.js` `deleteChatMessage`：軟刪除的 body 從 `""` 改成
+    `"（已刪除）"`（長度 5，過 constraint；原始內容一樣被抹掉，隱私
+    目的不變）。前端墓碑樣式只看 `deleted_at` 不看 body，不受影響。
+    刻意不動 DB constraint（改 schema 影響面更大，佔位字串就夠）。
+  - `chat-thread.js`＋兩份 CSS：新增 `showToast()` 頁內浮動提示條
+    （fixed 置中、4 秒自動消失），刪除失敗改用 toast 顯示精簡原因
+    （截 120 字），不再塞按鈕/不再用會被瀏覽器壓掉的 alert。
+- **驗證**：harness 重跑兩段式刪除流程通過（確認態→刪除中→呼叫
+  後端→收合）。constraint 修正本身要 Worker deploy 後才生效。
+- **狀態變化**：使用者確認第十三筆的其他修正（反白選取、捲動鎖、
+  分享卡片刪除選項）都已正常（原話「其他幾個倒是真的好了」）。
+- **版本**：v0.46.30-202607162054（Worker 已部署）
+
+---
+
 ## 2026-07-16（晚上，第十三筆）— 「刪除是假的」真根因收斂：window.confirm 被瀏覽器壓掉，改成兩段式按鈕確認
 
 - **任務**：第十二筆上線後使用者回報四項仍失敗（刪除、反白、捲動鎖、

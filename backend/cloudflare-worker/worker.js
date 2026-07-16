@@ -2030,12 +2030,18 @@ async function deleteChatMessage(env, payload) {
   const base = env.SUPABASE_URL.replace(/\/+$/, "");
   const url = base + "/rest/v1/chat_messages?id=eq." + encodeURIComponent(messageId) +
     "&sender_identity=eq." + identity;
-  // 軟刪除：body 清空、deleted_at 蓋上時間戳，前端看到 deleted_at 就畫
+  // 軟刪除：body 抹掉、deleted_at 蓋上時間戳，前端看到 deleted_at 就畫
   // 「此訊息已刪除」的樣式，不是真的從資料庫移除這一列（保留稽核軌跡）。
+  // 2026-07-16（刪除功能從 7/14 上線以來從沒成功過的真兇）：schema 的
+  // chat_messages_body_check 要求 body 長度 1..4000，原本這裡把 body 清成
+  // 空字串（char_length 0）直接違反 constraint、每次都 HTTP 400——而
+  // 前端又把失敗靜默吞掉，兩個問題疊起來就是「刪除完全沒反應」。改成
+  // 寫佔位字串（原始內容一樣有被抹掉，隱私目的不變），前端墓碑樣式只
+  // 看 deleted_at、不看 body 內容，不受影響。
   const response = await fetch(url, {
     method: "PATCH",
     headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
-    body: JSON.stringify({ body: "", deleted_at: new Date().toISOString() })
+    body: JSON.stringify({ body: "（已刪除）", deleted_at: new Date().toISOString() })
   });
   if (!response.ok) {
     throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));

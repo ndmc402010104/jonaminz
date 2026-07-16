@@ -1217,6 +1217,23 @@ title/url（見 `requestHostContext()`，宿主端實作在
     // 常常需要的按鈕位置很尷尬、要精準點到小小一顆）。拆成兩個各自
     // 獨立顯示/隱藏的元件，共用同一組 data-menu-* 按鈕（點擊行為完全
     // 沒變，只是換了容器跟排版）。
+    // 2026-07-16：頁內 toast——瀏覽器 alert 會被「不要再顯示對話方塊」
+    // 壓掉、塞按鈕裡又醜到被使用者罵（原話「哪有人用這個鬼東西」），
+    // 錯誤/提示一律用這個自己畫的浮動提示條。
+    var toastTimer = null;
+    function showToast(text) {
+      var toast = root.querySelector(".jonaminz-chat-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.className = "jonaminz-chat-toast";
+        root.appendChild(toast);
+      }
+      toast.textContent = text;
+      toast.hidden = false;
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toast.hidden = true; }, 4000);
+    }
+
     function closeContextMenu() {
       if (els.contextMenu) els.contextMenu.hidden = true;
       if (els.actionSheet) els.actionSheet.hidden = true;
@@ -2001,8 +2018,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
               if (!result || result.ok === false) {
                 var reason = (result && (result.error || result.code)) || "未知原因";
                 console.error("[jonaminz] deleteChatMessage failed:", reason, result);
-                if (deleteBtn.isConnected) deleteBtn.innerHTML = "<span>❌</span>失敗：" + escapeHtml(reason);
-                els.status.textContent = "刪除失敗：" + reason;
+                closeContextMenu();
+                showToast("刪除失敗：" + reason.slice(0, 120));
                 return;
               }
               closeContextMenu();
@@ -2011,8 +2028,8 @@ title/url（見 `requestHostContext()`，宿主端實作在
             .catch(function (error) {
               var message = error.message || String(error);
               console.error("[jonaminz] deleteChatMessage threw:", error);
-              if (deleteBtn.isConnected) deleteBtn.innerHTML = "<span>❌</span>失敗：" + escapeHtml(message);
-              els.status.textContent = "刪除失敗：" + message;
+              closeContextMenu();
+              showToast("刪除失敗：" + message.slice(0, 120));
             });
         }
       }

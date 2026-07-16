@@ -465,6 +465,24 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
    不用任何 JS 定位判斷；訊息列撐滿整行寬，滑鼠在行內移動 hover
    永遠不斷。`@media (hover: hover)` 排除觸控裝置（沒有真正的 hover
    狀態，不顯示，長按走 openContextMenu()）。 */
+/* 2026-07-16：頁內 toast（取代會被瀏覽器壓掉的 alert），錯誤/提示用。 */
+.jonaminz-chat-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  max-width: 86%;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(30, 30, 30, 0.88);
+  color: #fff;
+  font-size: var(--text-sm);
+  z-index: 30;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+.jonaminz-chat-toast[hidden] { display: none; }
+
 .jonaminz-chat-hover-toolbar { display: none; }
 @media (hover: hover) and (pointer: fine) {
   /* 垂直定位（使用者定案）：單行訊息就在那一行；多行訊息貼在這則
