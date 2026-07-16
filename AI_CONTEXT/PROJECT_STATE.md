@@ -1318,7 +1318,15 @@ System App：
 - **Chat 檔案附件已上線（2026-07-15，決策圖第一個畢業的候選項目）**：
   沿用圖片訊息的 OneDrive 上傳/分享管道，細節見 CHANGELOG 第六十次
   條目，跟圖片訊息共用同一個「雙方要重新連接 OneDrive」的前提。
-- 沒做：貼圖面板、送往其他 App 的 destinations registry、後台首頁
+- **Chat 下載進 ⋮ 選單＋貼圖/常用回覆面板已上線（2026-07-16）**：檔案/
+  圖片下載收進 ⋮ 操作列；composer 單一 🙂 開三段面板（常用回覆/貼圖
+  直接送、插入表情進輸入框）；按下輸入框(pointerdown)自動關面板。
+  細節見 CHANGELOG 第二十一/二十二筆（v0.46.40→v0.46.42）。
+- **待辦看板排程系統已上線（2026-07-17）**：`project_tasks` 加 `due_at`，
+  任務列 🕑 設定到期、獨立「排程區」集中顯示倒數、逾期/24h 內高亮。
+  **純看板高亮、不推播、一次性到期**（設計定案，不是漏做推播）。Worker
+  Version c43dcfa2，細節見 CHANGELOG 第二十三筆。
+- 沒做：送往其他 App 的 destinations registry、後台首頁
   摘要、真正的 WebSocket/Realtime 推播（目前是 polling，Web
   Push 只解決「App 關閉時
   的系統通知」，不是即時雙向連線）、端對端加密——這些多半在交接包的

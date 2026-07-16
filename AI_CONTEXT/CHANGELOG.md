@@ -20,6 +20,43 @@
 
 ---
 
+## 2026-07-17（凌晨，第二十三筆）— 待辦看板排程系統（due_at＋排程區＋倒數）
+
+- **任務**：使用者「全部完成吧」三件中的最後一件、份量最完整的一件。
+  設計早先已用 AskUserQuestion 定案：**純看板高亮、不推播、一次性到期、
+  獨立排程區**。
+- **變更**：
+  - **Schema**（migration `add_due_at_to_project_tasks`）：`project_tasks`
+    加 `due_at timestamptz null`。無 default、可為 null，不需新 grant。
+  - **Worker**（`backend/cloudflare-worker/worker.js`，已 deploy Version
+    c43dcfa2）：`listProjectTasks` 的 select 多回傳 `due_at`；`addProjectTask`
+    選填 `payload.dueAt`；新增 `setProjectTaskDueAt` action（設定/清除，
+    `dueAt=null` 清除）＋ action dispatch。`normalizeDueAt()` 把 ISO 字串
+    或毫秒 timestamp 正規化成 ISO，parse 不出來一律 null（壞值不會讓
+    寫入失敗）。
+  - **前端**（`pages/admin/journal/assets/js/app.js`＋`page-admin-journal.css`）：
+    每個未完成任務列加 🕑 排程鈕，開 inline `datetime-local` 表單設定/
+    清除到期；有 due_at 的列顯示倒數 chip、依 overdue/soon 給 `<li>`
+    高亮 class。新增獨立「排程區」section：集中兩泳道所有未完成且有
+    due_at 的項目，依到期升冪排、顯示倒數＋到期時刻＋清除鈕、逾期
+    紅框／24h 內琥珀框。30 秒 interval 只重繪排程區（不動 lane，避免
+    打斷 lane 內開著的表單）。`backend-client.js` 加 `setProjectTaskDueAt`
+    包裝。
+  - datetime-local 無時區→`new Date()` 當本地時間解析→`toISOString()`
+    存 UTC，顯示再轉回本地，兩邊一致。
+- **驗證**：migration 後查 information_schema 確認欄位存在；Worker deploy
+  後冒煙測試 setProjectTaskDueAt/listProjectTasks 回 LOGIN_REQUIRED（action
+  已識別、沒因部署壞掉）；前端用 Playwright harness（stub backend）實測
+  ——排程區排序正確、倒數文字（已逾期 2 小時／還有 2 小時 59 分鐘／還有
+  4 天 23 小時）、逾期/快到期高亮 class、🕑 開表單、送出帶正確 ISO、
+  設定後排程區＋lane chip 出現、清除移除，全部通過＋截圖視覺確認。
+- **遺留**：未做認證路徑的真機端對端測試（沒有 session token），但
+  migration＋action wiring＋前端邏輯都各自驗過，風險低，等使用者實測。
+  排程只有到期高亮、沒有任何推播/自動處理（設計即如此）。
+- **版本**：v0.46.43-202607170001（Worker Version c43dcfa2）
+
+---
+
 ## 2026-07-16（深夜，第二十二筆）— 合併重複的表情鍵＋focus 輸入框關面板
 
 - **任務**：使用者回報「這兩個重複了」（composer 上 💬 跟 🙂 看起來

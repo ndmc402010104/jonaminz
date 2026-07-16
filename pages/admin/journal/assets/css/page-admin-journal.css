@@ -610,6 +610,220 @@
   color: var(--color-text-muted);
 }
 
+/* ---------- 排程系統（2026-07-16）：🕑 按鈕、到期 chip、排程區 ---------- */
+
+/* 🕑 排程按鈕：跟 ✎ 編輯鈕同一種固定方塊置中寫法，字符怎麼畫都置中。 */
+.jonaminz-journal-task-schedule {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--text-md);
+  line-height: 1;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+
+.jonaminz-journal-task-schedule:hover {
+  color: var(--color-primary-2);
+}
+
+.jonaminz-journal-task-schedule.is-set {
+  color: var(--color-primary-2);
+}
+
+.jonaminz-journal-task-schedule.is-open {
+  background: color-mix(in srgb, var(--color-primary-2) 16%, transparent);
+  color: var(--color-primary-2);
+}
+
+/* inline datetime 表單：跟 escalate 表單同一種坑（display:flex 會蓋掉
+   [hidden] 的 UA display:none），所以一樣補一條 [hidden]。 */
+.jonaminz-journal-schedule-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  align-items: center;
+}
+
+.jonaminz-journal-schedule-form[hidden] {
+  display: none;
+}
+
+.jonaminz-journal-schedule-form input[type="datetime-local"] {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-primary-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-family: inherit;
+}
+
+.jonaminz-journal-schedule-form button {
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-primary-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-2);
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.jonaminz-journal-schedule-form .jonaminz-journal-schedule-clear {
+  background: none;
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}
+
+/* 到期 chip：顯示在任務列下方（不塞進 label，避免點到就打勾）。 */
+.jonaminz-journal-task-due {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.jonaminz-journal-task-due-moment {
+  color: var(--color-text-muted);
+  opacity: 0.85;
+}
+
+/* 逾期/快到期高亮：套在整個 <li> 上，lane 跟排程區共用同一組 class。 */
+.jonaminz-journal-task--due-overdue,
+.jonaminz-journal-schedule-item.jonaminz-journal-task--due-overdue {
+  border-left: 3px solid crimson;
+  padding-left: var(--space-2);
+  background: color-mix(in srgb, crimson 7%, transparent);
+}
+
+.jonaminz-journal-task--due-overdue .jonaminz-journal-task-due,
+.jonaminz-journal-task--due-overdue .jonaminz-journal-schedule-countdown {
+  color: crimson;
+  font-weight: 600;
+}
+
+.jonaminz-journal-task--due-soon,
+.jonaminz-journal-schedule-item.jonaminz-journal-task--due-soon {
+  border-left: 3px solid #d98324;
+  padding-left: var(--space-2);
+  background: color-mix(in srgb, #d98324 8%, transparent);
+}
+
+.jonaminz-journal-task--due-soon .jonaminz-journal-task-due,
+.jonaminz-journal-task--due-soon .jonaminz-journal-schedule-countdown {
+  color: #b56a10;
+  font-weight: 600;
+}
+
+/* 排程區 section */
+.jonaminz-journal-schedule-section {
+  margin-top: var(--space-7);
+}
+
+.jonaminz-journal-schedule-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-2);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.jonaminz-journal-schedule-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.jonaminz-journal-schedule-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-surface);
+}
+
+.jonaminz-journal-schedule-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.jonaminz-journal-schedule-lane {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-2);
+}
+
+.jonaminz-journal-schedule-text {
+  min-width: 0;
+  overflow-wrap: break-word;
+  color: var(--color-text);
+}
+
+.jonaminz-journal-schedule-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+
+.jonaminz-journal-schedule-countdown {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.jonaminz-journal-schedule-moment {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.jonaminz-journal-schedule-item .jonaminz-journal-schedule-clear {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.jonaminz-journal-schedule-item .jonaminz-journal-schedule-clear:hover {
+  border-color: crimson;
+  color: crimson;
+}
+
 .jonaminz-journal-done {
   margin-top: var(--space-3);
 }

@@ -248,6 +248,15 @@
   清除已完成項目），前端會重新顯示對應的候選卡片——使用者的原話：
   「從決策圖點加入的項目按 X 要回到決策圖，跟自己打字新增的、已完成
   的項目刪除邏輯不一樣」。
+- **`due_at` 欄位＋`setProjectTaskDueAt` action**（2026-07-16 排程系統）：
+  一次性到期時間標記，純看板高亮用——**不推播**、到期不自動搬動或
+  刪除任何東西（設計定案：board-highlight-only）。前端把有 `due_at`
+  的未完成項目另外收進一個「排程區」，顯示倒數/已逾期高亮。
+  `addProjectTask` 選填 `payload.dueAt`（新增時直接排程）；
+  `setProjectTaskDueAt` 針對既有項目設定/清除（`dueAt=null` 清除）。
+  Worker 端 `normalizeDueAt` 把 ISO 字串或毫秒 timestamp 正規化成 ISO，
+  parse 不出來一律當 null，壞值不會讓寫入失敗。`listProjectTasks`
+  的 select 多回傳 `due_at`。
 
 機密只存在 Cloudflare Worker 的 secret（SUPABASE_URL / SUPABASE_SECRET_KEY，對應
 Supabase 新版 API key 命名：sb_secret_... 這把，不是 sb_publishable_...），
@@ -582,6 +591,10 @@ export default {
 
       if (action === "setProjectTaskArchived") {
         return json(await setProjectTaskArchived(env, payload), 200);
+      }
+
+      if (action === "setProjectTaskDueAt") {
+        return json(await setProjectTaskDueAt(env, payload), 200);
       }
 
       if (action === "createApkUploadSession") {
@@ -3907,7 +3920,7 @@ async function listProjectTasks(env, payload) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
   const url = env.SUPABASE_URL.replace(/\/+$/, "") +
-    "/rest/v1/project_tasks?select=id,lane,text,done,origin,source_map_id,created_by,created_at,done_at,archived&order=created_at.asc";
+    "/rest/v1/project_tasks?select=id,lane,text,done,origin,source_map_id,created_by,created_at,done_at,archived,due_at&order=created_at.asc";
   const response = await fetch(url, { method: "GET", headers: supabaseHeaders(env) });
   if (!response.ok) {
     throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
@@ -3933,11 +3946,14 @@ async function addProjectTask(env, payload) {
   // 這筆任務是哪個候選項目「畢業」出來的——之後這筆被 ✕ 刪除時，前端
   // 會用這個欄位知道要讓對應的候選卡片重新出現在決策圖裡。
   const sourceMapId = String((payload && payload.sourceMapId) || "").trim() || null;
+  // dueAt 選填：排程區用的一次性到期時間，ISO 字串或 null。normalizeDueAt
+  // 會擋掉格式不對的值（避免 Supabase 寫入報錯）。
+  const dueAt = normalizeDueAt(payload && payload.dueAt);
   const insertUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks";
   const response = await fetch(insertUrl, {
     method: "POST",
     headers: Object.assign({ Prefer: "return=representation" }, supabaseHeaders(env)),
-    body: JSON.stringify({ lane: lane, text: text, created_by: identity, origin: "user", source_map_id: sourceMapId })
+    body: JSON.stringify({ lane: lane, text: text, created_by: identity, origin: "user", source_map_id: sourceMapId, due_at: dueAt })
   });
   if (!response.ok) {
     throw new Error("Supabase insert failed: HTTP " + response.status + " " + (await response.text()));
@@ -4037,6 +4053,47 @@ async function setProjectTaskArchived(env, payload) {
     throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
   }
   return { ok: true };
+}
+
+// 把前端傳來的到期時間正規化成 ISO 字串或 null。刻意寬鬆：接受 ISO
+// 字串或毫秒 timestamp，任何 parse 不出來的東西一律當成 null（＝清除
+// 排程），這樣壞值不會讓整筆寫入失敗。
+function normalizeDueAt(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+  var ms;
+  if (typeof raw === "number") {
+    ms = raw;
+  } else {
+    ms = Date.parse(String(raw));
+  }
+  if (isNaN(ms)) return null;
+  return new Date(ms).toISOString();
+}
+
+// 2026-07-16：待辦看板排程系統。設定/清除一筆任務的一次性到期時間
+// （due_at）。設計刻意極簡——只是純看板高亮用的時間標記，不推播、
+// 到期不自動搬動或刪除任何東西，一次性（到期後就是「已逾期」高亮，
+// 使用者自己處理）。傳 dueAt=null 就是清除排程。
+async function setProjectTaskDueAt(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const id = String((payload && payload.id) || "").trim();
+  if (!id) {
+    return { ok: false, code: "ID_REQUIRED", error: "id is required" };
+  }
+  const dueAt = normalizeDueAt(payload && payload.dueAt);
+  const updateUrl = env.SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/project_tasks?id=eq." + encodeURIComponent(id);
+  const response = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: supabaseHeaders(env),
+    body: JSON.stringify({ due_at: dueAt })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase update failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true, dueAt: dueAt };
 }
 
 async function deleteProjectTask(env, payload) {
