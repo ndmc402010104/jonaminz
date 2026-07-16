@@ -244,12 +244,16 @@
     return call("updateChatFileRetentionDays", payload, options);
   }
 
-  function getApkAgentTokenStatus(payload, options) {
-    return call("getApkAgentTokenStatus", payload, options);
+  function listAgentSecrets(payload, options) {
+    return call("listAgentSecrets", payload, options);
   }
 
-  function rotateApkAgentToken(payload, options) {
-    return call("rotateApkAgentToken", payload, options);
+  function setAgentSecret(payload, options) {
+    return call("setAgentSecret", payload, options);
+  }
+
+  function deleteAgentSecret(payload, options) {
+    return call("deleteAgentSecret", payload, options);
   }
 
   // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
@@ -303,7 +307,8 @@
     sendFileMessage: sendFileMessage,
     getChatFileRetentionSettings: getChatFileRetentionSettings,
     updateChatFileRetentionDays: updateChatFileRetentionDays,
-    getApkAgentTokenStatus: getApkAgentTokenStatus,
-    rotateApkAgentToken: rotateApkAgentToken
+    listAgentSecrets: listAgentSecrets,
+    setAgentSecret: setAgentSecret,
+    deleteAgentSecret: deleteAgentSecret
   };
 })();

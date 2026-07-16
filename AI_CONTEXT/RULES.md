@@ -131,8 +131,9 @@
     `pages/admin/toolkit/` 上的連結）指向新版——使用者永遠從同一個
     地方下載，不用每次跟 agent 要新連結/新檔案。
     **`<token>` 拿法（2026-07-16 同日再改進，見下一條 §2-12）**：
-    優先用 `pages/admin/toolkit/`「Agent 存取」小節產生的專用鑰匙——
-    agent 不能直接查 Supabase `sessions` 表撈現成使用者登入 token 來用
+    優先用 `pages/admin/toolkit/`「Agent 存取」小節裡使用者自己存進去
+    的專用密鑰（`agent_secrets` 表，`name='apk_upload_token'` 那筆）
+    ——agent 不能直接查 Supabase `sessions` 表撈現成使用者登入 token 來用
     （Auto Mode 的安全分類器會擋下、判定為未授權讓真實登入憑證出現在
     對話紀錄裡，這個擋是對的，不要嘗試繞過），也不能自己 INSERT 一筆
     新 session 冒充登入（等同繞過同一個限制的精神）。**只有在專用鑰匙
@@ -141,20 +142,24 @@
     session token（手機上沒有 devtools，可以請使用者把這段存成瀏覽器
     書籤點開取值：
     `javascript:prompt('token',localStorage.getItem('jonaminz.sessionToken'))`）。
-12. **APK 上傳專用固定密鑰（`apk_agent_token`）存在 `app_settings` 表，
-    不是 Worker secret，這是刻意的取捨，不要「改成更安全」搬去
-    `wrangler secret put`。**〔使用者，2026-07-16 定案〕使用者明確
-    要求這把鑰匙要能在後台頁面（`pages/admin/toolkit/`「Agent 存取」
-    小節）自己查看狀態／輪替，Worker secret 做不到這件事（只能寫、
-    讀不回來，也沒有從 Worker 內部程式碼自助輪替的管道）。這把鑰匙
-    只被 `createApkUploadSession` 一個 action 接受（見
-    `requireSessionOrAgentToken()`），換不到其他任何權限，外流最壞
-    情況也只是有人能上傳 APK 到 OneDrive，不是帳號被接管——威脅模型
-    上可以接受存在一般資料表裡。`getApkAgentTokenStatus` 只回報有沒有
-    設定＋上次輪替時間，**沒有讀出目前值的 action**；`rotateApkAgentToken`
-    的回應是唯一能看到明文的時機，這個設計不能改成「加一個查詢現值
-    的 action」，否則就失去「舊值用完即忘、每次都是新的」這個安全
-    屬性。
+12. **Agent 密鑰保管箱（`agent_secrets` 表）存在一般資料表，不是
+    Worker secret，這是刻意的取捨，不要「改成更安全」搬去
+    `wrangler secret put`。**〔使用者，2026-07-16 定案，同日內改版
+    一次〕第一版是 Worker 自動產生單一把 APK 專用鑰匙、只能看一次不能
+    讀回，使用者當面回饋不是他要的——他要的是「像 Cloudflare secret
+    api 儲存那種模式」：自己在後台（`pages/admin/toolkit/`「Agent
+    存取」小節）輸入「名稱／值」新增，需要換的時候自己上去改，不是
+    Worker 自動產生。`listAgentSecrets`／`setAgentSecret`／
+    `deleteAgentSecret` 三支只給已登入的人管理清單本身（新增/刪除/
+    看名稱與更新時間），**都不把 value 吐回前端**——真正讀 value 只有
+    兩條路：Worker 內部程式碼直接查表（例如 `createApkUploadSession`
+    透過 `requireSessionOrAgentToken()` 比對 `name='apk_upload_token'`
+    那筆），或 agent 在對話中用 Supabase 工具直接查表。不要加一個
+    「回傳 value 給前端」的 action，那樣就失去「像 Cloudflare 一樣
+    能覆蓋、不能讀回」這個使用者要的體感。外流最壞情況是這張表裡的
+    憑證被讀到（哪些憑證存進去、外流影響多大，是使用者自己決定要放
+    什麼進來的責任），不是帳號被接管——威脅模型上可以接受存在一般
+    資料表裡，跟其他一律「登入＝完全信任」的既有設計一致。
 
 ## 三、允許事項
 

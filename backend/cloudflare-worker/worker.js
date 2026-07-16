@@ -159,16 +159,21 @@
   `assets/js/chat-thread.js` 看到 `metadata.expired` 就不會再呼叫
   `getImageUrls` 去要下載連結，直接顯示「已超過保留天數，已自動從
   OneDrive 清除」，不是含糊的「拿不到」錯誤訊息。
-- `getApkAgentTokenStatus` / `rotateApkAgentToken`：2026-07-16，APK 上傳
-  專用固定密鑰，跟個人登入 session 分開、不會過期，只給
-  `createApkUploadSession` 認（見該支/`requireSessionOrAgentToken` 的
-  文件註解）。`getApkAgentTokenStatus` 只回報「有沒有設定」跟上次輪替
-  時間，不回傳鑰匙本身；`rotateApkAgentToken` 產生新鑰匙覆蓋舊的，
-  **回應裡是唯一看得到明文的時機**，沒有「讀出目前值」的 action，逼
-  每次需要新值就重新輪替一次。兩支都要求 `requireSession`（人要先
-  登入才能管理這把鑰匙），存在通用 `app_settings` 表，不是 Worker
-  secret——故意的，這樣才能在後台頁面（`pages/admin/toolkit/`）自助
-  查看/輪替，不用每次都跑 `wrangler secret put`。
+- `listAgentSecrets` / `setAgentSecret` / `deleteAgentSecret`：
+  2026-07-16，給 agent 用的密鑰保管箱（`agent_secrets` 表，見
+  `backend/supabase/agent_secrets_schema.sql`），使用者原話「很像
+  cloudflare secret api 儲存那種模式」——後台（`pages/admin/toolkit/`
+  「Agent 存取」小節）可以自己新增/刪除「名稱＋值」兩個欄位的項目，
+  跟個人登入 session 完全分開、不會過期。**三支 action 都只操作/回傳
+  名稱清單跟更新時間，不會把 value 吐回前端**——這就是 Cloudflare
+  secret 那種「能覆蓋、不能讀回」的體感。真正讀出 value 的地方只有
+  兩種：(1) Worker 內部程式碼直接查表（例如
+  `createApkUploadSession` 透過 `requireSessionOrAgentToken` 比對
+  `name='apk_upload_token'` 那筆的值），(2) agent 在對話中用 Supabase
+  工具直接查 `agent_secrets` 表——都不是經由公開 HTTP 介面洩漏
+  value。第一版（2026-07-16 早上）做的是「Worker 自動產生單一把
+  APK 專用鑰匙、只讀一次不能讀回」，使用者當面回饋這不是他要的，
+  改成這個通用保管箱版本，取代第一版，不是並存。
 - `createApkUploadSession` ／ `GET /appDownload`：OneDrive 線 Phase C
   （2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）APK 自架。
   本機建完 `jonaminz-mobile-app` 的 APK 後，`tools/upload-apk.mjs`
@@ -406,12 +411,16 @@ export default {
         return json(await updateChatFileRetentionDays(env, payload), 200);
       }
 
-      if (action === "getApkAgentTokenStatus") {
-        return json(await getApkAgentTokenStatus(env, payload), 200);
+      if (action === "listAgentSecrets") {
+        return json(await listAgentSecrets(env, payload), 200);
       }
 
-      if (action === "rotateApkAgentToken") {
-        return json(await rotateApkAgentToken(env, payload), 200);
+      if (action === "setAgentSecret") {
+        return json(await setAgentSecret(env, payload), 200);
+      }
+
+      if (action === "deleteAgentSecret") {
+        return json(await deleteAgentSecret(env, payload), 200);
       }
 
       if (action === "sendChatMessage") {
@@ -1289,52 +1298,103 @@ async function requireSession(env, payload) {
   return row.identity;
 }
 
-// 2026-07-16：APK 上傳專用的固定密鑰，跟 Jonathan/Minz 的個人登入
-// session 分開、不會過期——原本 build 完 APK 要上傳 OneDrive 得先跟
-// 使用者要一組活著的 session token（每次都要問，使用者在外面用手機
-// 特別麻煩），改成有這把專用鑰匙後，agent 自己 build 完可以直接用，
-// 不用每次都問。這把鑰匙只被 createApkUploadSession 接受，換不到其他
-// 任何 action 的權限（最小權限：就算外流也只能上傳 APK，不能讀寫聊天
-// /Contract/Theme 等其他資料）。存在 app_settings 的
-// `apk_agent_token` 這個 key（跟 chat_file_retention_days 同一張表），
-// 故意不做成 Cloudflare Worker secret——那種要走 `wrangler secret put`
-// 沒辦法讓使用者自己在後台頁面查看/輪替，這把鑰匙的定位是「使用者能
-// 自助管理的低風險憑證」，不是「絕對不能外流的最高機密」，跟兩人共用
-// 帳密、OneDrive 連線等既有信任模型一致。
+// 2026-07-16（同日改版）：第一版是「Worker 自動產生一把、只給
+// createApkUploadSession 用、回應裡看一次不能讀回」——使用者回饋這不是
+// 他要的，他要的是「像 Cloudflare secret 那樣」的保管箱：使用者自己
+// 選值、貼進後台存起來，agent 需要時直接去讀，名稱/值都由使用者決定，
+// 不是只能給 APK 上傳這一種用途。改成通用的 `agent_secrets` 表（見
+// `backend/supabase/agent_secrets_schema.sql`），name 是使用者自訂的
+// 識別字串、value 是使用者貼上的原文（可以是他自己瀏覽器 devtools
+// 拿到的個人 session token，也可以是任何其他要交給 agent 用的憑證）。
+// `listAgentSecrets`／`setAgentSecret`／`deleteAgentSecret` 三支只給
+// 已登入的人管理清單本身，**都不回傳/接受用來查詢的 value**——真正的
+// value 只有兩種讀法：(1) `createApkUploadSession` 這類 Worker 內部
+// 程式碼直接查表比對（見 `requireSessionOrAgentToken`），(2) agent 在
+// 對話中直接用 Supabase 工具查表——都不是經由任何公開 HTTP action 把
+// value 吐回前端，前端只看得到「有哪些名稱、上次更新時間」。
 async function requireSessionOrAgentToken(env, payload) {
   const identity = await requireSession(env, payload);
   if (identity) return identity;
   const token = String((payload && payload.token) || "").trim();
   if (!token) return null;
-  const agentToken = await getAppSetting(env, "apk_agent_token", null);
-  if (agentToken && token === agentToken) return "agent";
+  const stored = await getAgentSecretValue(env, "apk_upload_token");
+  if (stored && token === stored) return "agent";
   return null;
 }
 
-async function getApkAgentTokenStatus(env, payload) {
-  const identity = await requireSession(env, payload);
-  if (!identity) {
-    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+async function getAgentSecretValue(env, name) {
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const response = await fetch(
+    base + "/rest/v1/agent_secrets?name=eq." + encodeURIComponent(name) + "&select=value",
+    { headers: supabaseHeaders(env) }
+  );
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
   }
-  const existing = await getAppSetting(env, "apk_agent_token", null);
-  const rotatedAt = await getAppSetting(env, "apk_agent_token_rotated_at", null);
-  return { ok: true, configured: Boolean(existing), rotatedAt: rotatedAt };
+  const rows = await response.json();
+  return rows.length ? rows[0].value : null;
 }
 
-// 產生新鑰匙並存檔，回傳值只有這一次的回應裡看得到——跟 session token
-// 一樣是明文存在 Supabase（這個專案的既有信任模型本來就是「登入=完全
-// 信任」，不是要防資料庫本身被讀取），但故意不提供「讀出目前值」的
-// action，逼使用者每次需要新值就是重新輪替一次，舊值自動失效，比長期
-// 放著一組永遠不變、可能忘記存在哪裡的固定密碼安全。
-async function rotateApkAgentToken(env, payload) {
+async function listAgentSecrets(env, payload) {
   const identity = await requireSession(env, payload);
   if (!identity) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }
-  const token = randomToken();
-  await setAppSetting(env, "apk_agent_token", token, identity);
-  await setAppSetting(env, "apk_agent_token_rotated_at", new Date().toISOString(), identity);
-  return { ok: true, token: token };
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const response = await fetch(
+    base + "/rest/v1/agent_secrets?select=name,updated_at,updated_by&order=name.asc",
+    { headers: supabaseHeaders(env) }
+  );
+  if (!response.ok) {
+    throw new Error("Supabase read failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  const rows = await response.json();
+  return { ok: true, secrets: rows };
+}
+
+async function setAgentSecret(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const name = String((payload && payload.name) || "").trim();
+  const value = String((payload && payload.value) || "");
+  if (!name) {
+    return { ok: false, code: "NAME_REQUIRED", error: "name is required" };
+  }
+  if (!value) {
+    return { ok: false, code: "VALUE_REQUIRED", error: "value is required" };
+  }
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const response = await fetch(base + "/rest/v1/agent_secrets", {
+    method: "POST",
+    headers: Object.assign({ Prefer: "resolution=merge-duplicates" }, supabaseHeaders(env)),
+    body: JSON.stringify({ name: name, value: value, updated_at: new Date().toISOString(), updated_by: identity })
+  });
+  if (!response.ok) {
+    throw new Error("Supabase upsert failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
+}
+
+async function deleteAgentSecret(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const name = String((payload && payload.name) || "").trim();
+  if (!name) {
+    return { ok: false, code: "NAME_REQUIRED", error: "name is required" };
+  }
+  const base = env.SUPABASE_URL.replace(/\/+$/, "");
+  const response = await fetch(
+    base + "/rest/v1/agent_secrets?name=eq." + encodeURIComponent(name),
+    { method: "DELETE", headers: supabaseHeaders(env) }
+  );
+  if (!response.ok) {
+    throw new Error("Supabase delete failed: HTTP " + response.status + " " + (await response.text()));
+  }
+  return { ok: true };
 }
 
 async function getCurrentIdentity(env, payload) {

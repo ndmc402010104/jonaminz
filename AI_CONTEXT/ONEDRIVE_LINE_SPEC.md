@@ -162,12 +162,16 @@ Minz 讀圖 ──▶ Worker 用 Minz 自己的 access token 查
   連結指向的網址）。
 - **`createApkUploadSession` 的認證方式（2026-07-16 新增第二種）**：
   原本只接受一般登入 session；使用者反映每次 build 完都要重新跟他要
-  session token太麻煩，新增一把跟個人登入分開、不會過期的 APK 上傳
-  專用固定密鑰（`app_settings.apk_agent_token`，見
-  `requireSessionOrAgentToken()`），在 `pages/admin/toolkit/`「Agent
-  存取」小節自助產生/輪替，`payload.token` 放這把鑰匙一樣能用，
+  session token 太麻煩，新增一把跟個人登入分開、不會過期的密鑰認證
+  路徑（見 `requireSessionOrAgentToken()`）。值存在 `agent_secrets`
+  表（`name='apk_upload_token'` 那筆）——使用者要求要像「Cloudflare
+  secret api 儲存那種模式」，在 `pages/admin/toolkit/`「Agent 存取」
+  小節自己輸入名稱／值存進去，不是 Worker 自動產生（第一版是自動
+  產生、只看一次不能讀回，使用者當面回饋不是他要的，改成這版取代
+  第一版）。`payload.token` 放這把鑰匙一樣能用，
   `tools/upload-apk.mjs` 完全不用改。細節見
-  `AI_CONTEXT/CHANGELOG.md` 2026-07-16「APK 上傳專用固定密鑰」條目。
+  `AI_CONTEXT/CHANGELOG.md` 2026-07-16「APK 上傳專用固定密鑰」與
+  「Agent 密鑰保管箱改版」兩則條目。
 - 真機驗證下載安裝已完成（2026-07-15 起多次真機測試成功）：
   `gh release delete app-latest`，公開通道收回（使用者 2026-07-15
   之前明訂的回收計畫）——**這個收回動作本身是否已執行未在本文件
@@ -291,6 +295,7 @@ grant select, insert, update, delete on onedrive_account to service_role;
   `createApkUploadSession` action／`GET /appDownload`／
   `tools/upload-apk.mjs`，用 Jonathan 帳號存放；真機下載安裝已驗證
   過多次）。2026-07-16 追加：`createApkUploadSession` 除了原本的登入
-  session，也接受一把跟個人登入分開、不會過期的 APK 上傳專用固定
-  密鑰（`pages/admin/toolkit/`「Agent 存取」小節自助產生/輪替），
-  解決「agent 每次 build 完都要跟使用者要 token」的協作痛點。
+  session，也接受一把跟個人登入分開、不會過期的密鑰（存在
+  `agent_secrets` 表，`pages/admin/toolkit/`「Agent 存取」小節自己
+  輸入名稱／值管理，像 Cloudflare secret 保管箱），解決「agent 每次
+  build 完都要跟使用者要 token」的協作痛點。

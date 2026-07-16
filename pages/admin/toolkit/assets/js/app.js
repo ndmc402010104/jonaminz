@@ -75,12 +75,11 @@ loading task，不可以自己決定 css/shell ready。
     });
   }
 
-  // 2026-07-16：APK 上傳專用固定密鑰（跟個人登入 session 分開、不會
-  // 過期，只給 createApkUploadSession 認）——使用者要求要能在後台自己
-  // 管理，不要每次都跟 agent 要 session token 或跑 wrangler secret put。
-  // 只回報「有沒有設定」跟上次輪替時間，鑰匙本身只有按「產生新鑰匙」
-  // 當下的回應裡看得到一次，之後永遠讀不回來（見 worker.js
-  // rotateApkAgentToken 的設計理由）。
+  // 2026-07-16（同日改版）：第一版是 Worker 自動產生單一把 APK 專用
+  // 鑰匙，使用者回饋不是他要的——他要的是「像 Cloudflare secret 那種
+  // 保管箱」：自己選名稱/值存進來，agent 需要時直接讀，不限定只能給
+  // APK 上傳用。這裡只列名稱＋更新時間（不顯示 value，跟 Cloudflare
+  // 一樣「能覆蓋、不能讀回」），「+」展開新增表單（名稱／值兩個欄位）。
   function formatLocalDateTime(value) {
     if (!value) return "";
     try {
@@ -93,46 +92,92 @@ loading task，不可以自己決定 css/shell ready。
     }
   }
 
-  function renderAgentTokenSection() {
-    var el = document.querySelector("[data-agent-token-status]");
+  function agentSecretRowHtml(secret) {
+    return (
+      '<div class="jonaminz-toolkit-secret-row" data-secret-row="' + escapeHtml(secret.name) + '">' +
+        '<div class="jonaminz-toolkit-secret-info">' +
+          '<span class="jonaminz-toolkit-secret-name">' + escapeHtml(secret.name) + '</span>' +
+          '<span class="jonaminz-toolkit-card-note">上次更新：' + escapeHtml(formatLocalDateTime(secret.updated_at)) + '</span>' +
+        '</div>' +
+        '<button type="button" class="jonaminz-toolkit-copy-btn" data-delete-secret="' + escapeHtml(secret.name) + '">刪除</button>' +
+      '</div>'
+    );
+  }
+
+  function renderAgentSecretsSection() {
+    var el = document.querySelector("[data-agent-secrets]");
     if (!el) return;
     var token = (window.JonaminzIdentity && window.JonaminzIdentity.readToken)
       ? window.JonaminzIdentity.readToken() : null;
 
     function refresh() {
       el.textContent = "讀取中...";
-      window.JonaminzBackend.getApkAgentTokenStatus({ token: token })
+      window.JonaminzBackend.listAgentSecrets({ token: token })
         .then(function (response) {
           if (!response || !response.ok) {
             el.textContent = "讀取失敗：" + ((response && response.error) || "未知錯誤");
             return;
           }
+          var secrets = response.secrets || [];
           el.innerHTML =
-            '<p>' + (response.configured
-              ? ("目前已設定（上次輪替：" + escapeHtml(formatLocalDateTime(response.rotatedAt)) + "）")
-              : "目前尚未設定") + '</p>' +
-            '<button type="button" class="jonaminz-toolkit-open-btn" data-rotate-agent-token>產生新鑰匙</button>' +
-            '<div data-rotate-result></div>';
-          el.querySelector("[data-rotate-agent-token]").addEventListener("click", function () {
-            if (response.configured && !window.confirm("產生新鑰匙後，舊鑰匙會立刻失效——如果 agent 手上還留著舊的，要記得重新給它新的。確定要產生嗎？")) {
+            '<div data-secret-list>' +
+              (secrets.length
+                ? secrets.map(agentSecretRowHtml).join("")
+                : '<p class="jonaminz-toolkit-card-note">目前沒有存任何密鑰。</p>') +
+            '</div>' +
+            '<button type="button" class="jonaminz-toolkit-open-btn" data-add-secret-toggle>+ 新增密鑰</button>' +
+            '<form data-add-secret-form hidden>' +
+              '<input type="text" placeholder="名稱（例如 apk_upload_token）" data-secret-name-input class="jonaminz-admin-retention-input" style="width:auto;min-width:220px;">' +
+              '<input type="text" placeholder="值" data-secret-value-input class="jonaminz-admin-retention-input" style="width:auto;min-width:280px;">' +
+              '<button type="submit" class="jonaminz-toolkit-open-btn">儲存</button>' +
+            '</form>' +
+            '<div data-secret-result></div>';
+
+          el.querySelector("[data-add-secret-toggle]").addEventListener("click", function () {
+            el.querySelector("[data-add-secret-form]").hidden = false;
+            this.hidden = true;
+            el.querySelector("[data-secret-name-input]").focus();
+          });
+
+          el.querySelector("[data-add-secret-form]").addEventListener("submit", function (event) {
+            event.preventDefault();
+            var name = el.querySelector("[data-secret-name-input]").value.trim();
+            var value = el.querySelector("[data-secret-value-input]").value;
+            if (!name || !value) {
+              el.querySelector("[data-secret-result]").textContent = "名稱跟值都要填";
               return;
             }
-            window.JonaminzBackend.rotateApkAgentToken({ token: token })
-              .then(function (rotateResponse) {
-                if (!rotateResponse || !rotateResponse.ok) {
-                  el.querySelector("[data-rotate-result]").textContent =
-                    "失敗：" + ((rotateResponse && rotateResponse.error) || "未知錯誤");
+            window.JonaminzBackend.setAgentSecret({ token: token, name: name, value: value })
+              .then(function (saveResponse) {
+                if (!saveResponse || !saveResponse.ok) {
+                  el.querySelector("[data-secret-result]").textContent =
+                    "失敗：" + ((saveResponse && saveResponse.error) || "未知錯誤");
                   return;
                 }
-                el.querySelector("[data-rotate-result]").innerHTML =
-                  '<p class="jonaminz-toolkit-card-note">新鑰匙（只會顯示這一次，現在就複製給需要的 agent）：</p>' +
-                  '<div class="jonaminz-toolkit-card-url" data-copy-url="' + escapeHtml(rotateResponse.token) + '">' +
-                  escapeHtml(rotateResponse.token) + '</div>' +
-                  '<button type="button" class="jonaminz-toolkit-copy-btn" data-copy-url="' + escapeHtml(rotateResponse.token) + '">複製鑰匙</button>';
                 refresh();
               })
               .catch(function (error) {
-                el.querySelector("[data-rotate-result]").textContent =
+                el.querySelector("[data-secret-result]").textContent =
+                  "失敗：" + (error && error.message ? error.message : String(error));
+              });
+          });
+
+          el.querySelector("[data-secret-list]").addEventListener("click", function (event) {
+            var btn = event.target.closest("[data-delete-secret]");
+            if (!btn) return;
+            var name = btn.dataset.deleteSecret;
+            if (!window.confirm("確定要刪除「" + name + "」這個密鑰嗎？如果 agent 還在用它，之後就會失效。")) return;
+            window.JonaminzBackend.deleteAgentSecret({ token: token, name: name })
+              .then(function (deleteResponse) {
+                if (!deleteResponse || !deleteResponse.ok) {
+                  el.querySelector("[data-secret-result]").textContent =
+                    "失敗：" + ((deleteResponse && deleteResponse.error) || "未知錯誤");
+                  return;
+                }
+                refresh();
+              })
+              .catch(function (error) {
+                el.querySelector("[data-secret-result]").textContent =
                   "失敗：" + (error && error.message ? error.message : String(error));
               });
           });
@@ -151,8 +196,8 @@ loading task，不可以自己決定 css/shell ready。
       TOOLS.map(toolCardHtml).join("") +
       "</div>" +
       '<section class="jonaminz-connections-section">' +
-        '<p class="jonaminz-admin-section-title">Agent 存取（給自動化 build/上傳用）</p>' +
-        '<div data-agent-token-status>讀取中...</div>' +
+        '<p class="jonaminz-admin-section-title">Agent 存取（給自動化 build/上傳用的密鑰保管箱）</p>' +
+        '<div data-agent-secrets>讀取中...</div>' +
       '</section>';
     bindCopyButtons(root);
   }
@@ -162,7 +207,7 @@ loading task，不可以自己決定 css/shell ready。
       try {
         render();
         window.JonaminzLoading.done(READY_TASK);
-        renderAgentTokenSection();
+        renderAgentSecretsSection();
       } catch (error) {
         console.error("[jonaminz] admin/toolkit app.js init failed", error);
         window.JonaminzLoading.fail(READY_TASK, error);

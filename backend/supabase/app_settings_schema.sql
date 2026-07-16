@@ -14,6 +14,13 @@ create table if not exists app_settings (
   updated_by text
 );
 
+-- 2026-07-16（同日補修）：建表當下漏了這個專案每張表都該有的權限設定
+-- ——Worker 用 service_role 的 SUPABASE_SECRET_KEY 打 PostgREST，沒有
+-- 這兩行會噴 42501 permission denied。跟 onedrive_account／project_tasks
+-- 等既有表同一個模式，冪等可重跑。
+revoke all on app_settings from anon, authenticated;
+grant select, insert, update, delete on app_settings to service_role;
+
 -- Chat OneDrive 檔案保留天數，預設 180 天（約 6 個月，使用者原話）。
 insert into app_settings (key, value)
 values ('chat_file_retention_days', '180'::jsonb)
