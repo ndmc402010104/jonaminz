@@ -440,6 +440,10 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
 .jonaminz-chat-bubble {
   position: relative;
   padding: var(--space-3) var(--space-4);
+  /* 2026-07-16（使用者回報「符號擋到文字格子了」）：右下角常駐反應
+     小按鈕原本沒有留空間，短訊息最後一行文字會被蓋到，額外留右邊距
+     當保留區。 */
+  padding-right: calc(var(--space-4) + 20px);
   border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm);
   font-size: var(--text-md);
   line-height: 1.5;

@@ -444,6 +444,10 @@ button, textarea { font: inherit; }
 .jonaminz-chat-bubble {
   position: relative;
   padding: 8px 11px;
+  /* 2026-07-16（使用者回報「符號擋到文字格子了」）：右下角常駐反應
+     小按鈕原本沒有留空間，短訊息最後一行文字會被蓋到，額外留右邊距
+     當保留區。 */
+  padding-right: 26px;
   border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm);
   font-size: var(--text-sm);
   line-height: 1.45;
