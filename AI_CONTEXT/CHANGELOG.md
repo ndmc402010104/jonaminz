@@ -20,6 +20,32 @@
 
 ---
 
+## 2026-07-16（早上，第五筆）— 補回 APK 交付規則、修正待辦板 origin 欄位遺漏（文件/資料修正，非工程任務）
+
+- **任務**：使用者當面糾正兩件事：(1) 新 build 好的 APK 不能用聊天
+  介面直接傳檔案（`SendUserFile`），一律要走 OneDrive `/appDownload`
+  ——這件事本來就在 CHANGELOG／決策圖裡有記錄，但沒有寫進 `RULES.md`
+  的硬規定清單，這次補上，且明講 agent 不能自己查/建 session token
+  來完成上傳，要問使用者拿。(2) 稍早把 4 筆 `for_claude` 項目搬回
+  `for_user` 時（見上面第三、四筆），只改了 `lane` 跟 `text`，忘記照
+  `RULES.md` §2-10 早就定案的規則把 `origin` 一起改成 `'claude'`，
+  導致這 4 筆本該顯示成「agent 報告完成」的項目在畫面上還留著
+  `origin='user'`（會多出不該有的 ✕ 刪除按鈕）。
+- **變更**：
+  - `AI_CONTEXT/RULES.md` §2 新增第 11 條：APK 一律走 OneDrive
+    `/appDownload`，附上請使用者用瀏覽器書籤取 token 的具體方法
+    （手機沒有 devtools 可用時的替代方案）。
+  - Supabase `project_tasks`：`UPDATE ... SET origin='claude'`
+    修正 4 筆（id `9173a422`／`59ad2c28`／`5cc22659`／`6ae99897`）。
+- **狀態變化**：純文件＋資料修正，沒有動任何程式碼。這兩條規則本來
+  就存在（前者散落在 CHANGELOG／決策圖沒有集中進 RULES.md，後者
+  RULES.md 早就寫了但這次還是漏做），不是新裁決，是補強「寫在哪裡」
+  跟「有沒有真的照做」。
+- **遺留**：無。
+- **版本**：無程式碼變更（未 bump）。
+
+---
+
 ## 2026-07-16（早上，第四筆）— 懸浮泡泡面板按 Home 鍵不會收合（jonaminz-mobile-app）
 
 - **任務**：使用者手機實測中回報「泡泡收起來的時機再跟 messenger 對齊

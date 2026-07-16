@@ -122,6 +122,21 @@
     建立的」——沒有一起改會讓這種項目錯誤顯示 ✕ 刪除按鈕（使用者當場
     抓到過一次：兩筆從決策圖加入、agent 做完搬回來驗證的項目都還留著
     `origin='user'`，畫面上出現了不該有的 ✕）。
+11. **新 build 好的 APK 一律走 OneDrive `/appDownload`，禁止用聊天介面
+    直接傳檔案給使用者。**〔使用者，2026-07-16 定案，當面糾正過一次〕
+    使用者手機上**沒有辦法**點擊 Claude Code 聊天介面裡「送檔案」
+    （`SendUserFile` 類工具）跳出的下載按鈕完成安裝，這不是次要選項、
+    是硬規定。正確流程永遠是 `node tools/upload-apk.mjs <APK路徑>
+    <session-token>`，讓 `/appDownload` 這個固定網址（工具包頁面
+    `pages/admin/toolkit/` 上的連結）指向新版——使用者永遠從同一個
+    地方下載，不用每次跟 agent 要新連結/新檔案。**session-token 拿法**：
+    agent 不能直接查 Supabase `sessions` 表撈現成 token 來用（Auto Mode
+    的安全分類器會擋下、判定為未授權讓真實登入憑證出現在對話紀錄裡，
+    這個擋是對的，不要嘗試繞過），也不能自己 INSERT 一筆新 session
+    冒充登入（等同繞過同一個限制的精神）。要嘛等使用者在自己電腦上
+    親自執行這支腳本，要嘛請使用者提供 token——手機上沒有 devtools，
+    可以請使用者把這段存成瀏覽器書籤點開取值：
+    `javascript:prompt('token',localStorage.getItem('jonaminz.sessionToken'))`。
 
 ## 三、允許事項
 
