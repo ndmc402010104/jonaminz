@@ -464,7 +464,13 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
     align-items: center;
     gap: 2px;
     position: absolute;
-    top: -14px;
+    /* 2026-07-16（使用者截圖回報蓋到文字）：原本用固定 top:-14px 猜
+       間距，短訊息（泡泡本身很矮）時不夠高，工具列會蓋到文字。改用
+       bottom:100%（貼齊整列的頂端，不是猜一個像素值）＋
+       margin-bottom 留間距——不管泡泡多高，工具列一定完整浮在上面，
+       不會重疊。 */
+    bottom: 100%;
+    margin-bottom: 4px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);

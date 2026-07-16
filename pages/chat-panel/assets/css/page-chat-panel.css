@@ -466,7 +466,11 @@ button, textarea { font: inherit; }
     align-items: center;
     gap: 2px;
     position: absolute;
-    top: -12px;
+    /* 2026-07-16（使用者截圖回報蓋到文字）：改用 bottom:100%（貼齊
+       整列頂端）＋ margin-bottom 留間距，不管泡泡多高都不會重疊，
+       比猜一個固定 top 像素值可靠。 */
+    bottom: 100%;
+    margin-bottom: 4px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);
