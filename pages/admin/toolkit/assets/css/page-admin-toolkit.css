@@ -91,3 +91,19 @@
 .jonaminz-toolkit-copy-btn:hover {
   background: var(--color-bg-lobby);
 }
+
+/* 2026-07-16：Agent 存取小節——跟 page-admin-connections.css 的
+   .jonaminz-admin-section-title/.jonaminz-connections-section 視覺
+   語言一樣，各頁各自維護一份，不跨頁共用檔案。 */
+.jonaminz-admin-section-title {
+  margin: var(--space-6) 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.jonaminz-connections-section {
+  margin-top: var(--space-6);
+}

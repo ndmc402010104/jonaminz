@@ -20,6 +20,47 @@
 
 ---
 
+## 2026-07-16（早上，第六筆）— APK 上傳專用固定密鑰（agent 自助管理，不用每次跟使用者要 session token）
+
+- **任務**：使用者對「每次 build 完 APK 都要問你要 token」很不耐煩，
+  提出要一組專門給 agent 用的固定密鑰，跟兩人的個人登入 session 分開、
+  不會過期，而且要能在後台自己管理（而不是純 `wrangler secret put`
+  黑盒子）。
+- **變更**：
+  - `backend/cloudflare-worker/worker.js`：新增
+    `requireSessionOrAgentToken()`——`createApkUploadSession` 現在接受
+    兩種認證：一般登入 session（原本的方式），或是這把專用鑰匙
+    （`payload.token` 直接比對 `app_settings.apk_agent_token`）。新增
+    `getApkAgentTokenStatus`（回報有沒有設定＋上次輪替時間，**不回傳
+    鑰匙本身**）／`rotateApkAgentToken`（產生新鑰匙覆蓋舊的，回應裡是
+    唯一看得到明文的時機，沒有「讀出目前值」的 action）。這把鑰匙**只
+    被 `createApkUploadSession` 接受**，換不到其他任何 action 的權限
+    ——最小權限設計，就算外流也只能上傳 APK。存在通用 `app_settings`
+    表（不是 Worker secret）：故意的，這樣才能在後台頁面自助查看/
+    輪替，符合使用者「要能在後台管理」的要求，跟兩人共用帳密／
+    OneDrive 連線的既有信任模型一致（這個專案的威脅模型本來就是
+    「登入＝完全信任」，不是要防資料庫本身被讀取）。
+  - `assets/js/backend-client.js`：對應兩支前端呼叫包裝。
+  - `pages/admin/toolkit/`（app.js／CSS）：新增「Agent 存取」小節，
+    顯示目前狀態＋「產生新鑰匙」按鈕，新鑰匙產生後用跟其他工具連結
+    一樣的「複製」按鈕，有提示「只會顯示這一次」；輪替前如果已經有
+    舊鑰匙會 `confirm()` 提醒舊的會失效。
+- **狀態變化**：`tools/upload-apk.mjs` 不用改——同一個 `<session-token>`
+  參數位置現在可以放個人 session token，也可以放這把 agent 鑰匙，
+  Worker 端自動判斷是哪一種。
+- **驗證**：`node --check` 全數通過（worker.js／backend-client.js／
+  toolkit app.js），`wrangler deploy --dry-run` 通過後正式部署
+  （Worker Version `0620940c-33da-434c-bf91-306d2aefe01c`）。**沒有
+  真人在畫面上點過**「產生新鑰匙」按鈕，請使用者找時間去工具包頁面
+  點一次，確認能正常顯示＋複製。
+- **遺留**：使用者說「弄好了我一次給你所有需要的 token」——鑰匙本身
+  只有輪替當下的回應看得到，我這邊還沒有拿到（這次任務範圍是把機制
+  蓋好，不是這次順便拿鑰匙），下一步是使用者去工具包頁面按「產生新
+  鑰匙」複製給 agent。
+- **版本**：`v0.46.6-202607160909`。
+
+---
+
 ## 2026-07-16（早上，第五筆）— 補回 APK 交付規則、修正待辦板 origin 欄位遺漏（文件/資料修正，非工程任務）
 
 - **任務**：使用者當面糾正兩件事：(1) 新 build 好的 APK 不能用聊天

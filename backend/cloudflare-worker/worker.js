@@ -159,6 +159,16 @@
   `assets/js/chat-thread.js` 看到 `metadata.expired` 就不會再呼叫
   `getImageUrls` 去要下載連結，直接顯示「已超過保留天數，已自動從
   OneDrive 清除」，不是含糊的「拿不到」錯誤訊息。
+- `getApkAgentTokenStatus` / `rotateApkAgentToken`：2026-07-16，APK 上傳
+  專用固定密鑰，跟個人登入 session 分開、不會過期，只給
+  `createApkUploadSession` 認（見該支/`requireSessionOrAgentToken` 的
+  文件註解）。`getApkAgentTokenStatus` 只回報「有沒有設定」跟上次輪替
+  時間，不回傳鑰匙本身；`rotateApkAgentToken` 產生新鑰匙覆蓋舊的，
+  **回應裡是唯一看得到明文的時機**，沒有「讀出目前值」的 action，逼
+  每次需要新值就重新輪替一次。兩支都要求 `requireSession`（人要先
+  登入才能管理這把鑰匙），存在通用 `app_settings` 表，不是 Worker
+  secret——故意的，這樣才能在後台頁面（`pages/admin/toolkit/`）自助
+  查看/輪替，不用每次都跑 `wrangler secret put`。
 - `createApkUploadSession` ／ `GET /appDownload`：OneDrive 線 Phase C
   （2026-07-15，AI_CONTEXT/ONEDRIVE_LINE_SPEC.md §2.3/§7）APK 自架。
   本機建完 `jonaminz-mobile-app` 的 APK 後，`tools/upload-apk.mjs`
@@ -394,6 +404,14 @@ export default {
 
       if (action === "updateChatFileRetentionDays") {
         return json(await updateChatFileRetentionDays(env, payload), 200);
+      }
+
+      if (action === "getApkAgentTokenStatus") {
+        return json(await getApkAgentTokenStatus(env, payload), 200);
+      }
+
+      if (action === "rotateApkAgentToken") {
+        return json(await rotateApkAgentToken(env, payload), 200);
       }
 
       if (action === "sendChatMessage") {
@@ -1269,6 +1287,54 @@ async function requireSession(env, payload) {
   }
 
   return row.identity;
+}
+
+// 2026-07-16：APK 上傳專用的固定密鑰，跟 Jonathan/Minz 的個人登入
+// session 分開、不會過期——原本 build 完 APK 要上傳 OneDrive 得先跟
+// 使用者要一組活著的 session token（每次都要問，使用者在外面用手機
+// 特別麻煩），改成有這把專用鑰匙後，agent 自己 build 完可以直接用，
+// 不用每次都問。這把鑰匙只被 createApkUploadSession 接受，換不到其他
+// 任何 action 的權限（最小權限：就算外流也只能上傳 APK，不能讀寫聊天
+// /Contract/Theme 等其他資料）。存在 app_settings 的
+// `apk_agent_token` 這個 key（跟 chat_file_retention_days 同一張表），
+// 故意不做成 Cloudflare Worker secret——那種要走 `wrangler secret put`
+// 沒辦法讓使用者自己在後台頁面查看/輪替，這把鑰匙的定位是「使用者能
+// 自助管理的低風險憑證」，不是「絕對不能外流的最高機密」，跟兩人共用
+// 帳密、OneDrive 連線等既有信任模型一致。
+async function requireSessionOrAgentToken(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (identity) return identity;
+  const token = String((payload && payload.token) || "").trim();
+  if (!token) return null;
+  const agentToken = await getAppSetting(env, "apk_agent_token", null);
+  if (agentToken && token === agentToken) return "agent";
+  return null;
+}
+
+async function getApkAgentTokenStatus(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const existing = await getAppSetting(env, "apk_agent_token", null);
+  const rotatedAt = await getAppSetting(env, "apk_agent_token_rotated_at", null);
+  return { ok: true, configured: Boolean(existing), rotatedAt: rotatedAt };
+}
+
+// 產生新鑰匙並存檔，回傳值只有這一次的回應裡看得到——跟 session token
+// 一樣是明文存在 Supabase（這個專案的既有信任模型本來就是「登入=完全
+// 信任」，不是要防資料庫本身被讀取），但故意不提供「讀出目前值」的
+// action，逼使用者每次需要新值就是重新輪替一次，舊值自動失效，比長期
+// 放著一組永遠不變、可能忘記存在哪裡的固定密碼安全。
+async function rotateApkAgentToken(env, payload) {
+  const identity = await requireSession(env, payload);
+  if (!identity) {
+    return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
+  }
+  const token = randomToken();
+  await setAppSetting(env, "apk_agent_token", token, identity);
+  await setAppSetting(env, "apk_agent_token_rotated_at", new Date().toISOString(), identity);
+  return { ok: true, token: token };
 }
 
 async function getCurrentIdentity(env, payload) {
@@ -2927,7 +2993,7 @@ function apkReleaseFileName() {
 // （這只是「安裝檔放哪」，不是需要雙邊各自留一份的內容）。任一身分
 // 登入都能觸發這支，理由同 testOnedriveConnection。
 async function createApkUploadSession(env, payload) {
-  const caller = await requireSession(env, payload);
+  const caller = await requireSessionOrAgentToken(env, payload);
   if (!caller) {
     return { ok: false, code: "LOGIN_REQUIRED", error: "login required" };
   }

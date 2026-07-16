@@ -244,6 +244,14 @@
     return call("updateChatFileRetentionDays", payload, options);
   }
 
+  function getApkAgentTokenStatus(payload, options) {
+    return call("getApkAgentTokenStatus", payload, options);
+  }
+
+  function rotateApkAgentToken(payload, options) {
+    return call("rotateApkAgentToken", payload, options);
+  }
+
   // /auth/onedrive/start 是瀏覽器導向流程（跟 Google 登入一樣），不是
   // call() 這種 fetch POST——這裡只負責把 baseUrl 接出來給呼叫端組網址。
   function getWorkerBaseUrlForRedirect() {
@@ -294,6 +302,8 @@
     requestFileUpload: requestFileUpload,
     sendFileMessage: sendFileMessage,
     getChatFileRetentionSettings: getChatFileRetentionSettings,
-    updateChatFileRetentionDays: updateChatFileRetentionDays
+    updateChatFileRetentionDays: updateChatFileRetentionDays,
+    getApkAgentTokenStatus: getApkAgentTokenStatus,
+    rotateApkAgentToken: rotateApkAgentToken
   };
 })();

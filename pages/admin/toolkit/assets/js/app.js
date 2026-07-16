@@ -75,13 +75,86 @@ loading task，不可以自己決定 css/shell ready。
     });
   }
 
+  // 2026-07-16：APK 上傳專用固定密鑰（跟個人登入 session 分開、不會
+  // 過期，只給 createApkUploadSession 認）——使用者要求要能在後台自己
+  // 管理，不要每次都跟 agent 要 session token 或跑 wrangler secret put。
+  // 只回報「有沒有設定」跟上次輪替時間，鑰匙本身只有按「產生新鑰匙」
+  // 當下的回應裡看得到一次，之後永遠讀不回來（見 worker.js
+  // rotateApkAgentToken 的設計理由）。
+  function formatLocalDateTime(value) {
+    if (!value) return "";
+    try {
+      return new Date(value).toLocaleString("zh-TW", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hour12: false
+      });
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function renderAgentTokenSection() {
+    var el = document.querySelector("[data-agent-token-status]");
+    if (!el) return;
+    var token = (window.JonaminzIdentity && window.JonaminzIdentity.readToken)
+      ? window.JonaminzIdentity.readToken() : null;
+
+    function refresh() {
+      el.textContent = "讀取中...";
+      window.JonaminzBackend.getApkAgentTokenStatus({ token: token })
+        .then(function (response) {
+          if (!response || !response.ok) {
+            el.textContent = "讀取失敗：" + ((response && response.error) || "未知錯誤");
+            return;
+          }
+          el.innerHTML =
+            '<p>' + (response.configured
+              ? ("目前已設定（上次輪替：" + escapeHtml(formatLocalDateTime(response.rotatedAt)) + "）")
+              : "目前尚未設定") + '</p>' +
+            '<button type="button" class="jonaminz-toolkit-open-btn" data-rotate-agent-token>產生新鑰匙</button>' +
+            '<div data-rotate-result></div>';
+          el.querySelector("[data-rotate-agent-token]").addEventListener("click", function () {
+            if (response.configured && !window.confirm("產生新鑰匙後，舊鑰匙會立刻失效——如果 agent 手上還留著舊的，要記得重新給它新的。確定要產生嗎？")) {
+              return;
+            }
+            window.JonaminzBackend.rotateApkAgentToken({ token: token })
+              .then(function (rotateResponse) {
+                if (!rotateResponse || !rotateResponse.ok) {
+                  el.querySelector("[data-rotate-result]").textContent =
+                    "失敗：" + ((rotateResponse && rotateResponse.error) || "未知錯誤");
+                  return;
+                }
+                el.querySelector("[data-rotate-result]").innerHTML =
+                  '<p class="jonaminz-toolkit-card-note">新鑰匙（只會顯示這一次，現在就複製給需要的 agent）：</p>' +
+                  '<div class="jonaminz-toolkit-card-url" data-copy-url="' + escapeHtml(rotateResponse.token) + '">' +
+                  escapeHtml(rotateResponse.token) + '</div>' +
+                  '<button type="button" class="jonaminz-toolkit-copy-btn" data-copy-url="' + escapeHtml(rotateResponse.token) + '">複製鑰匙</button>';
+                refresh();
+              })
+              .catch(function (error) {
+                el.querySelector("[data-rotate-result]").textContent =
+                  "失敗：" + (error && error.message ? error.message : String(error));
+              });
+          });
+        })
+        .catch(function (error) {
+          el.textContent = "讀取失敗：" + (error && error.message ? error.message : String(error));
+        });
+    }
+    refresh();
+  }
+
   function render() {
     var root = document.querySelector("[data-app-root]");
     if (!root) return;
     root.innerHTML = '<div class="jonaminz-toolkit-list" data-toolkit-list>' +
       TOOLS.map(toolCardHtml).join("") +
-      "</div>";
-    bindCopyButtons(root.querySelector("[data-toolkit-list]"));
+      "</div>" +
+      '<section class="jonaminz-connections-section">' +
+        '<p class="jonaminz-admin-section-title">Agent 存取（給自動化 build/上傳用）</p>' +
+        '<div data-agent-token-status>讀取中...</div>' +
+      '</section>';
+    bindCopyButtons(root);
   }
 
   function init() {
@@ -89,6 +162,7 @@ loading task，不可以自己決定 css/shell ready。
       try {
         render();
         window.JonaminzLoading.done(READY_TASK);
+        renderAgentTokenSection();
       } catch (error) {
         console.error("[jonaminz] admin/toolkit app.js init failed", error);
         window.JonaminzLoading.fail(READY_TASK, error);
