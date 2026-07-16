@@ -421,6 +421,59 @@ title/url（見 `requestHostContext()`，宿主端實作在
       return unreadCount;
     }
 
+    // 2026-07-16（使用者回報「表情按了等好久」→做了optimistic→又回報
+    // 「換太快會彈回去」）：optimistic 不能直接改本機資料——1.5秒的
+    // poll 一來就用「後端還沒處理完」的舊資料蓋掉，造成彈回去。改用
+    // 一層「覆蓋」狀態 reactionOverride（messageId → 我想要的 emoji，
+    // "" 代表移除）：render 時把覆蓋層套在後端資料上（後端是一人一個
+    // 反應，套法＝拿掉我在後端的反應、換成覆蓋值），poll 進來也照套，
+    // 直到後端資料真的追上覆蓋值才自動清掉這個覆蓋（在 render 裡比對、
+    // 相符就 delete）。這樣不管 poll 多快都不會彈。
+    var reactionOverride = {};
+
+    function myServerReaction(reactionRows) {
+      for (var i = 0; i < reactionRows.length; i += 1) {
+        if (reactionRows[i].identity === identity) return reactionRows[i].emoji;
+      }
+      return "";
+    }
+
+    function optimisticToggleReaction(messageId, emoji) {
+      var pools = [olderMessages, (lastPollData && lastPollData.messages) || []];
+      var current = null;
+      for (var p = 0; p < pools.length && current === null; p += 1) {
+        for (var i = 0; i < pools[p].length; i += 1) {
+          if (pools[p][i].id === messageId) {
+            current = reactionOverride.hasOwnProperty(messageId)
+              ? reactionOverride[messageId]
+              : myServerReaction(pools[p][i].chat_message_reactions || []);
+            break;
+          }
+        }
+      }
+      if (current === null) current = reactionOverride[messageId] || "";
+      // 點我目前這個＝移除；點別的＝換成那個。
+      reactionOverride[messageId] = (current === emoji) ? "" : emoji;
+      if (lastPollData) render(lastPollData);
+    }
+
+    // 把覆蓋層套在某則訊息的後端反應陣列上，回傳套用後的陣列；順便
+    // 在後端已追上覆蓋值時清掉覆蓋（自我收斂，不會永久卡著）。
+    function reactionsWithOverride(messageId, reactionRows) {
+      if (!reactionOverride.hasOwnProperty(messageId)) return reactionRows;
+      var want = reactionOverride[messageId];
+      if (myServerReaction(reactionRows) === want) {
+        delete reactionOverride[messageId];
+        return reactionRows;
+      }
+      var kept = [];
+      for (var i = 0; i < reactionRows.length; i += 1) {
+        if (reactionRows[i].identity !== identity) kept.push(reactionRows[i]);
+      }
+      if (want) kept.push({ identity: identity, emoji: want });
+      return kept;
+    }
+
     function render(data) {
       identity = data.identity;
       lastPollData = data;
@@ -557,7 +610,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // 的陣列，這裡按 emoji 分組計數，順便記住「我自己是不是也點過這個」
         // 好加上 is-mine 樣式。
         var reactionsHtml = "";
-        var reactionRows = m.chat_message_reactions || [];
+        var reactionRows = reactionsWithOverride(m.id, m.chat_message_reactions || []);
         if (reactionRows.length) {
           var reactionGroups = {};
           reactionRows.forEach(function (r) {
@@ -1361,11 +1414,35 @@ title/url（見 `requestHostContext()`，宿主端實作在
     // 手機長按：兩個一起跳出來（表情反應浮動＋底部操作列），跟 Messenger
     // 截圖給的參考一致。先開 actionSheet 讓它量得到實際高度，
     // openReactionPicker 才能正確算出不重疊的位置。
+    // 2026-07-16（使用者要求：手機長按改成跟電腦版 hover 一樣的畫面）：
+    // 長按不再同時彈「表情列＋底部操作列」兩坨，改成浮出一排跟電腦版
+    // hover 工具列一樣的 ⋮/↩/🙂——收斂到同一個地方，再點進各動作。
+    // 用 els.contextMenu（position:fixed 浮層）承載，定位貼近觸摸點
+    // 上方。⋮ 開底部操作列、↩ 直接回覆、🙂 換成表情選單（原地）。
+    function openTouchToolbar(messageEl, x, y) {
+      if (!els.contextMenu || messageEl.dataset.deleted === "true") return;
+      var messageId = messageEl.dataset.messageId;
+      var canReply = messageEl.dataset.copyText !== undefined;
+      var hasMore = messageEl.dataset.copyText !== undefined ||
+        messageEl.dataset.editable === "true" || messageEl.dataset.deletable === "true";
+      els.contextMenu.innerHTML = '<div class="jonaminz-chat-touch-toolbar">' +
+        (hasMore ? '<button type="button" data-touch-more data-message-id="' + escapeHtml(messageId) + '" aria-label="更多">⋮</button>' : "") +
+        (canReply ? '<button type="button" data-touch-reply data-message-id="' + escapeHtml(messageId) +
+          '" data-text="' + escapeHtml(messageEl.dataset.copyText || "") + '" aria-label="回覆">↩</button>' : "") +
+        '<button type="button" data-touch-react data-message-id="' + escapeHtml(messageId) + '" aria-label="回應表情">🙂</button>' +
+        "</div>";
+      els.contextMenu.hidden = false;
+      var menuWidth = els.contextMenu.offsetWidth || 120;
+      var menuHeight = els.contextMenu.offsetHeight || 40;
+      var maxLeft = (root.clientWidth || window.innerWidth) - menuWidth - 6;
+      var maxTop = (root.clientHeight || window.innerHeight) - menuHeight - 6;
+      els.contextMenu.style.left = Math.max(6, Math.min(x, maxLeft)) + "px";
+      els.contextMenu.style.top = Math.max(6, Math.min(y - menuHeight - 8, maxTop)) + "px";
+      contextMenuOpenedAt = Date.now();
+    }
+
     function openContextMenu(messageEl, x, y) {
-      openActionSheet(messageEl);
-      if (messageEl.dataset.deleted !== "true") {
-        openReactionPicker(messageEl, x, y);
-      }
+      openTouchToolbar(messageEl, x, y);
     }
 
     // ---- 搜尋 ----
@@ -1847,6 +1924,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
         // 跟大部分聊天 App 一樣「點自己已經點過的反應」是最常見的取消方式。
         var pill = event.target.closest("[data-react-toggle]");
         if (pill) {
+          optimisticToggleReaction(pill.dataset.messageId, pill.dataset.emoji);
           window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: pill.dataset.messageId, emoji: pill.dataset.emoji })
             .then(function () { return poll(); })
             .catch(function () {});
@@ -1988,9 +2066,35 @@ title/url（見 `requestHostContext()`，宿主端實作在
       // 但按鈕種類（data-menu-*）跟點擊行為完全共用，同一支函式掛在
       // 兩個容器上，不要維護兩份一樣的邏輯。
       function handleContextMenuClick(event) {
+        // 2026-07-16：手機長按浮出的 ⋮/↩/🙂 工具列的三顆按鈕
+        // （openTouchToolbar）。⋮ 開底部操作列、↩ 直接回覆、🙂 原地換成
+        // 表情選單——這三顆的 messageId 帶在 dataset 上（浮層不在訊息
+        // 元素內，不能用 .closest 找訊息）。
+        var touchMore = event.target.closest("[data-touch-more]");
+        if (touchMore) {
+          var moreEl = els.thread.querySelector('[data-message-id="' + touchMore.dataset.messageId + '"]');
+          if (els.contextMenu) els.contextMenu.hidden = true;
+          if (moreEl) openActionSheet(moreEl);
+          return;
+        }
+        var touchReply = event.target.closest("[data-touch-reply]");
+        if (touchReply) {
+          setReplyTarget(touchReply.dataset.messageId, touchReply.dataset.text);
+          closeContextMenu();
+          els.input.focus();
+          return;
+        }
+        var touchReact = event.target.closest("[data-touch-react]");
+        if (touchReact) {
+          var reactEl = els.thread.querySelector('[data-message-id="' + touchReact.dataset.messageId + '"]');
+          var btnRect = touchReact.getBoundingClientRect();
+          if (reactEl) openReactionPicker(reactEl, btnRect.left, btnRect.bottom + 8);
+          return;
+        }
         var reactBtn = event.target.closest("[data-menu-react]");
         if (reactBtn) {
           closeContextMenu();
+          optimisticToggleReaction(reactBtn.dataset.messageId, reactBtn.dataset.emoji);
           window.JonaminzBackend.toggleMessageReaction({ token: token, messageId: reactBtn.dataset.messageId, emoji: reactBtn.dataset.emoji })
             .then(function () { return poll(); })
             .catch(function () {});

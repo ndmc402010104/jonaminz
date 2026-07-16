@@ -621,6 +621,30 @@ primary 深藍／--color-primary-2 赭紅當作「我方／對方」兩色調）
 }
 .jonaminz-chat-context-reactions button:hover { background: var(--color-bg-lobby); }
 
+/* 2026-07-16：手機長按浮出的 ⋮/↩/🙂 工具列（openTouchToolbar）——
+   跟電腦版 hover 工具列同一個外觀（膠囊＋圖示按鈕），只是這個是
+   position:fixed 浮層、由長按觸發（電腦版是 hover）。 */
+.jonaminz-chat-touch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+.jonaminz-chat-touch-toolbar button {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jonaminz-chat-touch-toolbar button:active { background: var(--color-bg-lobby); }
+
 /* 2026-07-16（Messenger 模板重做）：附件縮圖列——貼在輸入列正上方，
    縮圖 chip 右上角 ✕ 移除，主送出鍵直接送，取代舊的預覽橫幅。 */
 .jonaminz-chat-attach-tray {

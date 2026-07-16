@@ -607,6 +607,28 @@ button, textarea { font: inherit; }
 }
 .jonaminz-chat-context-reactions button:hover { background: var(--color-bg-lobby); }
 
+/* 2026-07-16：手機長按浮出的 ⋮/↩/🙂 工具列（說明見 page-chat.css 同規則）。 */
+.jonaminz-chat-touch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+.jonaminz-chat-touch-toolbar button {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 17px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jonaminz-chat-touch-toolbar button:active { background: var(--color-bg-lobby); }
+
 /* 2026-07-16（Messenger 模板重做）：附件縮圖列（說明見 page-chat.css
    同規則）。 */
 .jonaminz-chat-attach-tray {
