@@ -1274,10 +1274,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
         });
     }
 
-    function closeEmojiPanel() {
-      els.emojiPanel.hidden = true;
-    }
-
     function closeQuickPanel() {
       if (els.quickPanel) els.quickPanel.hidden = true;
     }
@@ -1688,13 +1684,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
         '<div class="jonaminz-chat-plus-wrap">' + plusButtonHtml + "</div>" +
         '<div class="jonaminz-chat-input-shell">' +
         '<textarea data-input placeholder="輸入訊息..." rows="1"></textarea>' +
-        // 常用回覆/貼圖面板切換鍵（💬）——跟 🙂（插入 emoji 到輸入框）
-        // 不同，這個面板裡的貼圖/短句點了「直接送出」。
-        '<button type="button" class="jonaminz-chat-quick-toggle" data-quick-toggle ' +
-        'aria-label="常用回覆與貼圖">💬</button>' +
-        '<button type="button" class="jonaminz-chat-emoji-toggle" data-emoji-toggle ' +
-        'aria-label="插入表情符號">🙂</button>' +
-        '<div class="jonaminz-chat-emoji-panel" data-emoji-panel hidden></div>' +
+        // 2026-07-16（使用者回報 💬 跟 🙂 兩顆重複）：合併成一顆 🙂，開
+        // 一個面板分三區——常用回覆＋貼圖（點了直接送）＋插入表情（點了
+        // 插進輸入框）。
+        '<button type="button" class="jonaminz-chat-emoji-toggle" data-quick-toggle ' +
+        'aria-label="表情、貼圖與常用回覆">🙂</button>' +
         '<div class="jonaminz-chat-quick-panel" data-quick-panel hidden></div>' +
         "</div>" +
         '<button type="button" class="jonaminz-chat-action-btn" data-action ' +
@@ -1710,8 +1704,6 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.input = root.querySelector("[data-input]");
       els.action = root.querySelector("[data-action]");
       els.status = root.querySelector("[data-page-status]");
-      els.emojiToggle = root.querySelector("[data-emoji-toggle]");
-      els.emojiPanel = root.querySelector("[data-emoji-panel]");
       els.quickToggle = root.querySelector("[data-quick-toggle]");
       els.quickPanel = root.querySelector("[data-quick-panel]");
       els.plus = root.querySelector("[data-plus]");
@@ -1752,24 +1744,27 @@ title/url（見 `requestHostContext()`，宿主端實作在
       els.overlayBtn = root.querySelector("[data-overlay-btn]");
       els.bubbleStatus = root.querySelector("[data-bubble-status]");
 
-      els.emojiPanel.innerHTML = EMOJI_SET.map(function (emoji) {
-        return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
-      }).join("");
-
-      // 貼圖/常用回覆面板內容：貼圖區（點了直接送 emoji-only 訊息）＋
-      // 常用回覆區（點了直接送預設短句）。
+      // 一顆 🙂 面板分三區：常用回覆（點了直接送短句）＋貼圖（點了直接
+      // 送 emoji-only 訊息、會自動放大）＋插入表情（點了插進輸入框，
+      // 給想在文字裡夾 emoji 用，桌機沒有 emoji 鍵盤時特別有用）。
       if (els.quickPanel) {
         els.quickPanel.innerHTML =
+          '<div class="jonaminz-chat-quick-section-title">常用回覆</div>' +
+          '<div class="jonaminz-chat-quick-replies">' +
+          CANNED_REPLIES.map(function (t) {
+            return '<button type="button" data-quick-reply="' + escapeHtml(t) + '">' + escapeHtml(t) + "</button>";
+          }).join("") +
+          "</div>" +
           '<div class="jonaminz-chat-quick-section-title">貼圖</div>' +
           '<div class="jonaminz-chat-quick-stickers">' +
           STICKER_SET.map(function (s) {
             return '<button type="button" data-quick-sticker="' + escapeHtml(s) + '">' + s + "</button>";
           }).join("") +
           "</div>" +
-          '<div class="jonaminz-chat-quick-section-title">常用回覆</div>' +
-          '<div class="jonaminz-chat-quick-replies">' +
-          CANNED_REPLIES.map(function (t) {
-            return '<button type="button" data-quick-reply="' + escapeHtml(t) + '">' + escapeHtml(t) + "</button>";
+          '<div class="jonaminz-chat-quick-section-title">插入表情</div>' +
+          '<div class="jonaminz-chat-quick-emojis">' +
+          EMOJI_SET.map(function (emoji) {
+            return '<button type="button" data-emoji="' + emoji + '">' + emoji + "</button>";
           }).join("") +
           "</div>";
       }
@@ -1777,7 +1772,7 @@ title/url（見 `requestHostContext()`，宿主端實作在
       if (els.plusPanel) {
         els.plus.addEventListener("click", function (event) {
           event.stopPropagation();
-          closeEmojiPanel();
+          closeQuickPanel();
           els.plusPanel.hidden = !els.plusPanel.hidden;
         });
         els.plusPanel.addEventListener("click", function (event) {
@@ -2632,7 +2627,13 @@ title/url（見 `requestHostContext()`，宿主端實作在
       function scrollThreadToBottom() {
         if (els.thread) els.thread.scrollTop = els.thread.scrollHeight;
       }
+      // 使用者去點輸入框＝準備打字，貼圖/常用回覆面板應該讓位關掉。
+      // 但「插入表情」那支自己會 programmatic focus() 拉回游標（要留著面板
+      // 連續插），所以用旗標把那次程式化 focus 排除掉；setTimeout(0) 保證
+      // 就算輸入框本來就有焦點（focus() 不觸發事件）旗標也會自清。
+      var skipQuickCloseOnFocus = false;
       els.input.addEventListener("focus", function () {
+        if (!skipQuickCloseOnFocus) closeQuickPanel();
         setTimeout(scrollThreadToBottom, 60);
         setTimeout(scrollThreadToBottom, 320);
       });
@@ -2643,30 +2644,11 @@ title/url（見 `requestHostContext()`，宿主端實作在
       // 面板 iframe 本身被宿主縮高——iframe 內是 window resize 事件。
       window.addEventListener("resize", scrollThreadToBottom);
 
-      els.emojiToggle.addEventListener("click", function (event) {
-        event.stopPropagation();
-        closeQuickPanel();
-        els.emojiPanel.hidden = !els.emojiPanel.hidden;
-      });
-      els.emojiPanel.addEventListener("click", function (event) {
-        var btn = event.target.closest("[data-emoji]");
-        if (!btn) return;
-        var start = els.input.selectionStart || els.input.value.length;
-        var end = els.input.selectionEnd || els.input.value.length;
-        var value = els.input.value;
-        els.input.value = value.slice(0, start) + btn.dataset.emoji + value.slice(end);
-        var caret = start + btn.dataset.emoji.length;
-        els.input.focus();
-        els.input.setSelectionRange(caret, caret);
-        updateComposerAction();
-        autoGrowInput();
-      });
-
-      // 貼圖/常用回覆面板：切換鍵開關；點貼圖或短句都「直接送出」。
+      // 一顆 🙂 面板：切換開關；點常用回覆/貼圖＝直接送出，點插入表情
+      // ＝插進輸入框游標處。
       if (els.quickToggle && els.quickPanel) {
         els.quickToggle.addEventListener("click", function (event) {
           event.stopPropagation();
-          closeEmojiPanel();
           els.quickPanel.hidden = !els.quickPanel.hidden;
         });
         els.quickPanel.addEventListener("click", function (event) {
@@ -2682,12 +2664,26 @@ title/url（見 `requestHostContext()`，宿主端實作在
             doSendText(canned.dataset.quickReply);
             return;
           }
+          var emojiBtn = event.target.closest("[data-emoji]");
+          if (emojiBtn) {
+            var start = els.input.selectionStart || els.input.value.length;
+            var end = els.input.selectionEnd || els.input.value.length;
+            var value = els.input.value;
+            els.input.value = value.slice(0, start) + emojiBtn.dataset.emoji + value.slice(end);
+            var caret = start + emojiBtn.dataset.emoji.length;
+            skipQuickCloseOnFocus = true;
+            els.input.focus();
+            els.input.setSelectionRange(caret, caret);
+            setTimeout(function () { skipQuickCloseOnFocus = false; }, 0);
+            updateComposerAction();
+            autoGrowInput();
+            return;
+          }
         });
       }
 
       document.addEventListener("click", function (event) {
         if (!event.target.closest(".jonaminz-chat-input-shell")) {
-          closeEmojiPanel();
           closeQuickPanel();
         }
       });

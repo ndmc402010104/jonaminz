@@ -20,6 +20,33 @@
 
 ---
 
+## 2026-07-16（深夜，第二十二筆）— 合併重複的表情鍵＋focus 輸入框關面板
+
+- **任務**：使用者回報「這兩個重複了」（composer 上 💬 跟 🙂 看起來
+  都是表情鍵、功能重疊），接著「叫出貼圖視窗如果改 focus input 應該
+  要關起來」。
+- **變更**（`assets/js/chat-thread.js`＋兩份 CSS）：
+  - **兩顆合併成一顆 🙂**：拿掉 💬 那顆與 `data-emoji-panel`，改成
+    單一 🙂（`data-quick-toggle`）開一個 `.jonaminz-chat-quick-panel`，
+    面板內三段：常用回覆（點了直接送）、貼圖（點了直接送）、插入
+    表情（點了插進輸入框游標處、不送）。移除 `els.emojiToggle`／
+    `els.emojiPanel`／`closeEmojiPanel()`；plus 鍵改呼叫 `closeQuickPanel()`。
+    CSS 刪掉死掉的 `.jonaminz-chat-quick-toggle`，加 `.jonaminz-chat-quick-emojis`
+    （grid repeat(8)），textarea 右邊距改回單顆的 42px/36px。
+  - **focus 輸入框關面板**：`els.input` 的 focus handler 多呼叫
+    `closeQuickPanel()`；但「插入表情」自己會 programmatic `focus()`
+    拉回游標（要留著面板連續插），用 `skipQuickCloseOnFocus` 旗標把
+    那次程式化 focus 排除、`setTimeout(0)` 自清避免旗標卡住。
+- **驗證**：harness 通過——只剩一顆 🙂、面板三段（10 常用/16 貼圖/16
+  插入表情）；點貼圖送「❤️」、點插入表情進輸入框「😀」不送；focus
+  輸入框面板關閉；連續插入兩個表情「😀😂」面板保留。
+- **遺留**：待辦板 for_claude 兩筆（下載進選單、貼圖面板）功能都已上線，
+  但使用者仍在即時微調面板（去重、focus 關閉），暫不搬回 for_user，
+  等穩定再移交驗證。排程系統（第三件）尚未動工。
+- **版本**：v0.46.41-202607162336
+
+---
+
 ## 2026-07-16（晚上，第二十一筆）— 檔案下載進 ⋮ 選單＋貼圖/常用回覆面板
 
 - **任務**：使用者「全部完成吧」——先做兩件較小的。

@@ -1008,8 +1008,7 @@ button, textarea { font: inherit; }
   resize: none;
   min-height: 36px;
   max-height: 90px;
-  /* 右邊留兩顆按鈕（💬常用 + 🙂表情）的空間。 */
-  padding: 7px 70px 7px 10px;
+  padding: 7px 36px 7px 10px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-bg-lobby);
@@ -1067,21 +1066,7 @@ button, textarea { font: inherit; }
 }
 .jonaminz-chat-emoji-panel button:hover { background: var(--color-accent); }
 
-/* 2026-07-16：常用回覆/貼圖切換鍵（💬）＋面板（說明見 page-chat.css 同規則）。 */
-.jonaminz-chat-quick-toggle {
-  position: absolute;
-  right: 37px;
-  bottom: 3px;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 16px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
+/* 2026-07-16：一顆 🙂 面板（常用回覆＋貼圖＋插入表情，說明見 page-chat.css）。 */
 .jonaminz-chat-quick-panel {
   position: absolute;
   right: 0;
@@ -1137,5 +1122,24 @@ button, textarea { font: inherit; }
   color: var(--color-text);
 }
 .jonaminz-chat-quick-replies button:hover { background: var(--color-bg-lobby); }
+.jonaminz-chat-quick-emojis {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  margin-top: var(--space-2);
+}
+.jonaminz-chat-quick-emojis button {
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 17px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.jonaminz-chat-quick-emojis button:hover { background: var(--color-bg-lobby); }
 
 .jonaminz-chat-status-line { display: none; } /* 攜帶版不需要頁尾狀態列，狀態改用 head 呈現 */
