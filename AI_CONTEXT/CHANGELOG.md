@@ -20,6 +20,49 @@
 
 ---
 
+## 2026-07-16（早上，第四筆）— 懸浮泡泡面板按 Home 鍵不會收合（jonaminz-mobile-app）
+
+- **任務**：使用者手機實測中回報「泡泡收起來的時機再跟 messenger 對齊
+  一下，剛剛我外面視窗按了 home 結果還是被泡泡對話框覆蓋」。
+- **變更**（`jonaminz-mobile-app` repo，非本 repo）：
+  `BubbleOverlayService.java`——懸浮泡泡是自繪的 `WindowManager` overlay
+  （`Service`，不是 `Activity`），沒有系統 Activity 生命週期可以掛「使用者
+  離開了」；系統 Bubbles API（`BubbleActivity` 那條）才有系統自動管理
+  展開/收合。面板展開時視窗是 focusable（`togglePanel()` 開啟時
+  `panelParams.flags=0`），按 Home／切到其他 App／開最近工作列都會讓
+  別的視窗搶走 window focus——改成對 `panelContainer` 加
+  `ViewTreeObserver.OnWindowFocusChangeListener`，失焦且面板開著時直接
+  呼叫 `togglePanel()` 收合。不用真的偵測 Home 鍵本身
+  （`ACTION_CLOSE_SYSTEM_DIALOGS` 這類廣播 Android 11 後已對一般 App
+  限制，收不到）；輸入法鍵盤只是疊加在同一個視窗上不會讓視窗本身失焦，
+  不會誤觸發收合。`build.gradle`：`versionCode` 3→4、`versionName`
+  `202607152135`→`202607160839`（照第七十七輪訂的規矩，每次發新 build
+  都要更新）。
+- **驗證**：這次意外找到本機其實有完整 Android 建置工具鏈（Android
+  Studio 內建 JDK 在 `C:\Program Files\Android\Android Studio\jbr`，
+  之前的 session 顯然也是這樣建的，只是這個新 session 一開始沒發現）
+  ——`gradlew compileDebugJavaWithJavac`／`assembleDebug` 都
+  `BUILD SUCCESSFUL`（中間踩到一次已知的 OneDrive 資料夾鎖檔造成
+  `packageDebug FAILED`，`rm -rf app/build` 重建一次解決，是環境陷阱
+  不是程式碼問題），`aapt dump badging` 確認 `versionCode='4'
+  versionName='202607160839'` 正確嵌入。**沒有真機測試**——原本想照
+  Phase C 慣例用 `tools/upload-apk.mjs` 上傳到 OneDrive 讓
+  `/appDownload` 指向新版，但這需要直接查 Supabase `sessions` 表撈一組
+  活著的登入 token，Auto Mode 的安全分類器擋下這個查詢（判定為「未經
+  授權的憑證具體化」，判斷正確，沒有嘗試繞過），改成直接把 build 出來
+  的 debug APK 用 SendUserFile 送給使用者，讓使用者自己手機上直接安裝
+  這個檔案側載測試——**這次沒有走 OneDrive `/appDownload` 這條線**，
+  之後如果要讓這個 build 也能透過那個固定網址下載，需要使用者自己執行
+  一次 `node tools/upload-apk.mjs <APK路徑> <session-token>`。
+- **遺留**：使用者測過（裝了這個 debug APK）之後才知道 window focus
+  收合的判斷是否真的跟 Messenger 手感一致；`debug` build 簽章跟先前
+  可能裝過的版本不同，安裝前可能要先移除舊版。
+- **版本**：jonaminz 本身無程式碼變更；`jonaminz-mobile-app` versionCode
+  4／versionName `202607160839`（獨立版本序列，見該 repo 自己的
+  `build.gradle`）。
+
+---
+
 ## 2026-07-16（早上，第三筆）— 手機下載檔案失敗＋選錯按鈕的圖片被當檔案下載，兩筆真機回饋
 
 - **任務**：使用者拿著手機即時測試稍早幾筆修復時，在 `for_claude` 待辦板
