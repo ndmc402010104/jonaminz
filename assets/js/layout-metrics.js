@@ -26,6 +26,7 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
   var subscribers = [];
   var resizeObservers = [];
   var mutationObserver = null;
+  var inputMediaQueries = [];
 
   var DEFAULT_BREAKPOINTS = [
     { max: 480, mode: "phone-compact", label: "手機窄版 phone-compact", reason: "layoutWidth <= 480" },
@@ -53,6 +54,11 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
     rwdGroup: "",
     rwdGroupLabel: "",
     rwdConfigSource: "",
+    primaryPointer: "none",
+    hoverCapable: false,
+    coarsePointerPresent: false,
+    interactionProfile: "hybrid",
+    requiresTouchGuard: true,
     layoutWidth: 0,
     layoutHeight: 0,
     visualWidth: 0,
@@ -217,6 +223,84 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
     return { group: found, label: labels[found] || found };
   }
 
+
+  function mediaMatches(query) {
+    try {
+      return Boolean(window.matchMedia && window.matchMedia(query).matches);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function detectInputCapabilities() {
+    var finePointer = mediaMatches("(pointer: fine)");
+    var coarsePointer = mediaMatches("(pointer: coarse)");
+    var hoverCapable = mediaMatches("(hover: hover)");
+    var coarsePointerPresent = mediaMatches("(any-pointer: coarse)");
+    var primaryPointer = finePointer ? "fine" : (coarsePointer ? "coarse" : "none");
+    var interactionProfile = "hybrid";
+
+    if (finePointer && hoverCapable && !coarsePointerPresent) {
+      interactionProfile = "desktop-pointer";
+    } else if (coarsePointer && !hoverCapable) {
+      interactionProfile = "touch";
+    }
+
+    return {
+      primaryPointer: primaryPointer,
+      hoverCapable: hoverCapable,
+      coarsePointerPresent: coarsePointerPresent,
+      interactionProfile: interactionProfile,
+      requiresTouchGuard: coarsePointerPresent || primaryPointer === "coarse"
+    };
+  }
+
+  function plainRect(rect) {
+    return {
+      x: Number(rect.x),
+      y: Number(rect.y),
+      top: Number(rect.top),
+      right: Number(rect.right),
+      bottom: Number(rect.bottom),
+      left: Number(rect.left),
+      width: Number(rect.width),
+      height: Number(rect.height)
+    };
+  }
+
+  function measureElement(element, container) {
+    var rect;
+    var containerRect;
+
+    if (!element || typeof element.getBoundingClientRect !== "function") return null;
+    rect = plainRect(element.getBoundingClientRect());
+
+    if (container && typeof container.getBoundingClientRect === "function") {
+      containerRect = plainRect(container.getBoundingClientRect());
+    } else {
+      containerRect = {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: Number(window.innerWidth || document.documentElement.clientWidth || 0),
+        bottom: Number(window.innerHeight || document.documentElement.clientHeight || 0),
+        width: Number(window.innerWidth || document.documentElement.clientWidth || 0),
+        height: Number(window.innerHeight || document.documentElement.clientHeight || 0)
+      };
+    }
+
+    return {
+      rect: rect,
+      offsets: {
+        top: rect.top - containerRect.top,
+        right: containerRect.right - rect.right,
+        bottom: containerRect.bottom - rect.bottom,
+        left: rect.left - containerRect.left
+      }
+    };
+  }
+
   function measure() {
     var viewport = window.visualViewport || null;
     var layoutWidth = Math.round(window.innerWidth || document.documentElement.clientWidth || 0);
@@ -234,6 +318,7 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
     var usableBottom = footer.exists ? Math.max(0, Math.min(layoutHeight, footer.top)) : layoutHeight;
     var usableHeight = Math.max(0, usableBottom - usableTop);
     var keyboardGap = Math.max(0, Math.round(layoutHeight - visualHeight - visualOffsetTop));
+    var input = detectInputCapabilities();
 
     return {
       orientation: orientation,
@@ -243,6 +328,11 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
       rwdGroup: group.group,
       rwdGroupLabel: group.label,
       rwdConfigSource: rwd.configSource,
+      primaryPointer: input.primaryPointer,
+      hoverCapable: input.hoverCapable,
+      coarsePointerPresent: input.coarsePointerPresent,
+      interactionProfile: input.interactionProfile,
+      requiresTouchGuard: input.requiresTouchGuard,
       layoutWidth: layoutWidth,
       layoutHeight: layoutHeight,
       visualWidth: visualWidth,
@@ -325,6 +415,16 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
     window.addEventListener("resize", scheduleUpdate, { passive: true });
     window.addEventListener("orientationchange", scheduleUpdate, { passive: true });
 
+    ["(pointer: fine)", "(pointer: coarse)", "(hover: hover)", "(any-pointer: coarse)"].forEach(function (query) {
+      if (!window.matchMedia) return;
+      try {
+        var media = window.matchMedia(query);
+        if (media.addEventListener) media.addEventListener("change", scheduleUpdate);
+        else if (media.addListener) media.addListener(scheduleUpdate);
+        inputMediaQueries.push(media);
+      } catch (error) {}
+    });
+
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", scheduleUpdate, { passive: true });
       window.visualViewport.addEventListener("scroll", scheduleUpdate, { passive: true });
@@ -378,6 +478,14 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
       window.visualViewport.removeEventListener("scroll", scheduleUpdate);
     }
 
+    for (i = 0; i < inputMediaQueries.length; i += 1) {
+      try {
+        if (inputMediaQueries[i].removeEventListener) inputMediaQueries[i].removeEventListener("change", scheduleUpdate);
+        else if (inputMediaQueries[i].removeListener) inputMediaQueries[i].removeListener(scheduleUpdate);
+      } catch (error) {}
+    }
+    inputMediaQueries = [];
+
     for (i = 0; i < resizeObservers.length; i += 1) {
       try { resizeObservers[i].disconnect(); } catch (error) {}
     }
@@ -390,10 +498,12 @@ RWD group 的地方——implementation plan `docs/roadmap-202607.md` 順序
   }
 
   window.JonaminzLayoutMetrics = {
-    version: "v1.0.0-20260712",
+    version: "v1.1.0-20260723",
     eventName: UPDATE_EVENT,
     getState: function () { return clone(state); },
     measure: function () { return clone(updateNow()); },
+    measureElement: measureElement,
+    detectInputCapabilities: function () { return clone(detectInputCapabilities()); },
     schedule: scheduleUpdate,
     subscribe: subscribe,
     rwdModeForWidth: function (width) { return clone(rwdModeForWidth(width)); },

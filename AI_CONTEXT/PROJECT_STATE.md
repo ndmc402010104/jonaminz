@@ -1,5 +1,14 @@
 # PROJECT_STATE — jonaminz 專案現況
 
+## LayoutMetrics SDK capability（2026-07-23）
+
+- layout.metrics@1 與 window.Jonaminz.layout 已在功能分支完成，包含 getMetrics、subscribe、measureElement、whenReady。
+- immutable SDK release：sdk-0d16d62011e9.js；sdk-versions.json 目標 revision 24，stable／next 都指向該 release。
+- jonaminz-travel.prod 的目標授權 revision 6 已加入 layout.metrics@1。
+- 程式與降級測試已通過；Cloudflare Worker 尚待已登入 Wrangler 的桌機環境部署，部署後才算 production grant 生效。
+- 使用者需實機確認：桌機滑鼠、手機觸控、觸控筆電／混合輸入、SDK 未載入／被攔截。
+
+
 **2026-07-13 最新進度**：「圖書館」比喻作廢，改成大廳／房間／後台三層
 （`DECISIONS.md` §四）。大廳（首頁）**已實作**：米紙 Rice Paper 淺色
 系＋真實圓相字標 logo，取代原本的深色簽名導覽＋文字字標，Playwright
