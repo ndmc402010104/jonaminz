@@ -1,15 +1,26 @@
 {
   "schemaVersion": 1,
-  "revision": 5,
+  "revision": 6,
   "projects": {
     "jonaminz-movies": {
       "environments": {
-        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": [] }
+        "prod": {
+          "origin": "https://ndmc402010104.github.io",
+          "css": "none",
+          "capabilities": []
+        }
       }
     },
     "jonaminz-travel": {
       "environments": {
-        "prod": { "origin": "https://ndmc402010104.github.io", "css": "none", "capabilities": ["chat.launcher@1"] }
+        "prod": {
+          "origin": "https://ndmc402010104.github.io",
+          "css": "none",
+          "capabilities": [
+            "chat.launcher@1",
+            "layout.metrics@1"
+          ]
+        }
       }
     }
   }
