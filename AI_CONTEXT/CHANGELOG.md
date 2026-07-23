@@ -20,6 +20,18 @@
 
 ---
 
+## 2026-07-23 — LayoutMetrics 正式發布為 SDK capability
+
+- **任務**：將共用版面量測擴充為唯一的輸入能力判斷來源，透過 SDK 提供給 Travel 的地圖觸控守衛。
+- **變更**：LayoutMetrics 新增 pointer／hover 能力、interactionProfile、requiresTouchGuard、measureElement 與媒體能力變更廣播；SDK 永久發布 grant-gated 的 window.Jonaminz.layout；新增 immutable SDK release sdk-0d16d62011e9.js；Travel prod 授權設定加入 layout.metrics@1。
+- **狀態變化**：桌機、觸控、混合輸入的判斷集中於 Core；外部專案不需也不得自行維護 matchMedia／裝置斷點。
+- **驗證**：純函式與 runtime mock 已覆蓋 desktop-pointer、touch、hybrid、subscribe、measureElement、授權與未授權降級。
+- **遺留**：Cloudflare Worker 尚需在已登入 Wrangler 的桌機環境部署；部署後需實機確認桌機滑鼠、手機觸控、觸控筆電／混合輸入、SDK 被攔截四種情境。
+- **版本**：v0.47.0-202607232346（SDK release 0d16d62011e9；sdk-versions revision 24）
+
+---
+
+
 ## 2026-07-17（凌晨，第二十三筆）— 待辦看板排程系統（due_at＋排程區＋倒數）
 
 - **任務**：使用者「全部完成吧」三件中的最後一件、份量最完整的一件。
