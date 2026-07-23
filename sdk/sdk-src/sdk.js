@@ -69,6 +69,10 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
   var DEFAULT_CONTRACT_PATH = "/jonaminz.contract.json";
   var FETCH_TIMEOUT_MS = 8000;
 
+  var LAYOUT_CAPABILITY = "layout.metrics@1";
+  var LAYOUT_METRICS_URL = "https://www.jonaminz.com/assets/js/layout-metrics.js";
+  var layoutMetricsLoadPromise = null;
+
   var IDENTITY_CAPABILITY = "identity.current-user@1";
   var IDENTITY_RELAY_URL = "https://www.jonaminz.com/pages/identity-relay/";
   var IDENTITY_RELAY_ORIGIN = "https://www.jonaminz.com";
@@ -722,6 +726,41 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
     }
   }
 
+
+  function ensureLayoutMetricsLoaded(release) {
+    if (window.JonaminzLayoutMetrics) return Promise.resolve(window.JonaminzLayoutMetrics);
+    if (layoutMetricsLoadPromise) return layoutMetricsLoadPromise;
+
+    layoutMetricsLoadPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      var settled = false;
+      var timer = window.setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        reject(new Error("LAYOUT_METRICS_LOAD_TIMEOUT"));
+      }, FETCH_TIMEOUT_MS);
+
+      function finish(error) {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        if (error || !window.JonaminzLayoutMetrics) {
+          reject(error || new Error("LAYOUT_METRICS_UNAVAILABLE"));
+          return;
+        }
+        resolve(window.JonaminzLayoutMetrics);
+      }
+
+      script.async = true;
+      script.src = LAYOUT_METRICS_URL + "?sdk=" + encodeURIComponent(release || "stable");
+      script.onload = function () { finish(null); };
+      script.onerror = function () { finish(new Error("LAYOUT_METRICS_LOAD_FAILED")); };
+      (document.head || document.documentElement).appendChild(script);
+    });
+
+    return layoutMetricsLoadPromise;
+  }
+
   function makeCapabilityError(code, message, retryable) {
     return {
       code: code,
@@ -838,6 +877,69 @@ sdk/sdk-<hash>.js，並且要人工決定要不要把某個 channel 的指標指
       });
     }
     jz.identity = { currentUser: currentUser };
+
+
+    function layoutIsGranted() {
+      return settingsSettled && effectiveCapabilities.indexOf(LAYOUT_CAPABILITY) !== -1;
+    }
+
+    function layoutGetMetrics() {
+      if (!layoutIsGranted()) return null;
+      var metrics = window.JonaminzLayoutMetrics;
+      if (!metrics || typeof metrics.getState !== "function") return null;
+      return metrics.getState();
+    }
+
+    function layoutMeasureElement(element, container) {
+      if (!layoutIsGranted()) return null;
+      var metrics = window.JonaminzLayoutMetrics;
+      if (!metrics || typeof metrics.measureElement !== "function") return null;
+      return metrics.measureElement(element, container);
+    }
+
+    function layoutWhenReady() {
+      return whenSettingsSettled().then(function () {
+        if (effectiveCapabilities.indexOf(LAYOUT_CAPABILITY) === -1) {
+          return { granted: false, reason: jz.reason || "CAPABILITY_NOT_GRANTED" };
+        }
+        return ensureLayoutMetricsLoaded(release).then(function () {
+          return { granted: true, reason: null };
+        }).catch(function (error) {
+          return {
+            granted: false,
+            reason: String((error && error.message) || "LAYOUT_METRICS_LOAD_FAILED")
+          };
+        });
+      });
+    }
+
+    function layoutSubscribe(handler) {
+      var active = true;
+      var innerUnsubscribe = null;
+      if (typeof handler !== "function") return function () {};
+
+      layoutWhenReady().then(function (result) {
+        if (!active || !result.granted) return;
+        var metrics = window.JonaminzLayoutMetrics;
+        if (!metrics || typeof metrics.subscribe !== "function") return;
+        innerUnsubscribe = metrics.subscribe(function (value) {
+          if (active) handler(value);
+        });
+      }).catch(function () {});
+
+      return function () {
+        active = false;
+        if (innerUnsubscribe) innerUnsubscribe();
+        innerUnsubscribe = null;
+      };
+    }
+
+    jz.layout = {
+      getMetrics: layoutGetMetrics,
+      subscribe: layoutSubscribe,
+      measureElement: layoutMeasureElement,
+      whenReady: layoutWhenReady
+    };
 
     var contractUrl = resolveContractUrl(contractOverride);
     if (!contractUrl) {
