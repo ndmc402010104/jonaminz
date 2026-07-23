@@ -465,3 +465,14 @@ Theme 系統，之後可推廣給其他 first-party app 共用同一套機制。
     checklist 擋語意（「頁面真的做到了嗎」）；視覺合約靠「平台元件」
     這個機制本身讓「用了＝合規」幾乎恆真，checklist 只剩查「元件有
     沒有被宿主蓋住/藏起來」這種平台管不到的事。
+
+---
+
+## 九、LayoutMetrics SDK capability（2026-07-23 使用者裁決）
+
+42. **LayoutMetrics 成為外部專案唯一的輸入能力判斷來源，並以 layout.metrics@1 正式發布。** window.Jonaminz.layout 在 SDK 初始化時永久掛載，但所有實際資料都受 capability grant 控制。正式 API 為 getMetrics()、subscribe(handler)、measureElement(element[, container]) 與 whenReady()。前三者維持同步讀取／訂閱語意；whenReady() 負責等候 effective settings settle 並明確回報 grant，避免消費端各自猜測 SDK 狀態。
+
+43. **輸入能力規則只存在 Core LayoutMetrics。** primaryPointer、hoverCapable、coarsePointerPresent、interactionProfile 與 requiresTouchGuard 都由共用模組的 media queries 產生並廣播。外部專案不得另寫 viewport 斷點、user agent 或 matchMedia 規則來判斷地圖是否需觸控守衛；觸控筆電只要存在 coarse pointer 就採守衛，優先確保頁面可滑動。
+
+44. **未授權、未就緒或 degraded 時採 fail-safe。** getMetrics() 與 measureElement() 回 null、subscribe() 回可安全呼叫的 unsubscribe 但不觸發 handler、whenReady() 回 {granted:false, reason}。Travel 因此維持地圖鎖定，不讓共用服務故障轉化為手機頁面無法捲動。
+
